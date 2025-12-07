@@ -4,7 +4,7 @@ Expression Generator Mixin
 Generates Java code from L3 Transform expression AST nodes.
 """
 
-from typing import Set, Union, List, Optional
+from typing import Set, List, Optional
 
 from backend.ast import transform_ast as ast
 
@@ -19,6 +19,66 @@ class ExpressionGeneratorMixin:
     - Function calls
     - Field access and null-safe navigation
     """
+
+    # =========================================================================
+    # Operator Mapping Constants
+    # =========================================================================
+
+    # Maps DSL string operators to Java operators
+    DSL_TO_JAVA_OPERATORS = {
+        # Logical operators
+        'and': '&&',
+        'or': '||',
+        '&&': '&&',
+        '||': '||',
+        # Comparison operators
+        '=': '==',  # DSL equality uses single =
+        '==': '==',
+        '!=': '!=',
+        '<>': '!=',
+        '<': '<',
+        '>': '>',
+        '<=': '<=',
+        '>=': '>=',
+        # Arithmetic operators
+        '+': '+',
+        '-': '-',
+        '*': '*',
+        '/': '/',
+        '%': '%',
+    }
+
+    # Maps DSL function names to Java method equivalents
+    DSL_TO_JAVA_FUNCTIONS = {
+        # Math functions
+        "min": "Math.min",
+        "max": "Math.max",
+        "abs": "Math.abs",
+        "round": "Math.round",
+        "floor": "Math.floor",
+        "ceil": "Math.ceil",
+        "sqrt": "Math.sqrt",
+        "pow": "Math.pow",
+        # Date/time functions
+        "now": "Instant.now",
+        "today": "LocalDate.now",
+        # String functions
+        "len": "String::length",
+        "upper": "String::toUpperCase",
+        "lower": "String::toLowerCase",
+        "trim": "String::trim",
+        "concat": "String::concat",
+        "substring": "String::substring",
+        "contains": "String::contains",
+        "starts_with": "String::startsWith",
+        "ends_with": "String::endsWith",
+        # Utility functions
+        "coalesce": "Objects::requireNonNullElse",
+    }
+
+    # =========================================================================
+    # Expression Generation Methods
+    # =========================================================================
 
     def generate_expression(
         self,
@@ -94,30 +154,27 @@ class ExpressionGeneratorMixin:
     def _generate_field_path(
         self,
         fp: ast.FieldPath,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate Java getter chain for field path.
 
         Args:
             fp: The field path AST node
             use_map: If True, generate Map.get() access instead of getter methods
-            local_vars: List of local variable names to reference directly
+            local_vars: List of local variable names to reference directly (normalized by caller)
         """
-        if local_vars is None:
-            local_vars = []
-
         parts = fp.parts
         first_part = parts[0]
 
         # Check if first part is a local variable
-        first_part_camel = self._to_camel_case(first_part)
+        first_part_camel = self.to_camel_case(first_part)
         if first_part_camel in local_vars:
             # Local variable reference - use directly
             if len(parts) == 1:
                 return first_part_camel
             # For nested access on local var, use getter chain
-            rest = ".".join(self._to_getter(p) for p in parts[1:])
+            rest = ".".join(self.to_getter(p) for p in parts[1:])
             return f"{first_part_camel}.{rest}"
 
         # Input field access
@@ -128,24 +185,22 @@ class ExpressionGeneratorMixin:
                 return f'((Number)input.get("{first_part}")).doubleValue()'
             # For nested paths: input.get("a") then chain getters
             # This assumes first level is Map, nested levels are POJOs
-            rest = ".".join(self._to_getter(p) for p in parts[1:])
+            rest = ".".join(self.to_getter(p) for p in parts[1:])
             return f'((Object)input.get("{first_part}")).{rest}'
 
         # Standard getter chain: a.b.c -> getA().getB().getC()
         if len(parts) == 1:
-            return self._to_getter(parts[0])
-        getters = [self._to_getter(p) for p in parts]
+            return self.to_getter(parts[0])
+        getters = [self.to_getter(p) for p in parts]
         return ".".join(getters)
 
     def _generate_function_call(
         self,
         func: ast.FunctionCall,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate Java function call."""
-        if local_vars is None:
-            local_vars = []
         args = ", ".join(self.generate_expression(a, use_map, local_vars) for a in func.arguments)
         java_name = self._map_function_name(func.name)
         return f"{java_name}({args})"
@@ -153,12 +208,10 @@ class ExpressionGeneratorMixin:
     def _generate_when_expression(
         self,
         when: ast.WhenExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate nested ternary for when/otherwise."""
-        if local_vars is None:
-            local_vars = []
         result = self.generate_expression(when.otherwise, use_map, local_vars)
 
         # Build from inside out
@@ -172,12 +225,10 @@ class ExpressionGeneratorMixin:
     def _generate_binary_expression(
         self,
         binary: ast.BinaryExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate binary operation."""
-        if local_vars is None:
-            local_vars = []
         left = self.generate_expression(binary.left, use_map, local_vars)
         right = self.generate_expression(binary.right, use_map, local_vars)
         op = binary.operator
@@ -204,39 +255,15 @@ class ExpressionGeneratorMixin:
     def _map_string_operator(self, op: str) -> str:
         """Map string operator from parser to Java operator."""
         op_lower = op.lower().strip()
-        string_op_map = {
-            # Logical operators
-            'and': '&&',
-            'or': '||',
-            '&&': '&&',
-            '||': '||',
-            # Comparison operators
-            '=': '==',  # DSL equality uses single =
-            '==': '==',
-            '!=': '!=',
-            '<>': '!=',
-            '<': '<',
-            '>': '>',
-            '<=': '<=',
-            '>=': '>=',
-            # Arithmetic operators
-            '+': '+',
-            '-': '-',
-            '*': '*',
-            '/': '/',
-            '%': '%',
-        }
-        return string_op_map.get(op_lower, op)
+        return self.DSL_TO_JAVA_OPERATORS.get(op_lower, op)
 
     def _generate_unary_expression(
         self,
         unary: ast.UnaryExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate unary operation."""
-        if local_vars is None:
-            local_vars = []
         operand = self.generate_expression(unary.operand, use_map, local_vars)
         if unary.operator == ast.UnaryOp.NOT:
             return f"!({operand})"
@@ -247,12 +274,10 @@ class ExpressionGeneratorMixin:
     def _generate_between_expression(
         self,
         between: ast.BetweenExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate between check."""
-        if local_vars is None:
-            local_vars = []
         value = self.generate_expression(between.value, use_map, local_vars)
         lower = self.generate_expression(between.lower, use_map, local_vars)
         upper = self.generate_expression(between.upper, use_map, local_vars)
@@ -265,12 +290,10 @@ class ExpressionGeneratorMixin:
     def _generate_in_expression(
         self,
         in_expr: ast.InExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate set membership check."""
-        if local_vars is None:
-            local_vars = []
         value = self.generate_expression(in_expr.value, use_map, local_vars)
         elements = ", ".join(
             self.generate_expression(e, use_map, local_vars) for e in in_expr.values.values
@@ -283,12 +306,10 @@ class ExpressionGeneratorMixin:
     def _generate_is_null_expression(
         self,
         is_null: ast.IsNullExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate null check."""
-        if local_vars is None:
-            local_vars = []
         value = self.generate_expression(is_null.value, use_map, local_vars)
         if is_null.negated:
             return f"({value} != null)"
@@ -297,27 +318,23 @@ class ExpressionGeneratorMixin:
     def _generate_optional_chain(
         self,
         chain: ast.OptionalChainExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate null-safe navigation."""
-        if local_vars is None:
-            local_vars = []
         base = self._generate_field_path(chain.base, use_map, local_vars)
         for field_name in chain.chain:
-            getter = self._to_getter(field_name)
+            getter = self.to_getter(field_name)
             base = f"Optional.ofNullable({base}).map(v -> v.{getter}).orElse(null)"
         return base
 
     def _generate_index_expression(
         self,
         index: ast.IndexExpression,
-        use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        use_map: bool,
+        local_vars: List[str]
     ) -> str:
         """Generate array/list index access."""
-        if local_vars is None:
-            local_vars = []
         base = self._generate_field_path(index.base, use_map, local_vars)
         idx = self.generate_expression(index.index, use_map, local_vars)
         return f"{base}.get((int)({idx}))"
@@ -337,39 +354,7 @@ class ExpressionGeneratorMixin:
 
     def _map_function_name(self, name: str) -> str:
         """Map DSL function name to Java method."""
-        function_map = {
-            "min": "Math.min",
-            "max": "Math.max",
-            "abs": "Math.abs",
-            "round": "Math.round",
-            "floor": "Math.floor",
-            "ceil": "Math.ceil",
-            "sqrt": "Math.sqrt",
-            "pow": "Math.pow",
-            "now": "Instant.now",
-            "today": "LocalDate.now",
-            "len": "String::length",
-            "upper": "String::toUpperCase",
-            "lower": "String::toLowerCase",
-            "trim": "String::trim",
-            "concat": "String::concat",
-            "substring": "String::substring",
-            "contains": "String::contains",
-            "starts_with": "String::startsWith",
-            "ends_with": "String::endsWith",
-            "coalesce": "Objects::requireNonNullElse",
-        }
-        return function_map.get(name, self._to_camel_case(name))
-
-    def _to_getter(self, field_name: str) -> str:
-        """Convert field name to getter method call."""
-        camel = self._to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return self.DSL_TO_JAVA_FUNCTIONS.get(name, self.to_camel_case(name))
 
     def get_expression_imports(self) -> Set[str]:
         """Get required imports for expression generation."""

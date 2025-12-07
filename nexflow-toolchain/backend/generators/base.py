@@ -187,6 +187,57 @@ class BaseGenerator(ABC):
                         for line in code.split('\n'))
 
     # =========================================================================
+    # Java Naming Convention Utilities
+    # =========================================================================
+
+    def to_camel_case(self, name: str) -> str:
+        """Convert snake_case to camelCase.
+
+        Args:
+            name: Snake case name (e.g., 'my_field_name')
+
+        Returns:
+            Camel case name (e.g., 'myFieldName')
+        """
+        parts = name.split('_')
+        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+
+    def to_pascal_case(self, name: str) -> str:
+        """Convert snake_case to PascalCase.
+
+        Args:
+            name: Snake case name (e.g., 'my_class_name')
+
+        Returns:
+            Pascal case name (e.g., 'MyClassName')
+        """
+        return ''.join(word.capitalize() for word in name.split('_'))
+
+    def to_getter(self, field_name: str) -> str:
+        """Convert field name to Java getter method call.
+
+        Args:
+            field_name: Field name in snake_case or camelCase
+
+        Returns:
+            Getter method call (e.g., 'getMyField()')
+        """
+        camel = self.to_camel_case(field_name)
+        return f"get{camel[0].upper()}{camel[1:]}()"
+
+    def to_setter(self, field_name: str) -> str:
+        """Convert field name to Java setter method name.
+
+        Args:
+            field_name: Field name in snake_case or camelCase
+
+        Returns:
+            Setter method name (e.g., 'setMyField')
+        """
+        camel = self.to_camel_case(field_name)
+        return f"set{camel[0].upper()}{camel[1:]}"
+
+    # =========================================================================
     # File Header Generation
     # =========================================================================
 

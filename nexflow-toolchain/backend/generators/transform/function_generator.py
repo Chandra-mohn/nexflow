@@ -27,7 +27,7 @@ class FunctionGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate MapFunction implementation for a simple transform."""
-        class_name = self._to_pascal_case(transform.name) + "Function"
+        class_name = self.to_pascal_case(transform.name) + "Function"
 
         imports = self._collect_transform_imports(transform)
 
@@ -122,7 +122,7 @@ class FunctionGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate ProcessFunction implementation for block-level transform."""
-        class_name = self._to_pascal_case(block.name) + "ProcessFunction"
+        class_name = self.to_pascal_case(block.name) + "ProcessFunction"
 
         imports = self._collect_block_imports(block)
 
@@ -196,8 +196,8 @@ class FunctionGeneratorMixin:
         """Generate field references for used transforms."""
         lines = ["    // Referenced transforms"]
         for transform_name in use.transforms:
-            class_name = self._to_pascal_case(transform_name) + "Function"
-            field_name = self._to_camel_case(transform_name) + "Transform"
+            class_name = self.to_pascal_case(transform_name) + "Function"
+            field_name = self.to_camel_case(transform_name) + "Transform"
             lines.append(
                 f"    private transient {class_name} {field_name};"
             )
@@ -213,8 +213,8 @@ class FunctionGeneratorMixin:
         # Initialize used transforms
         if block.use:
             for transform_name in block.use.transforms:
-                class_name = self._to_pascal_case(transform_name) + "Function"
-                field_name = self._to_camel_case(transform_name) + "Transform"
+                class_name = self.to_pascal_case(transform_name) + "Function"
+                field_name = self.to_camel_case(transform_name) + "Transform"
                 lines.append(f"        {field_name} = new {class_name}();")
 
         lines.append("    }")
@@ -328,37 +328,24 @@ class FunctionGeneratorMixin:
 
         return imports
 
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+    # Note: _to_pascal_case and _to_camel_case are inherited from BaseGenerator
+    # as to_pascal_case() and to_camel_case() - use those instead
 
     def _generate_setter_chain(self, field_path: ast.FieldPath) -> str:
         """Generate setter method chain for field path."""
         parts = field_path.parts
         if len(parts) == 1:
-            return self._to_setter(parts[0])
+            return self.to_setter(parts[0])
         setters = []
         for i, part in enumerate(parts):
             if i < len(parts) - 1:
-                setters.append(self._to_getter(part))
+                setters.append(self.to_getter(part))
             else:
-                setters.append(self._to_setter(part))
+                setters.append(self.to_setter(part))
         return ".".join(setters)
 
-    def _to_getter(self, field_name: str) -> str:
-        """Convert field name to getter method call."""
-        camel = self._to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
-
-    def _to_setter(self, field_name: str) -> str:
-        """Convert field name to setter method name."""
-        camel = self._to_camel_case(field_name)
-        return f"set{camel[0].upper()}{camel[1:]}"
+    # Note: _to_getter and _to_setter are inherited from BaseGenerator
+    # as to_getter() and to_setter() - use those instead
 
     def get_function_imports(self) -> Set[str]:
         """Get base imports for function generation."""

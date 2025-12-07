@@ -26,8 +26,8 @@ class CacheGeneratorMixin:
             return ""
 
         ttl_ms = self._duration_to_ms(cache.ttl)
-        state_var = f"{self._to_camel_case(transform_name)}CacheState"
-        state_desc = f"{self._to_camel_case(transform_name)}CacheStateDesc"
+        state_var = f"{self.to_camel_case(transform_name)}CacheState"
+        state_desc = f"{self.to_camel_case(transform_name)}CacheStateDesc"
 
         lines = [
             "    // Flink State-based Cache Configuration",
@@ -61,7 +61,7 @@ class CacheGeneratorMixin:
 
     def _generate_cache_key_builder(self, key_fields: list, transform_name: str) -> list:
         """Generate cache key builder method."""
-        method_name = f"build{self._to_pascal_case(transform_name)}CacheKey"
+        method_name = f"build{self.to_pascal_case(transform_name)}CacheKey"
 
         lines = [
             "    /**",
@@ -72,7 +72,7 @@ class CacheGeneratorMixin:
         ]
 
         for i, field in enumerate(key_fields):
-            getter = self._to_getter(field)
+            getter = self.to_getter(field)
             if i > 0:
                 lines.append('        keyBuilder.append("::");')
             lines.append(f"        keyBuilder.append(String.valueOf(input.{getter}));")
@@ -95,8 +95,8 @@ class CacheGeneratorMixin:
         if not cache:
             return ""
 
-        state_var = f"{self._to_camel_case(transform_name)}CacheState"
-        key_method = f"build{self._to_pascal_case(transform_name)}CacheKey"
+        state_var = f"{self.to_camel_case(transform_name)}CacheState"
+        key_method = f"build{self.to_pascal_case(transform_name)}CacheKey"
 
         return f'''    /**
      * Cached version of {transform_name} transform using Flink state.
@@ -126,19 +126,8 @@ class CacheGeneratorMixin:
         }
         return duration.value * multipliers.get(duration.unit, 1)
 
-    def _to_getter(self, field_name: str) -> str:
-        """Convert field name to getter method call."""
-        camel = self._to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
-
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+    # Note: _to_getter, _to_camel_case, _to_pascal_case are inherited from BaseGenerator
+    # as to_getter(), to_camel_case(), to_pascal_case() - use those instead
 
     def get_cache_imports(self) -> Set[str]:
         """Get required imports for Flink state-based cache generation."""

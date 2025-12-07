@@ -57,16 +57,16 @@ class MappingGeneratorMixin:
         parts = field_path.parts
 
         if len(parts) == 1:
-            return self._to_setter(parts[0])
+            return self.to_setter(parts[0])
 
         # For nested paths like enriched.transaction_id
         # Generate: getEnriched().setTransactionId
         setters = []
         for i, part in enumerate(parts):
             if i < len(parts) - 1:
-                setters.append(self._to_getter(part))
+                setters.append(self.to_getter(part))
             else:
-                setters.append(self._to_setter(part))
+                setters.append(self.to_setter(part))
 
         return ".".join(setters)
 
@@ -81,7 +81,7 @@ class MappingGeneratorMixin:
         for stmt in apply.statements:
             if isinstance(stmt, ast.LocalAssignment):
                 # Local variable assignment
-                var_name = self._to_camel_case(stmt.name)
+                var_name = self.to_camel_case(stmt.name)
                 value = self.generate_expression(stmt.value, use_map, local_vars)
                 lines.append(f"        var {var_name} = {value};")
                 local_vars.append(var_name)
@@ -196,20 +196,8 @@ class MappingGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _to_getter(self, field_name: str) -> str:
-        """Convert field name to getter method call."""
-        camel = self._to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
-
-    def _to_setter(self, field_name: str) -> str:
-        """Convert field name to setter method name."""
-        camel = self._to_camel_case(field_name)
-        return f"set{camel[0].upper()}{camel[1:]}"
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+    # Note: _to_getter, _to_setter, _to_camel_case are inherited from BaseGenerator
+    # as to_getter(), to_setter(), to_camel_case() - use those instead
 
     def get_mapping_imports(self) -> Set[str]:
         """Get required imports for mapping generation."""
