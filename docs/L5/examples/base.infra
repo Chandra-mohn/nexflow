@@ -1,0 +1,154 @@
+# base.infra - Shared Infrastructure Configuration
+# This file contains common configurations inherited by environment-specific files.
+#
+# Usage: Other .infra files use `extends: base.infra` to inherit these settings.
+
+version: "1.0"
+environment: base
+description: "Base infrastructure bindings shared across all environments"
+
+# ==============================================================================
+# Stream Bindings (Common Configuration)
+# ==============================================================================
+streams:
+  # Authorization events - main input stream
+  auth_events:
+    type: kafka
+    partitions: 128
+    replication: 3
+    serialization:
+      key_format: string
+      value_format: avro
+      avro:
+        subject_name_strategy: TopicNameStrategy
+        auto_register: false
+    error_handling:
+      deserialization:
+        action: dlq
+        log_level: warn
+        max_errors_per_minute: 100
+      connectivity:
+        retry_attempts: 5
+        retry_backoff: exponential
+        initial_backoff: 1s
+        max_backoff: 60s
+
+  # Enriched authorizations - output stream
+  enriched_auths:
+    type: kafka
+    partitions: 128
+    replication: 3
+    serialization:
+      key_format: string
+      value_format: avro
+    producer:
+      acks: all
+      compression: lz4
+      idempotence: true
+
+  # Approved transactions
+  approved_auths:
+    type: kafka
+    partitions: 64
+    replication: 3
+
+  # Declined transactions
+  declined_auths:
+    type: kafka
+    partitions: 32
+    replication: 3
+
+  # Review queue
+  review_auths:
+    type: kafka
+    partitions: 16
+    replication: 3
+
+  # Fraud alerts
+  fraud_alerts:
+    type: kafka
+    partitions: 8
+    replication: 3
+
+# ==============================================================================
+# Lookup Bindings (Common Configuration)
+# ==============================================================================
+lookups:
+  # Customer data lookup
+  customers:
+    type: mongodb
+    read_preference: secondaryPreferred
+    cache:
+      enabled: true
+      ttl: 5m
+      max_size: 100000
+
+  # Merchant categories
+  merchant_categories:
+    type: postgresql
+    pool_size: 20
+    cache:
+      enabled: true
+      ttl: 1h
+      max_size: 50000
+
+  # Currency exchange rates
+  currency_rates:
+    type: redis
+    cache:
+      enabled: true
+      ttl: 1m
+      max_size: 1000
+
+# ==============================================================================
+# State Backend (Common Configuration)
+# ==============================================================================
+state_backends:
+  default:
+    type: rocksdb
+    incremental: true
+    options:
+      block_cache_size: 256mb
+      write_buffer_size: 64mb
+
+# ==============================================================================
+# Monitoring (Common Configuration)
+# ==============================================================================
+monitoring:
+  metrics:
+    type: prometheus
+    port: 9249
+    path: /metrics
+
+  logging:
+    format: json
+    outputs:
+      - type: stdout
+
+  alerts:
+    - name: high_latency
+      condition: "processing_latency_p99 > 1000ms"
+      severity: warning
+
+    - name: checkpoint_failure
+      condition: "checkpoint_failures > 3"
+      severity: critical
+
+    - name: consumer_lag
+      condition: "kafka_consumer_lag > 100000"
+      severity: warning
+
+    - name: error_rate
+      condition: "error_rate_per_minute > 10"
+      severity: critical
+
+# ==============================================================================
+# Resource Defaults
+# ==============================================================================
+resources:
+  _defaults:
+    parallelism: 16
+    task_memory: 2gb
+    task_cpu: 1
+    managed_memory: 512mb
+    network_memory: 64mb

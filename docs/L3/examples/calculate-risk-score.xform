@@ -1,0 +1,464 @@
+# L3 Example: Calculate Risk Score Transform Block
+#
+# Demonstrates: Block-level transform with multiple inputs
+# Use case: Multi-factor risk scoring with weighted components
+
+# =============================================================
+# Supporting Expression Transforms
+# =============================================================
+
+transform calculate_velocity_score
+  version: "1.0.0"
+  description: "Calculate transaction velocity risk component"
+  pure: true
+
+  input
+    transactions_1hr: integer
+    transactions_24hr: integer
+    avg_daily_transactions: decimal
+  end
+
+  output: decimal [range: 0..100]
+
+  apply
+    // Hourly velocity (0-40 points)
+    hourly_score = when transactions_1hr >= 10: 40
+                   when transactions_1hr >= 5: 30
+                   when transactions_1hr >= 3: 20
+                   otherwise: transactions_1hr * 4
+
+    // Daily velocity vs average (0-30 points)
+    daily_ratio = when avg_daily_transactions > 0:
+                    transactions_24hr / avg_daily_transactions
+                  otherwise: 1.0
+
+    daily_score = when daily_ratio >= 3.0: 30
+                  when daily_ratio >= 2.0: 20
+                  when daily_ratio >= 1.5: 10
+                  otherwise: 0
+
+    // Burst detection (0-30 points)
+    burst_score = when transactions_1hr > (transactions_24hr / 2) and transactions_1hr > 3: 30
+                  when transactions_1hr > (transactions_24hr / 4) and transactions_1hr > 2: 15
+                  otherwise: 0
+
+    output = min(hourly_score + daily_score + burst_score, 100)
+  end
+end
+
+
+transform calculate_amount_score
+  version: "1.0.0"
+  description: "Calculate amount risk component"
+  pure: true
+
+  input
+    amount: decimal
+    avg_transaction_amount: decimal
+    credit_limit: decimal
+  end
+
+  output: decimal [range: 0..100]
+
+  apply
+    // Amount vs average (0-40 points)
+    amount_ratio = when avg_transaction_amount > 0:
+                     amount / avg_transaction_amount
+                   otherwise: 1.0
+
+    amount_score = when amount_ratio >= 10: 40
+                   when amount_ratio >= 5: 30
+                   when amount_ratio >= 3: 20
+                   when amount_ratio >= 2: 10
+                   otherwise: 0
+
+    // Credit utilization (0-30 points)
+    utilization = when credit_limit > 0:
+                    (amount / credit_limit) * 100
+                  otherwise: 0
+
+    utilization_score = when utilization >= 90: 30
+                        when utilization >= 75: 20
+                        when utilization >= 50: 10
+                        otherwise: 0
+
+    // Large transaction threshold (0-30 points)
+    threshold_score = when amount >= 5000: 30
+                      when amount >= 2500: 20
+                      when amount >= 1000: 10
+                      otherwise: 0
+
+    output = min(amount_score + utilization_score + threshold_score, 100)
+  end
+end
+
+
+transform calculate_geography_score
+  version: "1.0.0"
+  description: "Calculate geographic risk component"
+  pure: true
+
+  input
+    merchant_country: string
+    customer_country: string
+    is_international: boolean
+    distance_from_home_km: decimal
+    high_risk_countries: list<string>
+  end
+
+  output: decimal [range: 0..100]
+
+  apply
+    // International transaction (0-30 points)
+    international_score = when is_international: 30
+                          otherwise: 0
+
+    // High-risk country (0-40 points)
+    country_score = when contains(high_risk_countries, merchant_country): 40
+                    otherwise: 0
+
+    // Distance from home (0-30 points)
+    distance_score = when distance_from_home_km > 1000: 30
+                     when distance_from_home_km > 500: 20
+                     when distance_from_home_km > 100: 10
+                     otherwise: 0
+
+    output = min(international_score + country_score + distance_score, 100)
+  end
+end
+
+
+transform calculate_behavioral_score
+  version: "1.0.0"
+  description: "Calculate behavioral risk component"
+  pure: true
+
+  input
+    is_first_transaction: boolean
+    days_since_last_activity: integer
+    is_new_merchant: boolean
+    is_unusual_mcc: boolean
+    is_odd_hours: boolean
+  end
+
+  output: decimal [range: 0..100]
+
+  apply
+    // First transaction risk (0-20 points)
+    first_txn_score = when is_first_transaction: 20
+                      otherwise: 0
+
+    // Dormancy risk (0-25 points)
+    dormancy_score = when days_since_last_activity > 90: 25
+                     when days_since_last_activity > 60: 20
+                     when days_since_last_activity > 30: 15
+                     otherwise: 0
+
+    // New merchant risk (0-15 points)
+    merchant_score = when is_new_merchant: 15
+                     otherwise: 0
+
+    // Unusual category risk (0-20 points)
+    mcc_score = when is_unusual_mcc: 20
+                otherwise: 0
+
+    // Time of day risk (0-20 points)
+    time_score = when is_odd_hours: 20
+                 otherwise: 0
+
+    output = min(first_txn_score + dormancy_score + merchant_score + mcc_score + time_score, 100)
+  end
+end
+
+
+# =============================================================
+# Main Transform Block: Multi-Factor Risk Score
+# =============================================================
+
+transform_block calculate_risk_score
+  version: "3.0.0"
+  description: "Calculate comprehensive fraud risk score with weighted components"
+  pure: true
+
+  input
+    // Transaction data
+    transaction: object
+      amount: decimal
+      currency: string
+      merchant_country: string
+      merchant_mcc: string
+      entry_mode: string
+      timestamp: timestamp
+    end
+
+    // Customer profile
+    customer: object
+      customer_id: string
+      home_country: string
+      credit_limit: decimal
+      risk_tier: string
+      avg_transaction_amount: decimal
+      avg_daily_transactions: decimal
+      usual_mcc_codes: list<string>
+      last_activity_date: date
+      first_transaction_date: date
+    end
+
+    // Real-time aggregates
+    aggregates: object
+      transactions_1hr: integer
+      transactions_24hr: integer
+      amount_24hr: decimal
+    end
+
+    // Reference data
+    config: object
+      high_risk_countries: list<string>
+      high_risk_mcc_codes: list<string>
+      odd_hours_start: integer  // e.g., 2 (2 AM)
+      odd_hours_end: integer    // e.g., 5 (5 AM)
+    end
+
+    // Optional enrichment
+    geo_enrichment: object, nullable
+      distance_from_home_km: decimal
+    end
+  end
+
+  output
+    // Overall score
+    risk_score: decimal [range: 0..100]
+    risk_level: string [values: low, medium, high, critical]
+
+    // Component scores
+    velocity_score: decimal
+    amount_score: decimal
+    geography_score: decimal
+    behavioral_score: decimal
+
+    // Risk factors
+    risk_factors: list<string>
+    factor_count: integer
+
+    // Recommendations
+    recommended_action: string [values: approve, review, decline]
+    review_reason: string, nullable
+  end
+
+  // Component weights (configurable)
+  config
+    velocity_weight: 0.25
+    amount_weight: 0.30
+    geography_weight: 0.25
+    behavioral_weight: 0.20
+  end
+
+  mappings
+    // =====================================================
+    // Calculate Component Scores
+    // =====================================================
+
+    // Velocity risk
+    velocity_score = calculate_velocity_score(
+      aggregates.transactions_1hr,
+      aggregates.transactions_24hr,
+      customer.avg_daily_transactions
+    )
+
+    // Amount risk
+    amount_score = calculate_amount_score(
+      transaction.amount,
+      customer.avg_transaction_amount,
+      customer.credit_limit
+    )
+
+    // Geography risk
+    is_international = transaction.merchant_country != customer.home_country
+    distance = when geo_enrichment is not null: geo_enrichment.distance_from_home_km
+               otherwise: 0
+
+    geography_score = calculate_geography_score(
+      transaction.merchant_country,
+      customer.home_country,
+      is_international,
+      distance,
+      config.high_risk_countries
+    )
+
+    // Behavioral risk
+    is_first_txn = customer.first_transaction_date is null
+    days_inactive = when customer.last_activity_date is not null:
+                      days_between(today(), customer.last_activity_date)
+                    otherwise: 0
+    is_new_merchant = true  // Would need merchant history lookup
+    is_unusual_mcc = not contains(customer.usual_mcc_codes, transaction.merchant_mcc)
+    txn_hour = hour(transaction.timestamp)
+    is_odd_hours = txn_hour >= config.odd_hours_start and txn_hour <= config.odd_hours_end
+
+    behavioral_score = calculate_behavioral_score(
+      is_first_txn,
+      days_inactive,
+      is_new_merchant,
+      is_unusual_mcc,
+      is_odd_hours
+    )
+
+    // =====================================================
+    // Calculate Weighted Overall Score
+    // =====================================================
+
+    risk_score = round(
+      velocity_score * config.velocity_weight +
+      amount_score * config.amount_weight +
+      geography_score * config.geography_weight +
+      behavioral_score * config.behavioral_weight,
+      2
+    )
+
+    // =====================================================
+    // Determine Risk Level
+    // =====================================================
+
+    risk_level = when risk_score >= 80: "critical"
+                 when risk_score >= 60: "high"
+                 when risk_score >= 40: "medium"
+                 otherwise: "low"
+
+    // =====================================================
+    // Collect Risk Factors
+    // =====================================================
+
+    risk_factors = []
+
+    // Velocity factors
+    when velocity_score >= 30:
+      risk_factors = append(risk_factors, "High transaction velocity")
+    end
+
+    // Amount factors
+    when amount_score >= 30:
+      risk_factors = append(risk_factors, "Unusual transaction amount")
+    end
+    when transaction.amount >= 5000:
+      risk_factors = append(risk_factors, "Large transaction")
+    end
+
+    // Geography factors
+    when is_international:
+      risk_factors = append(risk_factors, "International transaction")
+    end
+    when contains(config.high_risk_countries, transaction.merchant_country):
+      risk_factors = append(risk_factors, "High-risk country")
+    end
+
+    // Behavioral factors
+    when is_first_txn:
+      risk_factors = append(risk_factors, "First transaction on account")
+    end
+    when days_inactive > 30:
+      risk_factors = append(risk_factors, "Account dormancy")
+    end
+    when is_unusual_mcc:
+      risk_factors = append(risk_factors, "Unusual merchant category")
+    end
+    when is_odd_hours:
+      risk_factors = append(risk_factors, "Transaction during odd hours")
+    end
+
+    factor_count = size(risk_factors)
+
+    // =====================================================
+    // Determine Recommended Action
+    // =====================================================
+
+    recommended_action = when risk_level = "critical": "decline"
+                         when risk_level = "high": "review"
+                         when customer.risk_tier = "high" and risk_level = "medium": "review"
+                         otherwise: "approve"
+
+    review_reason = when recommended_action = "review":
+                      join(risk_factors, "; ")
+                    otherwise: null
+  end
+end
+
+
+# =============================================================
+# Usage Example in L1 Process
+# =============================================================
+#
+# process fraud_scoring
+#   receive events from auth_requests
+#     schema auth_request_schema
+#
+#   // Lookup customer profile
+#   enrich using customer_lookup on card_id
+#     select credit_limit, risk_tier, avg_transaction_amount,
+#            avg_daily_transactions, usual_mcc_codes,
+#            last_activity_date, first_transaction_date, home_country
+#
+#   // Get real-time aggregates
+#   aggregate using velocity_aggregates
+#     select transactions_1hr, transactions_24hr, amount_24hr
+#
+#   // Load reference data
+#   lookup using risk_config
+#     select high_risk_countries, high_risk_mcc_codes,
+#            odd_hours_start, odd_hours_end
+#
+#   // Calculate risk score
+#   transform using calculate_risk_score
+#
+#   // Route based on recommendation
+#   route
+#     when recommended_action = "approve": approved_transactions
+#     when recommended_action = "review": manual_review_queue
+#     when recommended_action = "decline": declined_transactions
+#   end
+# end
+#
+#
+# =============================================================
+# Example Calculation
+# =============================================================
+#
+# Input:
+#   transaction:
+#     amount: 2500.00
+#     currency: "USD"
+#     merchant_country: "MX"
+#     merchant_mcc: "5411"
+#     entry_mode: "chip"
+#     timestamp: "2024-01-15T03:30:00Z"
+#
+#   customer:
+#     home_country: "US"
+#     credit_limit: 5000.00
+#     risk_tier: "medium"
+#     avg_transaction_amount: 150.00
+#     avg_daily_transactions: 2.5
+#     usual_mcc_codes: ["5411", "5812", "5541"]
+#     last_activity_date: "2024-01-10"
+#
+#   aggregates:
+#     transactions_1hr: 1
+#     transactions_24hr: 5
+#
+# Component Scores:
+#   velocity_score: 10 (slightly above average daily)
+#   amount_score: 50 (large amount, high utilization)
+#   geography_score: 30 (international transaction)
+#   behavioral_score: 20 (odd hours)
+#
+# Weighted Score:
+#   10 * 0.25 + 50 * 0.30 + 30 * 0.25 + 20 * 0.20
+#   = 2.5 + 15 + 7.5 + 4
+#   = 29.0
+#
+# Output:
+#   risk_score: 29.0
+#   risk_level: "low"
+#   risk_factors: ["Large transaction", "International transaction", "Transaction during odd hours"]
+#   factor_count: 3
+#   recommended_action: "approve"
+#   review_reason: null

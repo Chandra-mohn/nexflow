@@ -1,0 +1,303 @@
+# L2 Example: Card Account Schema (State Machine + Temporal Data Pattern)
+#
+# Demonstrates: state_machine pattern for account lifecycle
+# Also shows: temporal_data pattern for credit limits and rates
+# Use case: Credit card account with lifecycle states and time-varying attributes
+
+schema card_account
+  pattern state_machine
+  pattern temporal_data
+  version 2.0.0
+  compatibility backward
+
+  # Identity section
+  identity
+    account_id: string, unique, required, cannot_change
+    card_number: string [length: 16, pattern: "^[0-9]+$"], encrypted, unique, cannot_change
+  end
+
+  # Streaming configuration
+  streaming
+    key_fields: [account_id]
+    time_field: updated_at
+    time_semantics: event_time
+    watermark_delay: 10 seconds
+  end
+
+  # Core account fields
+  fields
+    # Customer reference
+    customer_id: string, required
+
+    # Card details
+    card_brand: string [values: visa, mastercard, amex, discover], required
+    card_type: string [values: credit, debit, prepaid, charge], required
+    product_code: string, required  # References versioned_configuration
+    expiry_month: integer [range: 1..12], required
+    expiry_year: integer [range: 2020..2099], required
+    cvv_hash: string, encrypted  # Hashed, not stored in clear
+
+    # Account opening
+    opened_date: date, required, cannot_change
+    activated_date: date, optional
+    closed_date: date, optional
+    closure_reason: string, optional
+
+    # Current financial position (point-in-time snapshot)
+    current_balance: decimal [precision: 15, scale: 2], required, default: 0
+    available_credit: decimal [precision: 15, scale: 2], required
+    pending_transactions: decimal [precision: 15, scale: 2], default: 0
+    statement_balance: decimal [precision: 15, scale: 2], default: 0
+    minimum_payment_due: decimal [precision: 15, scale: 2], default: 0
+    payment_due_date: date, optional
+
+    # Account flags
+    is_overlimit: boolean, default: false
+    is_delinquent: boolean, default: false
+    days_past_due: integer [range: 0..999], default: 0
+
+    # Timestamps
+    created_at: timestamp, required, cannot_change, default: now()
+    updated_at: timestamp, required, default: now()
+  end
+
+  # ============================================================
+  # STATE MACHINE DEFINITION
+  # ============================================================
+
+  states: [pending_activation, active, suspended, frozen, closed, charged_off]
+
+  initial_state: pending_activation
+
+  # State transition rules
+  transitions
+    # From pending_activation
+    from pending_activation: [active, closed]
+      to active: requires card_activated
+      to closed: requires closure_requested
+
+    # From active (normal operating state)
+    from active: [suspended, frozen, closed]
+      to suspended: requires suspension_trigger  # Temporary hold
+      to frozen: requires fraud_detected         # Security freeze
+      to closed: requires closure_requested
+
+    # From suspended (temporary hold)
+    from suspended: [active, frozen, closed]
+      to active: requires suspension_lifted
+      to frozen: requires fraud_detected
+      to closed: requires closure_requested
+
+    # From frozen (security freeze)
+    from frozen: [active, closed]
+      to active: requires fraud_cleared
+      to closed: requires closure_requested
+
+    # From closed (account closed but not charged off)
+    from closed: [charged_off]
+      to charged_off: requires write_off_approved  # Bad debt
+
+    # Terminal states
+    from charged_off: []  # No transitions allowed
+  end
+
+  # Actions triggered on state transitions
+  on_transition
+    to active:
+      - notify_customer("card_activated")
+      - enable_transactions()
+      - start_billing_cycle()
+
+    to suspended:
+      - notify_customer("account_suspended")
+      - disable_transactions()
+      - log_suspension_reason()
+
+    to frozen:
+      - notify_customer("security_freeze")
+      - disable_transactions()
+      - create_fraud_case()
+      - expedite_replacement_card()
+
+    to closed:
+      - notify_customer("account_closed")
+      - disable_transactions()
+      - calculate_final_balance()
+      - initiate_closure_process()
+
+    to charged_off:
+      - disable_all_activity()
+      - transfer_to_collections()
+      - report_to_credit_bureaus("charge_off")
+  end
+
+  # State-specific validations
+  state_validations
+    active:
+      - credit_limit > 0
+      - expiry_date > today()
+
+    closed:
+      - closure_reason is not null
+      - closed_date is not null
+  end
+
+  # ============================================================
+  # TEMPORAL DATA (Time-Varying Attributes)
+  # ============================================================
+
+  # Credit limit (changes over time, need point-in-time queries)
+  credit_limit: temporal<decimal [precision: 15, scale: 2]>
+    effective_from: date, required
+    effective_until: date, optional
+    change_reason: string [values: initial, increase_requested, decrease_requested,
+                                  risk_adjustment, promotional, annual_review]
+    approved_by: string, optional
+  end
+
+  # Interest rate (APR - changes over time)
+  purchase_apr: temporal<decimal [precision: 5, scale: 2]>
+    effective_from: date, required
+    effective_until: date, optional
+    rate_type: string [values: fixed, variable, promotional, penalty]
+    change_reason: string
+  end
+
+  # Cash advance APR
+  cash_advance_apr: temporal<decimal [precision: 5, scale: 2]>
+    effective_from: date, required
+    effective_until: date, optional
+    rate_type: string [values: fixed, variable]
+  end
+
+  # Penalty APR (triggered by delinquency)
+  penalty_apr: temporal<decimal [precision: 5, scale: 2]>
+    effective_from: date, required
+    effective_until: date, optional
+    trigger_reason: string [values: late_payment, overlimit, returned_payment]
+  end
+
+  # ============================================================
+  # NESTED OBJECTS
+  # ============================================================
+
+  # Billing information
+  billing: object
+    cycle_day: integer [range: 1..28], required
+    statement_close_day: integer [range: 1..28], required
+    payment_due_day_offset: integer [range: 21..25], default: 21
+    autopay_enabled: boolean, default: false
+    autopay_amount: string [values: minimum, statement_balance, full_balance, fixed], optional
+    autopay_fixed_amount: decimal, optional
+    paperless_statements: boolean, default: true
+  end
+
+  # Rewards program
+  rewards: object
+    program_id: string, optional
+    points_balance: integer, default: 0
+    cash_back_balance: decimal [precision: 10, scale: 2], default: 0
+    tier: string [values: basic, silver, gold, platinum], default: "basic"
+    enrolled_date: date, optional
+  end
+
+  # Card controls (customer-set preferences)
+  controls: object
+    international_enabled: boolean, default: true
+    online_enabled: boolean, default: true
+    atm_enabled: boolean, default: true
+    contactless_enabled: boolean, default: true
+    single_transaction_limit: decimal, optional
+    daily_limit: decimal, optional
+    monthly_limit: decimal, optional
+    blocked_mcc_codes: list<string>, optional  # Blocked merchant categories
+  end
+
+  # Risk assessment
+  risk_assessment: object
+    risk_score: integer [range: 0..999], optional
+    risk_tier: string [values: low, medium, high, very_high], default: "medium"
+    last_assessment_date: date, optional
+    behavior_score: integer [range: 0..999], optional
+    fraud_risk_score: decimal [range: 0..100], optional
+  end
+
+  # Indexes
+  indexes
+    idx_customer: [customer_id]
+    idx_status: [account_status]
+    idx_product: [product_code]
+    idx_delinquent: [is_delinquent, days_past_due] where is_delinquent = true
+  end
+end
+
+# ============================================================
+# Generated Operations (from state_machine pattern)
+# ============================================================
+#
+# transition_to(account_id, new_state, context) → Performs state transition
+#   - Validates transition is allowed from current state
+#   - Validates transition requirements (e.g., fraud_detected)
+#   - Executes on_transition actions
+#   - Records in state_history table
+#   - Returns new state or error
+#
+# get_current_state(account_id) → Returns current state
+#   - Returns state name and entry timestamp
+#
+# get_state_history(account_id) → Returns full state history
+#   - Ordered by transition timestamp
+#   - Includes from_state, to_state, transitioned_by, reason
+#
+# can_transition_to(account_id, target_state) → Checks if transition valid
+#   - Returns boolean and list of missing requirements
+#
+# ============================================================
+# Generated Operations (from temporal_data pattern)
+# ============================================================
+#
+# set_effective(account_id, field, value, effective_from) → Sets future value
+#   - Creates new temporal record
+#   - Validates no overlapping periods
+#   - Returns confirmation
+#
+# get_at_date(account_id, field, date) → Gets value at specific date
+#   - Returns value effective on that date
+#   - Returns null if no value defined for date
+#
+# get_current(account_id, field) → Gets current effective value
+#   - Equivalent to get_at_date(account_id, field, today())
+#
+# get_timeline(account_id, field) → Gets full history of values
+#   - Returns all effective periods
+#   - Ordered by effective_from
+#
+# ============================================================
+# State Transition Table (Generated)
+# ============================================================
+#
+# TABLE: card_account_state_history
+#   - history_id SERIAL PRIMARY KEY
+#   - account_id VARCHAR(100) NOT NULL
+#   - from_state VARCHAR(50)
+#   - to_state VARCHAR(50) NOT NULL
+#   - transitioned_at TIMESTAMP NOT NULL
+#   - transitioned_by VARCHAR(100)
+#   - transition_reason TEXT
+#   - transition_context JSONB
+#
+# ============================================================
+# Temporal Data Tables (Generated)
+# ============================================================
+#
+# TABLE: card_account_credit_limit
+#   - id SERIAL PRIMARY KEY
+#   - account_id VARCHAR(100) NOT NULL
+#   - value DECIMAL(15,2) NOT NULL
+#   - effective_from DATE NOT NULL
+#   - effective_until DATE
+#   - change_reason VARCHAR(50)
+#   - approved_by VARCHAR(100)
+#   - created_at TIMESTAMP
+#
+# Similar tables for: purchase_apr, cash_advance_apr, penalty_apr

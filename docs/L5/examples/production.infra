@@ -1,0 +1,593 @@
+# L5 Example: Production Infrastructure Binding
+#
+# Demonstrates: Complete production configuration with all binding types
+# Use case: Production credit card processing environment
+# Scale: 1B+ transactions/day, 128 parallelism, multi-AZ
+
+version: "1.0"
+environment: production
+description: "Production infrastructure for credit card processing pipeline"
+
+# =============================================================
+# Stream Bindings - Production Kafka Cluster
+# =============================================================
+
+streams:
+  # Primary input stream - Authorization events
+  auth_events:
+    type: kafka
+    topic: prod.auth.events.v3
+    brokers: ${KAFKA_BROKERS}
+    partitions: 128
+    replication: 3
+
+    consumer:
+      group_id: auth-enrichment-consumer-v3
+      auto_offset_reset: earliest
+      max_poll_records: 500
+      isolation_level: read_committed
+
+    producer:
+      acks: all
+      retries: 3
+      batch_size: 16384
+      linger_ms: 5
+      compression: lz4
+      idempotence: true
+
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${KAFKA_JAAS_CONFIG}
+      ssl.truststore.location: /etc/kafka/truststore.jks
+      ssl.truststore.password: secret://kafka_credentials/truststore_password
+
+    schema_registry:
+      url: ${SCHEMA_REGISTRY_URL}
+      basic_auth: secret://schema_registry/auth
+
+  # Output stream - Enriched authorizations
+  enriched_auths:
+    type: kafka
+    topic: prod.auth.enriched.v3
+    brokers: ${KAFKA_BROKERS}
+    partitions: 64
+    replication: 3
+
+    producer:
+      acks: all
+      idempotence: true
+      compression: lz4
+
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${KAFKA_JAAS_CONFIG}
+
+  # Fraud alerts - High priority
+  fraud_alerts:
+    type: kafka
+    topic: prod.fraud.alerts.v3
+    brokers: ${KAFKA_BROKERS}
+    partitions: 32
+    replication: 3
+
+    producer:
+      acks: all
+      linger_ms: 0  # Low latency for alerts
+      compression: none
+
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${KAFKA_JAAS_CONFIG}
+
+  # Settlement events
+  settlement_events:
+    type: kafka
+    topic: prod.settlement.events.v3
+    brokers: ${KAFKA_BROKERS}
+    partitions: 64
+    replication: 3
+
+# =============================================================
+# Lookup Bindings - Production Data Stores
+# =============================================================
+
+lookups:
+  # Customer master data
+  customers:
+    type: mongodb
+    uri: secret://mongo_credentials/uri
+    database: credit_card
+    collection: customers
+
+    connection:
+      max_pool_size: 100
+      min_pool_size: 20
+      max_idle_time: 60s
+
+    read:
+      preference: secondaryPreferred
+      concern: majority
+      max_staleness: 90s
+
+    auth:
+      mechanism: SCRAM-SHA-256
+      source: admin
+      username: secret://mongo_credentials/username
+      password: secret://mongo_credentials/password
+
+    tls:
+      enabled: true
+      ca_file: /etc/ssl/mongo-ca.pem
+
+    lookup:
+      key_field: card_id
+      projection:
+        - customer_id
+        - customer_name
+        - credit_limit
+        - risk_tier
+        - home_country
+        - avg_transaction_amount
+
+    cache:
+      enabled: true
+      ttl: 5m
+      max_size: 500000
+      eviction: lru
+
+  # Real-time exchange rates
+  currency_rates:
+    type: redis
+    uri: secret://redis_credentials/uri
+    database: 0
+
+    cluster:
+      enabled: true
+      max_redirects: 5
+
+    connection:
+      pool_size: 50
+      connect_timeout: 5s
+      socket_timeout: 1s
+
+    tls:
+      enabled: true
+      ca_file: /etc/ssl/redis-ca.pem
+
+    lookup:
+      key_pattern: "fx:rate:{currency}:USD"
+      type: string
+
+  # Merchant category reference
+  merchant_categories:
+    type: postgresql
+    jdbc_url: secret://postgres_credentials/jdbc_url
+
+    pool:
+      size: 30
+      min_idle: 10
+      connection_timeout: 30s
+
+    query:
+      key_column: mcc_code
+      select_columns:
+        - mcc_code
+        - category_name
+        - risk_level
+        - is_high_risk
+
+    ssl:
+      mode: verify-full
+      root_cert: /etc/ssl/postgres-ca.pem
+
+    cache:
+      enabled: true
+      ttl: 1h
+      max_size: 50000
+
+  # Card account status
+  card_accounts:
+    type: mongodb
+    uri: secret://mongo_credentials/uri
+    database: credit_card
+    collection: card_accounts
+
+    read:
+      preference: secondaryPreferred
+      concern: majority
+
+    lookup:
+      key_field: card_id
+      projection:
+        - account_status
+        - credit_limit
+        - available_credit
+        - account_tier
+
+    cache:
+      enabled: true
+      ttl: 1m
+      max_size: 1000000
+
+# =============================================================
+# State Backend - Production RocksDB
+# =============================================================
+
+state_backends:
+  default:
+    type: rocksdb
+    incremental: true
+
+    storage:
+      local_directories:
+        - /mnt/ssd1/flink-state
+        - /mnt/ssd2/flink-state
+
+    memory:
+      managed: true
+      per_slot: 512mb
+
+    options:
+      block_cache_size: 512mb
+      write_buffer_size: 64mb
+      max_write_buffer_number: 4
+      compression: LZ4
+
+    timer_service:
+      type: rocksdb
+      async: true
+
+# =============================================================
+# Checkpoint Storage - S3 with High Availability
+# =============================================================
+
+checkpoints:
+  auth_checkpoints:
+    type: s3
+    bucket: company-flink-checkpoints-prod
+    prefix: credit-card/auth-enrichment/
+    region: us-east-1
+
+    checkpoint:
+      interval: 60s
+      min_pause: 30s
+      timeout: 10m
+      max_concurrent: 1
+      mode: exactly_once
+      incremental: true
+
+    savepoint:
+      directory: s3://company-flink-savepoints-prod/auth-enrichment/
+
+    retention:
+      max_checkpoints: 5
+      externalized: retain_on_cancellation
+
+    s3:
+      multipart_upload_threshold: 100mb
+      multipart_upload_part_size: 64mb
+
+    auth:
+      type: instance_profile
+
+    encryption:
+      type: sse_kms
+      kms_key_id: ${KMS_KEY_ID}
+
+  fraud_checkpoints:
+    type: s3
+    bucket: company-flink-checkpoints-prod
+    prefix: credit-card/fraud-detection/
+    region: us-east-1
+
+    checkpoint:
+      interval: 30s  # More frequent for fraud
+      mode: exactly_once
+
+# =============================================================
+# Dead Letter Queues
+# =============================================================
+
+dead_letters:
+  auth_dlq:
+    type: kafka
+    topic: prod.auth.dlq.v3
+    brokers: ${KAFKA_BROKERS}
+    include_metadata: true
+
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${KAFKA_JAAS_CONFIG}
+
+  fraud_dlq:
+    type: s3
+    bucket: company-failed-records-prod
+    prefix: fraud/
+    format: json
+    partition_by: date
+
+# =============================================================
+# Resource Configuration - Production Scale
+# =============================================================
+
+resources:
+  _defaults:
+    parallelism: 64
+    task_memory: 4gb
+    task_cpu: 2
+
+    memory:
+      heap: 50%
+      managed: 40%
+      network: 10%
+
+  authorization_enrichment:
+    parallelism: 128
+    max_parallelism: 256
+    task_memory: 4gb
+    task_cpu: 2
+
+    operators:
+      source_auth_events:
+        parallelism: 128  # Match Kafka partitions
+      enrich_customers:
+        parallelism: 128
+      sink_enriched:
+        parallelism: 64
+
+  fraud_detection:
+    parallelism: 64
+    task_memory: 8gb  # More memory for ML models
+    task_cpu: 4
+
+  hourly_transaction_summary:
+    parallelism: 32
+    task_memory: 16gb  # Large state for aggregations
+    task_cpu: 4
+
+    memory:
+      heap: 30%
+      managed: 60%  # More managed memory for state
+
+  settlement_processing:
+    parallelism: 64
+    task_memory: 4gb
+    task_cpu: 2
+
+# =============================================================
+# Secrets - Production Secret Management
+# =============================================================
+
+secrets:
+  kafka_credentials:
+    provider: vault
+    path: secret/data/production/kafka
+    keys:
+      - jaas_config
+      - truststore_password
+
+    vault:
+      address: ${VAULT_ADDR}
+      namespace: credit-card
+
+    auth:
+      method: kubernetes
+      role: flink-production
+
+    cache:
+      enabled: true
+      ttl: 5m
+
+  mongo_credentials:
+    provider: vault
+    path: secret/data/production/mongodb
+    keys:
+      - uri
+      - username
+      - password
+
+    vault:
+      address: ${VAULT_ADDR}
+
+    auth:
+      method: kubernetes
+      role: flink-production
+
+  postgres_credentials:
+    provider: vault
+    path: secret/data/production/postgres
+    keys:
+      - jdbc_url
+
+    vault:
+      address: ${VAULT_ADDR}
+
+    auth:
+      method: kubernetes
+      role: flink-production
+
+  redis_credentials:
+    provider: vault
+    path: secret/data/production/redis
+    keys:
+      - uri
+
+    vault:
+      address: ${VAULT_ADDR}
+
+    auth:
+      method: kubernetes
+      role: flink-production
+
+  schema_registry:
+    provider: vault
+    path: secret/data/production/schema-registry
+    keys:
+      - auth
+
+    vault:
+      address: ${VAULT_ADDR}
+
+    auth:
+      method: kubernetes
+      role: flink-production
+
+# =============================================================
+# Monitoring Configuration
+# =============================================================
+
+monitoring:
+  metrics:
+    type: prometheus
+    port: 9249
+    path: /metrics
+    labels:
+      environment: production
+      team: credit-card
+      service: proc-dsl
+
+  tracing:
+    type: jaeger
+    endpoint: http://jaeger-collector.observability:14268/api/traces
+    sampling_rate: 0.01  # 1% sampling in production
+
+  logging:
+    level: INFO
+    format: json
+    outputs:
+      - type: stdout
+      - type: elasticsearch
+        endpoint: ${ES_ENDPOINT}
+        index_pattern: proc-dsl-logs-prod-%{+YYYY.MM.dd}
+
+  alerts:
+    - name: high_latency
+      condition: "processing_latency_p99 > 500ms"
+      severity: warning
+      channels:
+        - slack://credit-card-alerts
+
+    - name: critical_latency
+      condition: "processing_latency_p99 > 2000ms"
+      severity: critical
+      channels:
+        - pagerduty://critical
+
+    - name: checkpoint_failure
+      condition: "checkpoint_failures > 3 in 10m"
+      severity: critical
+      channels:
+        - pagerduty://critical
+
+    - name: consumer_lag
+      condition: "kafka_consumer_lag > 100000"
+      severity: warning
+      channels:
+        - slack://credit-card-alerts
+
+# =============================================================
+# Deployment - Kubernetes Production
+# =============================================================
+
+deployment:
+  type: kubernetes
+  namespace: credit-card-production
+
+  service_account: proc-dsl-production
+
+  image:
+    repository: company-registry/flink
+    tag: 1.17.1-proc-dsl
+    pull_policy: Always
+    pull_secrets:
+      - docker-registry-creds
+
+  job_manager:
+    replicas: 2  # HA
+    resources:
+      cpu: 4
+      memory: 8gb
+
+  task_manager:
+    replicas: 32
+    resources:
+      cpu: 8
+      memory: 16gb
+
+  pod_template:
+    metadata:
+      labels:
+        team: credit-card
+        env: production
+        app: proc-dsl
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9249"
+
+    spec:
+      node_selector:
+        workload-type: streaming
+        disk-type: nvme
+
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: streaming
+          effect: NoSchedule
+
+      affinity:
+        pod_anti_affinity:
+          required:
+            - label_selector:
+                match_labels:
+                  app: proc-dsl
+              topology_key: topology.kubernetes.io/zone
+
+      security_context:
+        run_as_user: 9999
+        run_as_group: 9999
+        fs_group: 9999
+        run_as_non_root: true
+
+  ha:
+    enabled: true
+    type: kubernetes
+
+  ingress:
+    enabled: true
+    host: flink-prod.company.internal
+    tls:
+      enabled: true
+      secret_name: flink-tls-prod
+
+  scaling:
+    type: horizontal
+    min_replicas: 16
+    max_replicas: 64
+    metrics:
+      - type: kafka_lag
+        target_value: 10000
+      - type: cpu
+        target_utilization: 70
+
+  strategy:
+    type: rolling_update
+    rolling:
+      max_unavailable: 1
+      max_surge: 2
+
+    hooks:
+      pre_upgrade:
+        - action: savepoint
+          timeout: 10m
+      post_upgrade:
+        - action: verify_health
+          timeout: 5m
+
+# =============================================================
+# End of Production Configuration
+# =============================================================

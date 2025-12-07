@@ -1,0 +1,172 @@
+// L4 Example: Credit Approval Rules
+// Paradigm: Procedural Rules
+// Domain: Credit Card Application Processing
+
+rule creditCardApplication:
+    // Tier 1: Premium instant approval
+    if applicant.creditScore >= 800
+       and applicant.annualIncome > 150000
+       and applicant.bankruptcyHistory = false
+       and applicant.debtToIncomeRatio < 0.25
+    then instantApproval
+
+    // Tier 2: High-tier instant approval
+    if applicant.creditScore >= 750
+       and applicant.annualIncome > 75000
+       and applicant.employmentYears >= 3
+       and applicant.debtToIncomeRatio < 0.35
+    then instantApproval
+
+    // Tier 3: Standard approval
+    if applicant.creditScore >= 700
+       and applicant.annualIncome > 50000
+       and applicant.employmentYears >= 2
+       and applicant.debtToIncomeRatio < 0.4
+    then approveApplication
+
+    // Tier 4: Conditional approval
+    if applicant.creditScore >= 650
+       and applicant.annualIncome > 40000
+       and applicant.employmentYears >= 1
+    then conditionalApproval
+
+    // Tier 5: Manual review for edge cases
+    if applicant.creditScore >= 600
+       and (applicant.annualIncome > 75000 or applicant.employmentYears >= 5)
+    then manualReview
+
+    // Auto-reject conditions
+    if applicant.age < 18
+    then rejectApplication
+
+    if applicant.creditScore < 500
+    then rejectApplication
+
+    if applicant.bankruptcyHistory = true
+       and applicant.bankruptcyYearsAgo < 7
+    then rejectApplication
+
+    if applicant.debtToIncomeRatio > 0.6
+    then rejectApplication
+end
+
+
+rule premiumCardEligibility:
+    // Platinum card
+    if applicant.creditScore >= 800
+       and applicant.annualIncome > 200000
+       and applicant.netWorth > 500000
+    then offerPlatinumCard
+
+    // Gold card
+    if applicant.creditScore >= 750
+       and applicant.annualIncome > 100000
+    then offerGoldCard
+
+    // Rewards card
+    if applicant.creditScore >= 700
+       and applicant.annualIncome > 60000
+    then offerRewardsCard
+
+    // Basic card
+    if applicant.creditScore >= 650
+    then offerBasicCard
+end
+
+
+rule riskBasedCreditLimit:
+    // Premium tier limits
+    if applicant.creditScore >= 800
+       and applicant.annualIncome > 150000
+       and applicant.debtToIncomeRatio < 0.2
+    then setCreditLimit75000
+
+    if applicant.creditScore >= 800
+       and applicant.annualIncome > 100000
+    then setCreditLimit50000
+
+    // High tier limits
+    if applicant.creditScore >= 750
+       and applicant.annualIncome > 100000
+    then setCreditLimit40000
+
+    if applicant.creditScore >= 750
+       and applicant.annualIncome > 75000
+    then setCreditLimit30000
+
+    // Standard tier limits
+    if applicant.creditScore >= 700
+       and applicant.annualIncome > 75000
+    then setCreditLimit25000
+
+    if applicant.creditScore >= 700
+       and applicant.annualIncome > 50000
+    then setCreditLimit20000
+
+    // Entry tier limits
+    if applicant.creditScore >= 650
+       and applicant.annualIncome > 50000
+    then setCreditLimit15000
+
+    if applicant.creditScore >= 650
+    then setCreditLimit10000
+
+    // Minimum limit
+    if applicant.creditScore >= 600
+    then setCreditLimit5000
+end
+
+
+rule loanUnderwriting:
+    // Best rate tier
+    if applicant.creditScore >= 800
+       and applicant.debtToIncomeRatio < 0.3
+       and applicant.employmentYears >= 2
+    then approveWithBestRate
+
+    // Standard rate tier
+    if applicant.creditScore >= 720
+       and applicant.employmentYears >= 5
+       and applicant.debtToIncomeRatio < 0.4
+    then approveWithStandardRate
+
+    // Higher rate tier
+    if applicant.creditScore >= 680
+       and applicant.downPayment > 0.2
+    then approveWithHigherRate
+
+    // Conditional approval
+    if applicant.creditScore >= 650
+       and applicant.downPayment > 0.25
+    then conditionalApproval
+
+    // Manual review required
+    if applicant.creditScore >= 600
+       and applicant.annualIncome > 100000
+    then requireManualReview
+
+    // Decline
+    if applicant.creditScore < 600
+    then rejectApplication
+end
+
+
+rule existingCustomerUpgrade:
+    // Upgrade eligibility based on account history
+    if customer.accountAge >= 24
+       and customer.paymentHistory = "EXCELLENT"
+       and customer.utilizationRate < 0.3
+       and customer.creditScore >= 720
+    then offerCreditLimitIncrease
+
+    if customer.accountAge >= 12
+       and customer.paymentHistory = "GOOD"
+       and customer.utilizationRate < 0.5
+       and customer.creditScore >= 680
+    then offerCardUpgrade
+
+    if customer.accountAge >= 6
+       and customer.paymentHistory = "EXCELLENT"
+       and customer.onTimePayments >= 6
+    then offerRewardsEnrollment
+end

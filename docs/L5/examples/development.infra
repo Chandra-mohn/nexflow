@@ -1,0 +1,204 @@
+# L5 Example: Development Infrastructure Binding
+#
+# Demonstrates: Local development setup with minimal configuration
+# Use case: Developer laptop or CI/CD testing environment
+
+version: "1.0"
+environment: development
+description: "Local development infrastructure for credit card processing"
+
+# =============================================================
+# Stream Bindings - Local Kafka
+# =============================================================
+
+streams:
+  auth_events:
+    type: kafka
+    topic: dev.auth.events.v1
+    brokers: localhost:9092
+    partitions: 4
+
+    consumer:
+      group_id: dev-auth-consumer
+      auto_offset_reset: earliest
+
+    producer:
+      acks: 1
+      compression: none
+
+  enriched_auths:
+    type: kafka
+    topic: dev.auth.enriched.v1
+    brokers: localhost:9092
+    partitions: 4
+
+  fraud_alerts:
+    type: kafka
+    topic: dev.fraud.alerts.v1
+    brokers: localhost:9092
+    partitions: 2
+
+  settlement_events:
+    type: kafka
+    topic: dev.settlement.events.v1
+    brokers: localhost:9092
+    partitions: 2
+
+# =============================================================
+# Lookup Bindings - Local Data Stores
+# =============================================================
+
+lookups:
+  customers:
+    type: mongodb
+    uri: mongodb://localhost:27017
+    database: credit_card_dev
+    collection: customers
+
+    # Simple caching for development
+    cache:
+      enabled: true
+      ttl: 1m
+      max_size: 1000
+
+  currency_rates:
+    type: redis
+    uri: redis://localhost:6379
+    database: 0
+    key_pattern: "fx:rate:{currency}"
+
+  merchant_categories:
+    type: postgresql
+    jdbc_url: jdbc:postgresql://localhost:5432/credit_card_dev
+    schema: reference
+    table: merchant_categories
+
+    auth:
+      username: postgres
+      password: postgres
+
+# =============================================================
+# State Backend - In-Memory for Development
+# =============================================================
+
+state_backends:
+  default:
+    type: hashmap
+    async_snapshots: true
+
+# =============================================================
+# Checkpoint Storage - Local Filesystem
+# =============================================================
+
+checkpoints:
+  default:
+    type: filesystem
+    path: file:///tmp/flink-checkpoints
+
+    checkpoint:
+      interval: 30s
+      min_pause: 10s
+      mode: at_least_once
+
+    retention:
+      max_checkpoints: 2
+
+# =============================================================
+# Resource Configuration - Minimal for Development
+# =============================================================
+
+resources:
+  _defaults:
+    parallelism: 2
+    task_memory: 1gb
+    task_cpu: 0.5
+
+  authorization_enrichment:
+    parallelism: 2
+    task_memory: 1gb
+
+  fraud_detection:
+    parallelism: 2
+    task_memory: 1gb
+
+  hourly_summary:
+    parallelism: 1
+    task_memory: 512mb
+
+# =============================================================
+# Secrets - Environment Variables for Development
+# =============================================================
+
+secrets:
+  _config:
+    default_provider: env
+
+  kafka_credentials:
+    provider: env
+    variables:
+      username: KAFKA_USERNAME
+      password: KAFKA_PASSWORD
+    # No credentials needed for local Kafka
+
+  mongo_credentials:
+    provider: env
+    variable: MONGO_URI
+    default: mongodb://localhost:27017
+
+# =============================================================
+# Monitoring - Basic Local Metrics
+# =============================================================
+
+monitoring:
+  metrics:
+    type: prometheus
+    port: 9249
+    path: /metrics
+
+  logging:
+    level: DEBUG
+    format: text
+    outputs:
+      - type: stdout
+
+# =============================================================
+# Deployment - Docker Compose
+# =============================================================
+
+deployment:
+  type: docker_compose
+
+  compose:
+    project_name: proc-dsl-dev
+
+    services:
+      job_manager:
+        image: flink:1.17.1
+        ports:
+          - "8081:8081"
+        environment:
+          - JOB_MANAGER_RPC_ADDRESS=job_manager
+
+      task_manager:
+        image: flink:1.17.1
+        replicas: 1
+        environment:
+          - JOB_MANAGER_RPC_ADDRESS=job_manager
+
+# =============================================================
+# Usage Notes
+# =============================================================
+#
+# To start local infrastructure:
+#
+#   docker-compose up -d kafka mongodb redis postgres
+#
+# To run a process locally:
+#
+#   procdsl run ./processes/authorization_enrichment.proc \
+#     --infra ./infra/development.infra
+#
+# To access Flink Web UI:
+#
+#   http://localhost:8081
+#

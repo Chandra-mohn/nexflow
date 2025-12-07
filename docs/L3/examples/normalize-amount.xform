@@ -1,0 +1,273 @@
+# L3 Example: Normalize Amount Transform
+#
+# Demonstrates: Field-level + Expression-level transforms
+# Use case: Currency conversion with exchange rate lookup and rounding
+
+# =============================================================
+# Field-Level Transform: Format Currency Code
+# =============================================================
+
+transform normalize_currency_code
+  version: "1.0.0"
+  description: "Normalize currency code to uppercase 3-letter format"
+  pure: true
+
+  input: string
+  output: string
+
+  validate_input
+    length(input) = 3: "Currency code must be 3 characters"
+  end
+
+  apply
+    output = upper(trim(input))
+  end
+
+  validate_output
+    matches(output, "^[A-Z]{3}$"): "Invalid currency code format"
+  end
+end
+
+
+# =============================================================
+# Expression-Level Transform: Calculate Exchange Rate
+# =============================================================
+
+transform lookup_exchange_rate
+  version: "1.0.0"
+  description: "Lookup exchange rate between two currencies"
+  pure: false  # External service call
+  cache
+    ttl: 5 minutes
+    key: [from_currency, to_currency]
+  end
+
+  input
+    from_currency: string
+    to_currency: string
+  end
+
+  output: decimal
+
+  validate_input
+    matches(from_currency, "^[A-Z]{3}$"): "Invalid from_currency"
+    matches(to_currency, "^[A-Z]{3}$"): "Invalid to_currency"
+  end
+
+  apply
+    output = when from_currency = to_currency: 1.0
+             otherwise: external_call("exchange_rate_service", from_currency, to_currency)
+  end
+
+  on_error
+    action: use_fallback
+    fallback: 1.0
+    log_level: warning
+    alert: true
+  end
+end
+
+
+# =============================================================
+# Expression-Level Transform: Normalize Amount to USD
+# =============================================================
+
+transform normalize_to_usd
+  version: "2.1.0"
+  description: "Convert any currency amount to USD with proper rounding"
+  pure: false  # Uses exchange rate lookup
+
+  input
+    amount: decimal
+    currency: string
+    transaction_date: date
+  end
+
+  output
+    amount_usd: decimal [precision: 15, scale: 2]
+    original_amount: decimal
+    original_currency: string
+    exchange_rate: decimal [precision: 12, scale: 6]
+    conversion_timestamp: timestamp
+  end
+
+  validate_input
+    amount >= 0: "Amount cannot be negative"
+    currency is not null: "Currency is required"
+  end
+
+  apply
+    // Normalize currency code
+    normalized_currency = upper(trim(currency))
+
+    // Lookup exchange rate
+    rate = lookup_exchange_rate(normalized_currency, "USD")
+
+    // Calculate converted amount
+    converted = amount * rate
+
+    // Round to 2 decimal places (banker's rounding)
+    rounded = round(converted, 2)
+
+    // Apply minimum threshold (ignore tiny amounts)
+    amount_usd = when rounded < 0.01: 0.00
+                 otherwise: rounded
+
+    // Preserve original values
+    original_amount = amount
+    original_currency = normalized_currency
+    exchange_rate = rate
+    conversion_timestamp = now()
+  end
+
+  validate_output
+    amount_usd >= 0: "Converted amount cannot be negative"
+    exchange_rate > 0: "Exchange rate must be positive"
+  end
+end
+
+
+# =============================================================
+# Composite Transform: Full Amount Normalization Pipeline
+# =============================================================
+
+transform full_amount_normalization
+  version: "1.0.0"
+  description: "Complete amount normalization pipeline"
+  pure: false
+
+  input
+    raw_amount: string      # May be formatted string
+    currency: string
+    transaction_date: date
+  end
+
+  output
+    amount_usd: decimal
+    original_amount: decimal
+    original_currency: string
+    exchange_rate: decimal
+    is_valid: boolean
+    validation_errors: list<string>
+  end
+
+  apply
+    // Step 1: Parse raw amount string
+    cleaned_amount = regex_replace(raw_amount, "[,$]", "")
+    parsed_amount = parse_decimal(cleaned_amount)
+
+    // Step 2: Validate parsed value
+    errors = []
+    is_valid_parse = parsed_amount is not null
+
+    when not is_valid_parse:
+      errors = append(errors, "Invalid amount format: " + raw_amount)
+    end
+
+    // Step 3: Normalize currency
+    normalized_currency = normalize_currency_code(currency)
+
+    // Step 4: Convert to USD (if valid)
+    conversion = when is_valid_parse:
+                   normalize_to_usd(parsed_amount, normalized_currency, transaction_date)
+                 otherwise: null
+
+    // Step 5: Set outputs
+    amount_usd = when conversion is not null: conversion.amount_usd
+                 otherwise: 0.00
+    original_amount = when conversion is not null: conversion.original_amount
+                      otherwise: 0.00
+    original_currency = normalized_currency
+    exchange_rate = when conversion is not null: conversion.exchange_rate
+                    otherwise: 1.0
+    is_valid = is_valid_parse and conversion is not null
+    validation_errors = errors
+  end
+end
+
+
+# =============================================================
+# Usage Examples
+# =============================================================
+#
+# Example 1: Simple conversion
+# -----------------------------
+# Input:
+#   amount: 100.00
+#   currency: "eur"
+#   transaction_date: "2024-01-15"
+#
+# Output:
+#   amount_usd: 108.50
+#   original_amount: 100.00
+#   original_currency: "EUR"
+#   exchange_rate: 1.085
+#   conversion_timestamp: "2024-01-15T10:30:00Z"
+#
+#
+# Example 2: Same currency (no conversion)
+# -----------------------------------------
+# Input:
+#   amount: 250.00
+#   currency: "USD"
+#   transaction_date: "2024-01-15"
+#
+# Output:
+#   amount_usd: 250.00
+#   original_amount: 250.00
+#   original_currency: "USD"
+#   exchange_rate: 1.0
+#
+#
+# Example 3: Full pipeline with formatted input
+# ----------------------------------------------
+# Input:
+#   raw_amount: "$1,234.56"
+#   currency: "usd"
+#   transaction_date: "2024-01-15"
+#
+# Output:
+#   amount_usd: 1234.56
+#   original_amount: 1234.56
+#   original_currency: "USD"
+#   exchange_rate: 1.0
+#   is_valid: true
+#   validation_errors: []
+#
+#
+# Example 4: Invalid input handling
+# ----------------------------------
+# Input:
+#   raw_amount: "invalid"
+#   currency: "EUR"
+#   transaction_date: "2024-01-15"
+#
+# Output:
+#   amount_usd: 0.00
+#   original_amount: 0.00
+#   original_currency: "EUR"
+#   exchange_rate: 1.0
+#   is_valid: false
+#   validation_errors: ["Invalid amount format: invalid"]
+#
+#
+# =============================================================
+# L1 Process Integration
+# =============================================================
+#
+# process transaction_normalization
+#   receive events from raw_transactions
+#     schema raw_transaction_schema
+#
+#   // Apply the transform
+#   transform using full_amount_normalization
+#     raw_amount: amount_string
+#     currency: currency_code
+#     transaction_date: txn_date
+#
+#   // Route based on validity
+#   route
+#     when is_valid = true: normalized_transactions
+#     otherwise: invalid_transactions
+#   end
+# end

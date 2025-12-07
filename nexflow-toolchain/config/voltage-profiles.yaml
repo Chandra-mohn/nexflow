@@ -1,0 +1,101 @@
+# Voltage Format-Preserving Encryption (FPE) Profiles
+#
+# This file defines encryption profiles for PII fields in Nexflow schemas.
+# Each profile specifies how data should be encrypted while preserving format.
+#
+# Usage in Schema DSL:
+#   ssn: string required pii.ssn       # Use 'ssn' profile
+#   card_number: string pii.pan        # Use 'pan' profile
+#   email: string pii.email            # Use 'email' profile
+#   secret: string pii                 # Use default 'full' profile
+#
+# Profile fields:
+#   format: Encryption format type (ssn, pan, email, phone, full, custom)
+#   description: Human-readable description
+#   clear_prefix: Number of characters to leave unencrypted at the start
+#   clear_suffix: Number of characters to leave unencrypted at the end
+#   charset: (optional) Character set for custom formats
+#   tweak: (optional) Tweak configuration for FPE
+
+profiles:
+  # Social Security Number - last 4 digits visible
+  # Example: ***-**-1234
+  ssn:
+    format: ssn
+    description: "SSN format - last 4 digits clear for display"
+    clear_prefix: 0
+    clear_suffix: 4
+
+  # Credit Card PAN - first 4 and last 4 visible (PCI compliant masking)
+  # Example: 4111-****-****-1234
+  pan:
+    format: pan
+    description: "Credit card PAN - first 4 and last 4 clear (PCI compliant)"
+    clear_prefix: 4
+    clear_suffix: 4
+
+  # Email - format preserving (keeps @ and domain structure)
+  # Example: xxxx@domain.com -> yyyy@domain.com
+  email:
+    format: email
+    description: "Email format preserving encryption"
+    clear_prefix: 0
+    clear_suffix: 0
+
+  # Phone number - last 4 digits visible
+  # Example: (***) ***-5678
+  phone:
+    format: phone
+    description: "Phone number - last 4 digits clear"
+    clear_prefix: 0
+    clear_suffix: 4
+
+  # Full encryption - no clear text
+  full:
+    format: full
+    description: "Full encryption - no clear text visible"
+    clear_prefix: 0
+    clear_suffix: 0
+
+  # Account number - last 4 visible
+  account:
+    format: numeric
+    description: "Account number - last 4 digits clear"
+    clear_prefix: 0
+    clear_suffix: 4
+
+  # Date of birth - year only visible
+  dob:
+    format: date
+    description: "Date of birth - year only visible"
+    clear_prefix: 0
+    clear_suffix: 4
+
+  # Name - first initial visible
+  name:
+    format: alpha
+    description: "Name - first character clear"
+    clear_prefix: 1
+    clear_suffix: 0
+
+# Voltage SDK configuration
+voltage:
+  # SDK endpoint (environment-specific)
+  endpoint: "${VOLTAGE_ENDPOINT:https://voltage.example.com/vibesimple}"
+
+  # Identity configuration
+  identity:
+    type: "shared_secret"
+    name: "${VOLTAGE_IDENTITY:nexflow-app}"
+
+  # Connection settings
+  connection:
+    timeout_ms: 5000
+    retry_count: 3
+    retry_delay_ms: 1000
+
+  # Caching settings for encrypted values
+  cache:
+    enabled: true
+    ttl_seconds: 300
+    max_size: 10000

@@ -1,0 +1,695 @@
+/**
+ * SchemaDSL - Schema Registry Domain-Specific Language
+ *
+ * ANTLR4 Grammar for L2 Schema Registry DSL
+ *
+ * Version: 1.0.0
+ * Specification: ../L2-Schema-Registry.md
+ *
+ * This grammar defines the syntax for schema definitions including:
+ * - Data mutation patterns (9 patterns)
+ * - Type system (base, constrained, domain, collection types)
+ * - Streaming annotations (key fields, time semantics, watermarks)
+ * - Schema evolution (versioning, compatibility)
+ *
+ * SEMANTIC VALIDATION NOTES (enforced by compiler, not grammar):
+ * - identity block required for most patterns
+ * - streaming block required for event_log pattern
+ * - state transitions must form valid graph for state_machine
+ * - compatibility mode validated against previous version
+ */
+
+grammar SchemaDSL;
+
+// ============================================================================
+// PARSER RULES
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Top-Level Structure
+// ----------------------------------------------------------------------------
+
+program
+    : (schemaDefinition | typeAliasBlock)+ EOF
+    ;
+
+schemaDefinition
+    : 'schema' schemaName
+        patternDecl?
+        versionBlock?
+        retentionDecl?
+        identityBlock?
+        streamingBlock?
+        fieldsBlock?
+        nestedObjectBlock*
+        stateMachineBlock?
+        parametersBlock?
+        entriesBlock?
+        ruleBlock*
+        migrationBlock?
+      'end'
+    ;
+
+schemaName
+    : IDENTIFIER
+    ;
+
+// ----------------------------------------------------------------------------
+// Pattern Declaration (The 9 Mutation Patterns)
+// ----------------------------------------------------------------------------
+
+patternDecl
+    : 'pattern' mutationPattern (',' mutationPattern)*
+    ;
+
+mutationPattern
+    : 'master_data'                   // SCD Type 2 with full history
+    | 'immutable_ledger'              // Append-only financial records
+    | 'versioned_configuration'       // Immutable versions with effective dates
+    | 'operational_parameters'        // Hot-reloadable parameters
+    | 'event_log'                     // Append-only event stream
+    | 'state_machine'                 // Workflow state tracking
+    | 'temporal_data'                 // Effective-dated values
+    | 'reference_data'                // Lookup tables
+    | 'business_logic'                // Compiled rules
+    ;
+
+// ----------------------------------------------------------------------------
+// Version Block (Schema Evolution)
+// ----------------------------------------------------------------------------
+
+versionBlock
+    : 'version' VERSION_NUMBER
+      compatibilityDecl?
+      previousVersionDecl?
+      deprecationDecl?
+      migrationGuideDecl?
+    ;
+
+compatibilityDecl
+    : 'compatibility' compatibilityMode
+    ;
+
+compatibilityMode
+    : 'backward'                      // New reads old
+    | 'forward'                       // Old reads new
+    | 'full'                          // Both directions
+    | 'none'                          // Breaking changes allowed
+    ;
+
+previousVersionDecl
+    : 'previous_version' VERSION_NUMBER
+    ;
+
+deprecationDecl
+    : 'deprecated' ':' STRING
+      ('deprecated_since' ':' STRING)?
+      ('removal_version' ':' VERSION_NUMBER)?
+    ;
+
+migrationGuideDecl
+    : 'migration_guide' ':' (STRING | MULTILINE_STRING)
+    ;
+
+// ----------------------------------------------------------------------------
+// Retention Declaration
+// ----------------------------------------------------------------------------
+
+retentionDecl
+    : 'retention' duration
+    ;
+
+// ----------------------------------------------------------------------------
+// Identity Block
+// ----------------------------------------------------------------------------
+
+identityBlock
+    : 'identity' identityField+ 'end'
+    ;
+
+identityField
+    : fieldName ':' fieldType fieldQualifier* ','?
+    ;
+
+// ----------------------------------------------------------------------------
+// Streaming Block
+// ----------------------------------------------------------------------------
+
+streamingBlock
+    : 'streaming' streamingDecl+ 'end'
+    ;
+
+streamingDecl
+    : keyFieldsDecl
+    | timeFieldDecl
+    | timeSemanticsDecl
+    | watermarkDecl
+    | lateDataDecl
+    | allowedLatenessDecl
+    | idleDecl
+    | sparsityDecl
+    | retentionBlockDecl
+    ;
+
+keyFieldsDecl
+    : 'key_fields' ':' fieldArray
+    ;
+
+timeFieldDecl
+    : 'time_field' ':' fieldPath
+    ;
+
+timeSemanticsDecl
+    : 'time_semantics' ':' timeSemanticsType
+    ;
+
+timeSemanticsType
+    : 'event_time'
+    | 'processing_time'
+    | 'ingestion_time'
+    ;
+
+watermarkDecl
+    : 'watermark_delay' ':' duration
+    | 'watermark_strategy' ':' watermarkStrategy
+    | 'max_out_of_orderness' ':' duration
+    | 'watermark_interval' ':' duration
+    | 'watermark_field' ':' fieldPath
+    ;
+
+watermarkStrategy
+    : 'bounded_out_of_orderness'
+    | 'periodic'
+    | 'punctuated'
+    ;
+
+lateDataDecl
+    : 'late_data_handling' ':' lateDataStrategy
+    | 'late_data_stream' ':' IDENTIFIER
+    ;
+
+lateDataStrategy
+    : 'side_output'
+    | 'drop'
+    | 'update'
+    ;
+
+allowedLatenessDecl
+    : 'allowed_lateness' ':' duration
+    ;
+
+idleDecl
+    : 'idle_timeout' ':' duration
+    | 'idle_behavior' ':' idleBehavior
+    ;
+
+idleBehavior
+    : 'mark_idle'
+    | 'advance_to_infinity'
+    | 'keep_waiting'
+    ;
+
+sparsityDecl
+    : 'sparsity' sparsityBlock 'end'
+    ;
+
+sparsityBlock
+    : ('dense' ':' fieldArray)?
+      ('moderate' ':' fieldArray)?
+      ('sparse' ':' fieldArray)?
+    ;
+
+retentionBlockDecl
+    : 'retention' retentionOptions 'end'
+    ;
+
+retentionOptions
+    : ('time' ':' duration)?
+      ('size' ':' sizeSpec)?
+      ('policy' ':' retentionPolicy)?
+    ;
+
+retentionPolicy
+    : 'delete_oldest'
+    | 'archive'
+    | 'compact'
+    ;
+
+// ----------------------------------------------------------------------------
+// Fields Block
+// ----------------------------------------------------------------------------
+
+fieldsBlock
+    : 'fields' fieldDecl+ 'end'
+    ;
+
+fieldDecl
+    : fieldName ':' fieldType fieldQualifier* ','?
+    ;
+
+fieldName
+    : IDENTIFIER
+    ;
+
+// ----------------------------------------------------------------------------
+// Nested Object Block
+// ----------------------------------------------------------------------------
+
+nestedObjectBlock
+    : fieldName ':' 'object' fieldDecl* nestedObjectBlock* 'end'
+    | fieldName ':' 'list' '<' 'object' '>' fieldDecl* nestedObjectBlock* 'end'
+    ;
+
+// ----------------------------------------------------------------------------
+// State Machine Block (for state_machine pattern)
+// ----------------------------------------------------------------------------
+
+stateMachineBlock
+    : forEntityDecl?
+      statesDecl
+      initialStateDecl?
+      transitionsBlock?
+      onTransitionBlock?
+    ;
+
+forEntityDecl
+    : 'for_entity' ':' IDENTIFIER
+    ;
+
+statesDecl
+    : 'states' ':' stateArray
+    ;
+
+stateArray
+    : '[' IDENTIFIER (',' IDENTIFIER)* ']'
+    ;
+
+initialStateDecl
+    : 'initial_state' ':' IDENTIFIER
+    ;
+
+transitionsBlock
+    : 'transitions' transitionDecl+ 'end'
+    ;
+
+transitionDecl
+    : 'from' IDENTIFIER ':' stateArray
+    ;
+
+onTransitionBlock
+    : 'on_transition' transitionAction+ 'end'
+    ;
+
+transitionAction
+    : 'to' IDENTIFIER ':' actionCall
+    ;
+
+actionCall
+    : IDENTIFIER '(' (STRING (',' STRING)*)? ')'
+    ;
+
+// ----------------------------------------------------------------------------
+// Parameters Block (for operational_parameters pattern)
+// ----------------------------------------------------------------------------
+
+parametersBlock
+    : 'parameters' parameterDecl+ 'end'
+    ;
+
+parameterDecl
+    : fieldName ':' fieldType
+        parameterOption*
+    ;
+
+parameterOption
+    : 'default' ':' literal
+    | 'range' ':' rangeSpec
+    | 'can_schedule' ':' BOOLEAN
+    | 'change_frequency' ':' IDENTIFIER
+    ;
+
+// ----------------------------------------------------------------------------
+// Entries Block (for reference_data pattern)
+// ----------------------------------------------------------------------------
+
+entriesBlock
+    : 'entries' entryDecl+ 'end'
+    ;
+
+entryDecl
+    : IDENTIFIER ':'
+        entryField+
+    ;
+
+entryField
+    : fieldName ':' literal
+    | 'deprecated' ':' BOOLEAN
+    | 'deprecated_reason' ':' STRING
+    ;
+
+// ----------------------------------------------------------------------------
+// Rule Block (for business_logic pattern)
+// ----------------------------------------------------------------------------
+
+ruleBlock
+    : 'rule' IDENTIFIER
+        givenBlock
+        calculateBlock?
+        returnBlock
+      'end'
+    ;
+
+givenBlock
+    : 'given' ruleFieldDecl+ 'end'
+    ;
+
+ruleFieldDecl
+    : fieldName ':' fieldType
+    ;
+
+calculateBlock
+    : 'calculate' calculation+ 'end'
+    ;
+
+calculation
+    : fieldName '=' expression
+    ;
+
+returnBlock
+    : 'return' ruleFieldDecl+ 'end'
+    ;
+
+// ----------------------------------------------------------------------------
+// Migration Block
+// ----------------------------------------------------------------------------
+
+migrationBlock
+    : 'migration' migrationStatement+ 'end'
+    ;
+
+migrationStatement
+    : fieldPath '=' expression
+    | '(' fieldList ')' '=' functionCall
+    ;
+
+// ----------------------------------------------------------------------------
+// Type Alias Block
+// ----------------------------------------------------------------------------
+
+typeAliasBlock
+    : 'types' typeAlias+ 'end'
+    ;
+
+typeAlias
+    : aliasName ':' fieldType constraint*
+    | aliasName ':' 'object' fieldDecl* 'end'
+    ;
+
+aliasName
+    : UPPER_IDENTIFIER
+    ;
+
+// ----------------------------------------------------------------------------
+// Type System
+// ----------------------------------------------------------------------------
+
+fieldType
+    : baseType constraint*                      // string, integer, etc.
+    | collectionType                            // list<T>, set<T>, map<K,V>
+    | IDENTIFIER                                // Custom/domain type
+    | UPPER_IDENTIFIER                          // Type alias reference
+    ;
+
+baseType
+    : 'string'
+    | 'integer'
+    | 'decimal'
+    | 'boolean'
+    | 'date'
+    | 'timestamp'
+    | 'uuid'
+    | 'bytes'
+    ;
+
+collectionType
+    : 'list' '<' fieldType '>'
+    | 'set' '<' fieldType '>'
+    | 'map' '<' fieldType ',' fieldType '>'
+    ;
+
+constraint
+    : '[' constraintSpec (',' constraintSpec)* ']'
+    ;
+
+constraintSpec
+    : 'range' ':' rangeSpec
+    | 'length' ':' lengthSpec
+    | 'pattern' ':' STRING
+    | 'values' ':' valueList
+    | 'precision' ':' INTEGER (',' 'scale' ':' INTEGER)?
+    | 'scale' ':' INTEGER
+    ;
+
+rangeSpec
+    : numberLiteral '..' numberLiteral          // Inclusive range
+    | '..' numberLiteral                        // Max only
+    | numberLiteral '..'                        // Min only
+    ;
+
+lengthSpec
+    : INTEGER                                   // Exact length
+    | INTEGER '..' INTEGER                      // Length range
+    | '..' INTEGER                              // Max length
+    | INTEGER '..'                              // Min length
+    ;
+
+valueList
+    : IDENTIFIER (',' IDENTIFIER)*
+    | STRING (',' STRING)*
+    ;
+
+// ----------------------------------------------------------------------------
+// Field Qualifiers
+// ----------------------------------------------------------------------------
+
+fieldQualifier
+    : 'required'
+    | 'optional'
+    | 'unique'
+    | 'cannot_change'
+    | 'encrypted'
+    | defaultClause
+    | deprecatedClause
+    ;
+
+defaultClause
+    : 'default' ':' (literal | functionCall)
+    ;
+
+deprecatedClause
+    : 'deprecated' ':' STRING
+    | 'removal' ':' VERSION_NUMBER
+    ;
+
+// ----------------------------------------------------------------------------
+// Expressions (for calculations and migrations)
+// ----------------------------------------------------------------------------
+
+expression
+    : literal
+    | fieldPath
+    | functionCall
+    | expression operator expression
+    | '(' expression ')'
+    | whenExpression
+    ;
+
+whenExpression
+    : 'when' condition ':' expression
+      ('when' condition ':' expression)*
+      'otherwise' ':' expression
+    ;
+
+condition
+    : expression comparisonOp expression
+    | expression 'and' condition
+    | expression 'or' condition
+    | '(' condition ')'
+    ;
+
+comparisonOp
+    : '=' | '!=' | '<' | '>' | '<=' | '>='
+    ;
+
+operator
+    : '+' | '-' | '*' | '/'
+    ;
+
+functionCall
+    : IDENTIFIER '(' (expression (',' expression)*)? ')'
+    ;
+
+// ----------------------------------------------------------------------------
+// Common Rules
+// ----------------------------------------------------------------------------
+
+fieldPath
+    : IDENTIFIER ('.' IDENTIFIER)*
+    ;
+
+fieldList
+    : fieldPath (',' fieldPath)*
+    ;
+
+fieldArray
+    : '[' fieldPath (',' fieldPath)* ']'
+    | '[' ']'                                   // Empty array (broadcast)
+    ;
+
+duration
+    : INTEGER timeUnit
+    | DURATION_LITERAL
+    ;
+
+timeUnit
+    : 'seconds' | 'second'
+    | 'minutes' | 'minute'
+    | 'hours'   | 'hour'
+    | 'days'    | 'day'
+    | 'weeks'   | 'week'
+    | 'months'  | 'month'
+    | 'years'   | 'year'
+    | 'milliseconds' | 'millisecond'
+    ;
+
+sizeSpec
+    : INTEGER sizeUnit
+    ;
+
+sizeUnit
+    : 'bytes' | 'KB' | 'MB' | 'GB' | 'TB'
+    ;
+
+literal
+    : STRING
+    | numberLiteral
+    | BOOLEAN
+    | 'null'
+    ;
+
+numberLiteral
+    : INTEGER
+    | DECIMAL
+    | '-' INTEGER
+    | '-' DECIMAL
+    ;
+
+// ============================================================================
+// LEXER RULES
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Keywords (grouped by category)
+// ----------------------------------------------------------------------------
+
+// Structure: schema, end, types
+// Patterns: master_data, immutable_ledger, versioned_configuration,
+//           operational_parameters, event_log, state_machine, temporal_data,
+//           reference_data, business_logic
+// Version: version, compatibility, backward, forward, full, none,
+//          previous_version, deprecated, deprecated_since, removal_version,
+//          migration_guide
+// Blocks: identity, streaming, fields, parameters, entries, rule, migration,
+//         transitions, on_transition, given, calculate, return
+// Types: string, integer, decimal, boolean, date, timestamp, uuid, bytes,
+//        list, set, map, object
+// Streaming: key_fields, time_field, time_semantics, event_time, processing_time,
+//            ingestion_time, watermark_delay, watermark_strategy, watermark_field,
+//            max_out_of_orderness, watermark_interval, bounded_out_of_orderness,
+//            periodic, punctuated, late_data_handling, late_data_stream,
+//            side_output, drop, update, allowed_lateness, idle_timeout,
+//            idle_behavior, mark_idle, advance_to_infinity, keep_waiting,
+//            sparsity, dense, moderate, sparse, retention, time, size, policy,
+//            delete_oldest, archive, compact
+// Qualifiers: required, optional, unique, cannot_change, encrypted, default
+// Constraints: range, length, pattern, values, precision, scale
+// State machine: for_entity, states, initial_state, from, to
+// Expressions: when, otherwise, and, or, null
+// Other: retention, pattern
+
+// ----------------------------------------------------------------------------
+// Literals
+// ----------------------------------------------------------------------------
+
+VERSION_NUMBER
+    : [0-9]+ '.' [0-9]+ '.' [0-9]+
+    ;
+
+INTEGER
+    : [0-9]+
+    ;
+
+DECIMAL
+    : [0-9]+ '.' [0-9]+
+    ;
+
+DURATION_LITERAL
+    : [0-9]+ ('ms' | 's' | 'm' | 'h' | 'd' | 'w')
+    ;
+
+BOOLEAN
+    : 'true' | 'false'
+    ;
+
+IDENTIFIER
+    : [a-z_] [a-z0-9_]*
+    ;
+
+UPPER_IDENTIFIER
+    : [A-Z] [a-zA-Z0-9_]*
+    ;
+
+STRING
+    : '"' (~["\r\n])* '"'
+    ;
+
+MULTILINE_STRING
+    : '"""' .*? '"""'
+    ;
+
+// ----------------------------------------------------------------------------
+// Operators
+// ----------------------------------------------------------------------------
+
+COLON : ':' ;
+COMMA : ',' ;
+DOT : '.' ;
+LBRACKET : '[' ;
+RBRACKET : ']' ;
+LPAREN : '(' ;
+RPAREN : ')' ;
+LANGLE : '<' ;
+RANGLE : '>' ;
+EQ : '=' ;
+NE : '!=' ;
+LT : '<' ;
+GT : '>' ;
+LE : '<=' ;
+GE : '>=' ;
+PLUS : '+' ;
+MINUS : '-' ;
+STAR : '*' ;
+SLASH : '/' ;
+DOTDOT : '..' ;
+
+// ----------------------------------------------------------------------------
+// Comments and Whitespace
+// ----------------------------------------------------------------------------
+
+COMMENT
+    : '//' ~[\r\n]* -> skip
+    ;
+
+WS
+    : [ \t\r\n]+ -> skip
+    ;

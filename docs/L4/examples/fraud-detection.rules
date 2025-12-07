@@ -1,0 +1,102 @@
+// L4 Example: Fraud Detection Rules
+// Paradigm: Decision Table
+// Domain: Credit Card Transaction Processing
+
+decision_table fraud_detection_rules
+  hit_policy first_match
+  description "Multi-factor fraud detection for transaction authorization"
+
+  given:
+    - amount: money
+    - amount_vs_average: number          // Ratio to customer's average transaction
+    - location_distance: number          // Miles from home location
+    - merchant_risk_tier: text           // HIGH, MEDIUM, LOW
+    - velocity_1h: number                // Transactions in last hour
+    - time_since_last_txn: number        // Minutes since last transaction
+    - is_international: boolean
+    - is_online: boolean
+    - customer_risk_tier: text           // HIGH, MEDIUM, LOW (from customer profile)
+
+  decide:
+    // High-confidence fraud indicators - immediate block
+    | amount_vs_average | location_distance | merchant_risk_tier | velocity_1h | time_since_last_txn | action   |
+    |-------------------|-------------------|--------------------| ------------|---------------------|----------|
+    | > 20              | > 500             | *                  | *           | *                   | block    |
+    | > 10              | > 500             | HIGH               | *           | *                   | block    |
+    | *                 | > 1000            | *                  | > 5         | < 5                 | block    |
+
+    // Suspicious patterns - manual review required
+    | > 10              | > 100             | *                  | *           | *                   | manual_review |
+    | > 5               | *                 | HIGH               | *           | *                   | manual_review |
+    | *                 | > 500             | *                  | > 3         | *                   | manual_review |
+    | *                 | *                 | HIGH               | > 5         | *                   | manual_review |
+
+    // Elevated risk - flag for post-review
+    | > 5               | *                 | MEDIUM             | *           | *                   | flag    |
+    | *                 | > 100             | MEDIUM             | *           | *                   | flag    |
+    | *                 | *                 | *                  | > 3         | < 10                | flag    |
+
+    // Default - approve
+    | *                 | *                 | *                  | *           | *                   | approve |
+
+  return:
+    - action: text
+
+end
+
+
+// Additional decision table for international transactions
+decision_table international_transaction_rules
+  hit_policy first_match
+  description "Special handling for international transactions"
+
+  given:
+    - amount: money
+    - destination_country: text
+    - customer_travel_history: boolean   // Has traveled to country before
+    - is_high_risk_country: boolean
+    - customer_tier: text                // PREMIER, STANDARD, BASIC
+
+  decide:
+    | amount     | is_high_risk_country | customer_travel_history | customer_tier | action             |
+    |------------|----------------------|-------------------------|---------------|--------------------|
+    | > $5,000   | true                 | false                   | *             | block              |
+    | > $2,000   | true                 | false                   | BASIC         | block              |
+    | > $1,000   | true                 | false                   | *             | require_verification |
+    | > $500     | true                 | true                    | BASIC         | require_verification |
+    | > $2,000   | false                | false                   | BASIC         | send_alert         |
+    | *          | *                    | *                       | *             | approve            |
+
+  return:
+    - action: text
+
+end
+
+
+// Velocity-based decision table
+decision_table velocity_check_rules
+  hit_policy first_match
+  description "Transaction velocity and pattern analysis"
+
+  given:
+    - txn_count_1h: number
+    - txn_count_24h: number
+    - amount_sum_1h: money
+    - amount_sum_24h: money
+    - unique_merchants_1h: number
+    - customer_avg_daily_txns: number
+
+  decide:
+    | txn_count_1h | txn_count_24h | amount_sum_1h | unique_merchants_1h | action             |
+    |--------------|---------------|---------------|---------------------|--------------------|
+    | > 10         | *             | *             | *                   | temporary_block    |
+    | > 5          | > 20          | *             | *                   | temporary_block    |
+    | *            | *             | > $10,000     | > 5                 | manual_review      |
+    | > 3          | *             | > $5,000      | *                   | flag               |
+    | *            | > 15          | *             | *                   | flag               |
+    | *            | *             | *             | *                   | approve            |
+
+  return:
+    - action: text
+
+end

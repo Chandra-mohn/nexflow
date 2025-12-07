@@ -1,0 +1,815 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nexflow.dev/schemas/infra/v1.0.0",
+  "title": "Nexflow Infrastructure Binding Schema",
+  "description": "JSON Schema for validating L5 .infra YAML files",
+  "type": "object",
+  "required": ["version", "environment"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Schema version (e.g., '1.0')"
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["base", "development", "staging", "production", "test"],
+      "description": "Environment name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this binding"
+    },
+    "extends": {
+      "type": "string",
+      "pattern": "^[a-z_][a-z0-9_-]*\\.infra$",
+      "description": "Parent binding file to inherit from"
+    },
+    "streams": {
+      "$ref": "#/definitions/StreamBindings"
+    },
+    "lookups": {
+      "$ref": "#/definitions/LookupBindings"
+    },
+    "checkpoints": {
+      "$ref": "#/definitions/CheckpointBindings"
+    },
+    "state_backends": {
+      "$ref": "#/definitions/StateBackendBindings"
+    },
+    "dead_letters": {
+      "$ref": "#/definitions/DeadLetterBindings"
+    },
+    "resources": {
+      "$ref": "#/definitions/ResourceBindings"
+    },
+    "secrets": {
+      "$ref": "#/definitions/SecretBindings"
+    },
+    "monitoring": {
+      "$ref": "#/definitions/MonitoringConfig"
+    },
+    "deployment": {
+      "$ref": "#/definitions/DeploymentConfig"
+    }
+  },
+  "additionalProperties": false,
+
+  "definitions": {
+    "EnvVariable": {
+      "type": "string",
+      "pattern": "^\\$\\{[A-Z_][A-Z0-9_]*(:-[^}]*)?\\}$|^[^$].*$",
+      "description": "Value or environment variable reference (${VAR} or ${VAR:-default})"
+    },
+    "Duration": {
+      "type": "string",
+      "pattern": "^[0-9]+(ms|s|m|h|d)$",
+      "description": "Duration (e.g., '30s', '5m', '1h', '7d')"
+    },
+    "ByteSize": {
+      "type": "string",
+      "pattern": "^[0-9]+(b|kb|mb|gb|B|KB|MB|GB)$",
+      "description": "Byte size (e.g., '64mb', '4gb')"
+    },
+    "SecretReference": {
+      "type": "string",
+      "pattern": "^secret://[a-z_][a-z0-9_]*/[a-z_][a-z0-9_]*$",
+      "description": "Secret reference (e.g., 'secret://mongo_connection/uri')"
+    },
+
+    "StreamBindings": {
+      "type": "object",
+      "description": "Map of logical stream names to physical bindings",
+      "additionalProperties": {
+        "$ref": "#/definitions/StreamBinding"
+      }
+    },
+    "StreamBinding": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["kafka", "kinesis", "pulsar"],
+          "description": "Stream platform type"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["source", "sink", "bidirectional"],
+          "description": "Stream direction (inferred from L1 if not specified)"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "kafka" } } },
+          "then": { "$ref": "#/definitions/KafkaBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "kinesis" } } },
+          "then": { "$ref": "#/definitions/KinesisBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "pulsar" } } },
+          "then": { "$ref": "#/definitions/PulsarBinding" }
+        }
+      ]
+    },
+
+    "KafkaBinding": {
+      "type": "object",
+      "required": ["topic", "brokers"],
+      "properties": {
+        "topic": { "type": "string" },
+        "brokers": { "$ref": "#/definitions/EnvVariable" },
+        "partitions": { "type": "integer", "minimum": 1 },
+        "replication": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "retention_ms": { "type": "integer" },
+        "consumer": { "$ref": "#/definitions/KafkaConsumerConfig" },
+        "producer": { "$ref": "#/definitions/KafkaProducerConfig" },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/EnvVariable" }
+        },
+        "schema_registry": { "$ref": "#/definitions/SchemaRegistryConfig" },
+        "serialization": { "$ref": "#/definitions/SerializationConfig" },
+        "error_handling": { "$ref": "#/definitions/StreamErrorHandling" }
+      }
+    },
+    "KafkaConsumerConfig": {
+      "type": "object",
+      "properties": {
+        "group_id": { "type": "string" },
+        "auto_offset_reset": { "type": "string", "enum": ["earliest", "latest", "none"] },
+        "max_poll_records": { "type": "integer", "minimum": 1 },
+        "isolation_level": { "type": "string", "enum": ["read_uncommitted", "read_committed"] },
+        "fetch_min_bytes": { "type": "integer" },
+        "fetch_max_wait": { "$ref": "#/definitions/Duration" }
+      }
+    },
+    "KafkaProducerConfig": {
+      "type": "object",
+      "properties": {
+        "acks": { "type": "string", "enum": ["0", "1", "all"] },
+        "retries": { "type": "integer", "minimum": 0 },
+        "batch_size": { "type": "integer" },
+        "linger_ms": { "type": "integer", "minimum": 0 },
+        "compression": { "type": "string", "enum": ["none", "gzip", "snappy", "lz4", "zstd"] },
+        "idempotence": { "type": "boolean" },
+        "buffer_memory": { "type": "integer" }
+      }
+    },
+
+    "KinesisBinding": {
+      "type": "object",
+      "required": ["stream", "region"],
+      "properties": {
+        "stream": { "type": "string" },
+        "region": { "type": "string" },
+        "shard_count": { "type": "integer", "minimum": 1 },
+        "retention_hours": { "type": "integer", "minimum": 24, "maximum": 8760 },
+        "encryption": { "type": "boolean" },
+        "kms_key_id": { "$ref": "#/definitions/EnvVariable" },
+        "consumer": { "$ref": "#/definitions/KinesisConsumerConfig" },
+        "producer": { "$ref": "#/definitions/KinesisProducerConfig" },
+        "credentials": { "$ref": "#/definitions/AwsCredentials" }
+      }
+    },
+    "KinesisConsumerConfig": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["standard", "enhanced_fan_out"] },
+        "consumer_name": { "type": "string" },
+        "starting_position": { "type": "string", "enum": ["TRIM_HORIZON", "LATEST", "AT_TIMESTAMP"] }
+      }
+    },
+    "KinesisProducerConfig": {
+      "type": "object",
+      "properties": {
+        "aggregation": { "type": "boolean" },
+        "max_connections": { "type": "integer" },
+        "record_max_buffered_time": { "$ref": "#/definitions/Duration" },
+        "collection_max_count": { "type": "integer" }
+      }
+    },
+    "AwsCredentials": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["default", "profile", "static", "assume_role"] },
+        "profile": { "type": "string" },
+        "role_arn": { "type": "string" },
+        "session_name": { "type": "string" },
+        "access_key_id": { "$ref": "#/definitions/EnvVariable" },
+        "secret_access_key": { "$ref": "#/definitions/EnvVariable" }
+      }
+    },
+
+    "PulsarBinding": {
+      "type": "object",
+      "required": ["topic", "service_url"],
+      "properties": {
+        "topic": { "type": "string" },
+        "service_url": { "type": "string" },
+        "admin_url": { "type": "string" },
+        "partitions": { "type": "integer", "minimum": 1 },
+        "retention_time": { "$ref": "#/definitions/Duration" },
+        "retention_size": { "$ref": "#/definitions/ByteSize" },
+        "compaction": { "type": "boolean" },
+        "consumer": { "$ref": "#/definitions/PulsarConsumerConfig" },
+        "producer": { "$ref": "#/definitions/PulsarProducerConfig" },
+        "auth": { "$ref": "#/definitions/PulsarAuth" },
+        "tls": { "$ref": "#/definitions/TlsConfig" }
+      }
+    },
+    "PulsarConsumerConfig": {
+      "type": "object",
+      "properties": {
+        "subscription_name": { "type": "string" },
+        "subscription_type": { "type": "string", "enum": ["Exclusive", "Shared", "Key_Shared", "Failover"] },
+        "receiver_queue_size": { "type": "integer" },
+        "acknowledgment_timeout": { "$ref": "#/definitions/Duration" },
+        "negative_ack_redelivery_delay": { "$ref": "#/definitions/Duration" },
+        "dead_letter_policy": { "$ref": "#/definitions/PulsarDlqPolicy" }
+      }
+    },
+    "PulsarProducerConfig": {
+      "type": "object",
+      "properties": {
+        "batching_enabled": { "type": "boolean" },
+        "batching_max_messages": { "type": "integer" },
+        "batching_max_publish_delay": { "$ref": "#/definitions/Duration" },
+        "compression": { "type": "string", "enum": ["NONE", "LZ4", "ZLIB", "ZSTD", "SNAPPY"] },
+        "send_timeout": { "$ref": "#/definitions/Duration" }
+      }
+    },
+    "PulsarDlqPolicy": {
+      "type": "object",
+      "properties": {
+        "max_redeliver_count": { "type": "integer" },
+        "dead_letter_topic": { "type": "string" }
+      }
+    },
+    "PulsarAuth": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["token", "tls", "oauth2"] },
+        "token": { "$ref": "#/definitions/EnvVariable" }
+      }
+    },
+    "TlsConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "trust_cert_path": { "type": "string" },
+        "allow_insecure": { "type": "boolean" }
+      }
+    },
+
+    "SchemaRegistryConfig": {
+      "type": "object",
+      "properties": {
+        "url": { "$ref": "#/definitions/EnvVariable" },
+        "basic_auth": { "$ref": "#/definitions/EnvVariable" }
+      }
+    },
+    "SerializationConfig": {
+      "type": "object",
+      "properties": {
+        "key_format": { "type": "string", "enum": ["string", "bytes", "json", "avro", "protobuf"] },
+        "value_format": { "type": "string", "enum": ["string", "bytes", "json", "avro", "protobuf"] },
+        "avro": {
+          "type": "object",
+          "properties": {
+            "schema_registry_url": { "$ref": "#/definitions/EnvVariable" },
+            "subject_name_strategy": { "type": "string", "enum": ["TopicNameStrategy", "RecordNameStrategy", "TopicRecordNameStrategy"] },
+            "auto_register": { "type": "boolean" }
+          }
+        },
+        "protobuf": {
+          "type": "object",
+          "properties": {
+            "message_class": { "type": "string" },
+            "include_schema": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "StreamErrorHandling": {
+      "type": "object",
+      "properties": {
+        "deserialization": {
+          "type": "object",
+          "properties": {
+            "action": { "type": "string", "enum": ["skip", "fail", "dlq"] },
+            "dlq_topic": { "type": "string" },
+            "log_level": { "type": "string", "enum": ["debug", "info", "warn", "error"] },
+            "max_errors_per_minute": { "type": "integer" }
+          }
+        },
+        "connectivity": {
+          "type": "object",
+          "properties": {
+            "retry_attempts": { "type": "integer" },
+            "retry_backoff": { "type": "string", "enum": ["constant", "linear", "exponential"] },
+            "initial_backoff": { "$ref": "#/definitions/Duration" },
+            "max_backoff": { "$ref": "#/definitions/Duration" },
+            "fail_after": { "$ref": "#/definitions/Duration" }
+          }
+        }
+      }
+    },
+
+    "LookupBindings": {
+      "type": "object",
+      "description": "Map of logical lookup names to physical bindings",
+      "additionalProperties": {
+        "$ref": "#/definitions/LookupBinding"
+      }
+    },
+    "LookupBinding": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["mongodb", "redis", "postgresql", "cassandra", "elasticsearch"],
+          "description": "Lookup store type"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "mongodb" } } },
+          "then": { "$ref": "#/definitions/MongoDbBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "redis" } } },
+          "then": { "$ref": "#/definitions/RedisBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "postgresql" } } },
+          "then": { "$ref": "#/definitions/PostgreSqlBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "cassandra" } } },
+          "then": { "$ref": "#/definitions/CassandraBinding" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "elasticsearch" } } },
+          "then": { "$ref": "#/definitions/ElasticsearchBinding" }
+        }
+      ]
+    },
+    "MongoDbBinding": {
+      "type": "object",
+      "required": ["uri", "database", "collection"],
+      "properties": {
+        "uri": { "$ref": "#/definitions/EnvVariable" },
+        "database": { "type": "string" },
+        "collection": { "type": "string" },
+        "read_preference": { "type": "string", "enum": ["primary", "primaryPreferred", "secondary", "secondaryPreferred", "nearest"] },
+        "max_pool_size": { "type": "integer", "minimum": 1 },
+        "cache": { "$ref": "#/definitions/CacheConfig" }
+      }
+    },
+    "RedisBinding": {
+      "type": "object",
+      "required": ["uri"],
+      "properties": {
+        "uri": { "$ref": "#/definitions/EnvVariable" },
+        "database": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "key_pattern": { "type": "string" },
+        "cluster_mode": { "type": "boolean" },
+        "cache": { "$ref": "#/definitions/CacheConfig" }
+      }
+    },
+    "PostgreSqlBinding": {
+      "type": "object",
+      "required": ["jdbc_url", "schema", "table"],
+      "properties": {
+        "jdbc_url": { "$ref": "#/definitions/EnvVariable" },
+        "schema": { "type": "string" },
+        "table": { "type": "string" },
+        "pool_size": { "type": "integer", "minimum": 1 },
+        "cache": { "$ref": "#/definitions/CacheConfig" }
+      }
+    },
+    "CassandraBinding": {
+      "type": "object",
+      "required": ["contact_points", "keyspace", "table"],
+      "properties": {
+        "contact_points": { "type": "array", "items": { "type": "string" } },
+        "keyspace": { "type": "string" },
+        "table": { "type": "string" },
+        "datacenter": { "type": "string" },
+        "consistency_level": { "type": "string", "enum": ["ONE", "QUORUM", "LOCAL_QUORUM", "ALL"] },
+        "cache": { "$ref": "#/definitions/CacheConfig" }
+      }
+    },
+    "ElasticsearchBinding": {
+      "type": "object",
+      "required": ["hosts", "index"],
+      "properties": {
+        "hosts": { "type": "array", "items": { "type": "string" } },
+        "index": { "type": "string" },
+        "username": { "$ref": "#/definitions/EnvVariable" },
+        "password": { "$ref": "#/definitions/EnvVariable" },
+        "cache": { "$ref": "#/definitions/CacheConfig" }
+      }
+    },
+    "CacheConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ttl": { "$ref": "#/definitions/Duration" },
+        "max_size": { "type": "integer" }
+      }
+    },
+
+    "CheckpointBindings": {
+      "type": "object",
+      "description": "Map of checkpoint names to storage bindings",
+      "additionalProperties": {
+        "$ref": "#/definitions/CheckpointBinding"
+      }
+    },
+    "CheckpointBinding": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["s3", "hdfs", "gcs", "filesystem"],
+          "description": "Checkpoint storage type"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "s3" } } },
+          "then": { "$ref": "#/definitions/S3CheckpointConfig" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "hdfs" } } },
+          "then": { "$ref": "#/definitions/HdfsCheckpointConfig" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "gcs" } } },
+          "then": { "$ref": "#/definitions/GcsCheckpointConfig" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "filesystem" } } },
+          "then": { "$ref": "#/definitions/FilesystemCheckpointConfig" }
+        }
+      ]
+    },
+    "S3CheckpointConfig": {
+      "type": "object",
+      "required": ["bucket"],
+      "properties": {
+        "bucket": { "type": "string" },
+        "prefix": { "type": "string" },
+        "region": { "type": "string" },
+        "interval": { "$ref": "#/definitions/Duration" },
+        "min_pause": { "$ref": "#/definitions/Duration" }
+      }
+    },
+    "HdfsCheckpointConfig": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "replication": { "type": "integer", "minimum": 1 },
+        "interval": { "$ref": "#/definitions/Duration" },
+        "min_pause": { "$ref": "#/definitions/Duration" }
+      }
+    },
+    "GcsCheckpointConfig": {
+      "type": "object",
+      "required": ["bucket"],
+      "properties": {
+        "bucket": { "type": "string" },
+        "prefix": { "type": "string" },
+        "interval": { "$ref": "#/definitions/Duration" },
+        "min_pause": { "$ref": "#/definitions/Duration" }
+      }
+    },
+    "FilesystemCheckpointConfig": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "interval": { "$ref": "#/definitions/Duration" },
+        "min_pause": { "$ref": "#/definitions/Duration" }
+      }
+    },
+
+    "StateBackendBindings": {
+      "type": "object",
+      "description": "Map of state backend names to configurations",
+      "additionalProperties": {
+        "$ref": "#/definitions/StateBackendBinding"
+      }
+    },
+    "StateBackendBinding": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["rocksdb", "hashmap"],
+          "description": "State backend type"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "rocksdb" } } },
+          "then": { "$ref": "#/definitions/RocksDbConfig" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "hashmap" } } },
+          "then": { "$ref": "#/definitions/HashMapConfig" }
+        }
+      ]
+    },
+    "RocksDbConfig": {
+      "type": "object",
+      "properties": {
+        "incremental": { "type": "boolean" },
+        "local_directories": { "type": "array", "items": { "type": "string" } },
+        "options": {
+          "type": "object",
+          "properties": {
+            "block_cache_size": { "$ref": "#/definitions/ByteSize" },
+            "write_buffer_size": { "$ref": "#/definitions/ByteSize" }
+          }
+        }
+      }
+    },
+    "HashMapConfig": {
+      "type": "object",
+      "properties": {
+        "async_snapshots": { "type": "boolean" }
+      }
+    },
+
+    "DeadLetterBindings": {
+      "type": "object",
+      "description": "Map of DLQ names to bindings",
+      "additionalProperties": {
+        "$ref": "#/definitions/DeadLetterBinding"
+      }
+    },
+    "DeadLetterBinding": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["kafka", "s3", "mongodb"],
+          "description": "DLQ storage type"
+        },
+        "topic": { "type": "string" },
+        "brokers": { "$ref": "#/definitions/EnvVariable" },
+        "bucket": { "type": "string" },
+        "prefix": { "type": "string" },
+        "format": { "type": "string", "enum": ["json", "avro", "parquet"] },
+        "partition_by": { "type": "string", "enum": ["date", "hour", "source"] },
+        "include_metadata": { "type": "boolean" }
+      }
+    },
+
+    "ResourceBindings": {
+      "type": "object",
+      "description": "Map of process names to resource configurations",
+      "additionalProperties": {
+        "$ref": "#/definitions/ResourceConfig"
+      },
+      "properties": {
+        "_defaults": { "$ref": "#/definitions/ResourceConfig" }
+      }
+    },
+    "ResourceConfig": {
+      "type": "object",
+      "properties": {
+        "parallelism": { "type": "integer", "minimum": 1 },
+        "max_parallelism": { "type": "integer", "minimum": 1 },
+        "task_memory": { "$ref": "#/definitions/ByteSize" },
+        "task_cpu": { "type": "number", "minimum": 0.1 },
+        "managed_memory": { "$ref": "#/definitions/ByteSize" },
+        "network_memory": { "$ref": "#/definitions/ByteSize" }
+      }
+    },
+
+    "SecretBindings": {
+      "type": "object",
+      "description": "Map of secret names to provider configurations",
+      "additionalProperties": {
+        "$ref": "#/definitions/SecretBinding"
+      }
+    },
+    "SecretBinding": {
+      "type": "object",
+      "required": ["provider"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["vault", "aws_secrets_manager", "kubernetes", "env"],
+          "description": "Secret provider type"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "provider": { "const": "vault" } } },
+          "then": { "$ref": "#/definitions/VaultSecretConfig" }
+        },
+        {
+          "if": { "properties": { "provider": { "const": "aws_secrets_manager" } } },
+          "then": { "$ref": "#/definitions/AwsSecretConfig" }
+        },
+        {
+          "if": { "properties": { "provider": { "const": "kubernetes" } } },
+          "then": { "$ref": "#/definitions/K8sSecretConfig" }
+        }
+      ]
+    },
+    "VaultSecretConfig": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "keys": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "AwsSecretConfig": {
+      "type": "object",
+      "required": ["secret_id", "region"],
+      "properties": {
+        "secret_id": { "type": "string" },
+        "region": { "type": "string" }
+      }
+    },
+    "K8sSecretConfig": {
+      "type": "object",
+      "required": ["namespace", "secret_name", "key"],
+      "properties": {
+        "namespace": { "type": "string" },
+        "secret_name": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
+
+    "MonitoringConfig": {
+      "type": "object",
+      "properties": {
+        "metrics": { "$ref": "#/definitions/MetricsConfig" },
+        "tracing": { "$ref": "#/definitions/TracingConfig" },
+        "logging": { "$ref": "#/definitions/LoggingConfig" },
+        "alerts": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/AlertConfig" }
+        }
+      }
+    },
+    "MetricsConfig": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["prometheus", "datadog", "cloudwatch"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "path": { "type": "string" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "TracingConfig": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["jaeger", "zipkin", "otel"] },
+        "endpoint": { "type": "string" },
+        "sampling_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "LoggingConfig": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "string", "enum": ["DEBUG", "INFO", "WARN", "ERROR"] },
+        "format": { "type": "string", "enum": ["json", "text", "logfmt"] },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["stdout", "file", "elasticsearch", "loki"] },
+              "endpoint": { "$ref": "#/definitions/EnvVariable" },
+              "index_pattern": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "AlertConfig": {
+      "type": "object",
+      "required": ["name", "condition", "severity"],
+      "properties": {
+        "name": { "type": "string" },
+        "condition": { "type": "string" },
+        "severity": { "type": "string", "enum": ["info", "warning", "critical"] },
+        "channels": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "DeploymentConfig": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["kubernetes", "yarn", "standalone"],
+          "description": "Deployment target type"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "kubernetes" } } },
+          "then": { "$ref": "#/definitions/KubernetesDeployment" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "yarn" } } },
+          "then": { "$ref": "#/definitions/YarnDeployment" }
+        }
+      ]
+    },
+    "KubernetesDeployment": {
+      "type": "object",
+      "properties": {
+        "namespace": { "type": "string" },
+        "service_account": { "type": "string" },
+        "pod_template": {
+          "type": "object",
+          "properties": {
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "node_selector": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "tolerations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string" },
+                  "operator": { "type": "string", "enum": ["Equal", "Exists"] },
+                  "value": { "type": "string" },
+                  "effect": { "type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"] }
+                }
+              }
+            }
+          }
+        },
+        "scaling": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["horizontal", "vertical"] },
+            "min_replicas": { "type": "integer", "minimum": 0 },
+            "max_replicas": { "type": "integer", "minimum": 1 },
+            "metrics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["cpu", "memory", "custom"] },
+                  "target_utilization": { "type": "integer", "minimum": 1, "maximum": 100 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "YarnDeployment": {
+      "type": "object",
+      "properties": {
+        "queue": { "type": "string" },
+        "application_master": {
+          "type": "object",
+          "properties": {
+            "memory": { "$ref": "#/definitions/ByteSize" },
+            "vcores": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "container": {
+          "type": "object",
+          "properties": {
+            "memory": { "$ref": "#/definitions/ByteSize" },
+            "vcores": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

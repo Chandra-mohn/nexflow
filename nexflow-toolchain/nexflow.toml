@@ -1,0 +1,42 @@
+# Nexflow Project Configuration
+# https://github.com/your-org/nexflow
+
+[project]
+name = "nexflow-toolchain"
+version = "0.1.0"
+
+[paths]
+src = "src"
+output = "generated"
+
+# Source directories for each DSL type
+[sources.flow]
+path = "src/flow"
+
+[sources.schema]
+path = "src/schema"
+
+[sources.transform]
+path = "src/transform"
+
+[sources.rules]
+path = "src/rules"
+
+# Code generation targets
+[targets.flink]
+enabled = true
+output = "generated/flink"
+
+[targets.flink.options]
+package = "nexflow.flink"
+java_version = "17"
+
+[targets.spark]
+enabled = false
+output = "generated/spark"
+
+[targets.spark.options]
+package = "nexflow.spark"
+
+# External dependencies (other Nexflow projects)
+# dependencies = ["../shared-schemas"]

@@ -1,0 +1,33 @@
+{
+  "name": "mongodb-sink-transactions",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "tasks.max": "1",
+    "topics": "transactions,enriched-transactions,alerts",
+    "connection.uri": "mongodb://nexflow_app:nexflow_app_dev@mongodb:27017/nexflow?authSource=nexflow",
+    "database": "nexflow",
+    "collection": "${topic}",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.ProvidedInKeyStrategy",
+    "document.id.strategy.overwrite.existing": "true",
+    "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneDefaultStrategy",
+    "max.batch.size": "100",
+    "rate.limiting.every.n": "0",
+    "rate.limiting.timeout": "0",
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "errors.deadletterqueue.topic.name": "dlq-mongodb-sink",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "transforms": "convertTimestamp,renameCollection",
+    "transforms.convertTimestamp.type": "org.apache.kafka.connect.transforms.TimestampConverter$Value",
+    "transforms.convertTimestamp.target.type": "Timestamp",
+    "transforms.convertTimestamp.field": "event_timestamp",
+    "transforms.convertTimestamp.format": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+    "transforms.renameCollection.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.renameCollection.regex": "enriched-transactions",
+    "transforms.renameCollection.replacement": "enriched_transactions"
+  }
+}

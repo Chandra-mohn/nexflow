@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""
+Nexflow CLI Entry Point
+
+Usage:
+    ./nexflow build
+    ./nexflow validate
+    ./nexflow --help
+"""
+import sys
+from pathlib import Path
+
+# Add backend to path
+backend_path = Path(__file__).parent / "backend"
+sys.path.insert(0, str(backend_path.parent))
+
+from backend.cli.main import main
+
+if __name__ == "__main__":
+    main()

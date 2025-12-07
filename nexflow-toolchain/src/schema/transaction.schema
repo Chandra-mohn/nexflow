@@ -1,0 +1,103 @@
+// Transaction Schema - L2 Schema Example
+// Demonstrates master_data pattern with streaming semantics
+
+schema transaction
+    pattern master_data, event_log
+
+    version 2.0.0
+        compatibility backward
+        previous_version 1.5.0
+
+    retention 90 days
+
+    identity
+        transaction_id: uuid required
+        customer_id: string required
+    end
+
+    streaming
+        key_fields: [transaction_id]
+        time_field: event_timestamp
+        time_semantics: event_time
+        watermark_delay: 5 seconds
+        watermark_strategy: bounded_out_of_orderness
+        late_data_handling: side_output
+        late_data_stream: late_transactions
+        allowed_lateness: 10 seconds
+        idle_timeout: 1 minute
+        idle_behavior: mark_idle
+    end
+
+    fields
+        amount: decimal[precision: 18, scale: 2] required
+        currency: string[length: 3] required default: "USD"
+        merchant_id: string required
+        merchant_name: string optional
+        category: string[values: retail, food, travel, entertainment, other]
+        event_timestamp: timestamp required
+        processing_timestamp: timestamp optional
+        status: string[values: pending, approved, declined, fraud] default: "pending"
+        risk_score: decimal[range: 0.0..100.0] optional
+        ip_address: string optional
+        device_fingerprint: string optional
+    end
+
+    location: object
+        country: string[length: 2] required
+        city: string optional
+        postal_code: string optional
+        latitude: decimal[precision: 9, scale: 6] optional
+        longitude: decimal[precision: 9, scale: 6] optional
+    end
+
+    items: list<object>
+        sku: string required
+        name: string required
+        quantity: integer[range: 1..1000] required
+        unit_price: decimal[precision: 10, scale: 2] required
+        total: decimal[precision: 12, scale: 2] required
+    end
+
+    for_entity: status
+    states: [pending, approved, declined, fraud, refunded]
+    initial_state: pending
+    transitions
+        from pending: [approved, declined, fraud]
+        from approved: [refunded]
+        from declined: [pending]
+    end
+
+    migration
+        risk_score = coalesce(risk_score, 0.0)
+    end
+end
+
+schema enriched_transaction
+    pattern event_log
+
+    version 1.0.0
+
+    identity
+        transaction_id: uuid required
+    end
+
+    streaming
+        key_fields: [transaction_id]
+        time_field: event_timestamp
+    end
+
+    fields
+        transaction_id: uuid required
+        customer_id: string required
+        amount: decimal[precision: 18, scale: 2] required
+        normalized_amount: decimal[precision: 18, scale: 2] required
+        merchant_id: string required
+        risk_tier: string required
+        credit_limit: decimal[precision: 18, scale: 2] required
+        account_age: integer required
+        velocity_24h: integer required
+        fraud_probability: decimal[precision: 5, scale: 4] required
+        event_timestamp: timestamp required
+        processing_timestamp: timestamp required
+    end
+end

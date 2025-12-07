@@ -1,0 +1,168 @@
+# L2 Example: Customer Schema (Master Data Pattern)
+#
+# Demonstrates: master_data mutation pattern with SCD Type 2 history
+# Use case: Customer profiles, entity master data with full audit trail
+
+schema customer
+  pattern master_data
+  version 2.1.0
+  compatibility backward
+  previous_version 2.0.0
+
+  # Identity section - defines unique keys
+  identity
+    customer_id: string, unique, required, cannot_change
+  end
+
+  # Streaming configuration for real-time updates
+  streaming
+    key_fields: [customer_id]
+    time_field: updated_at
+    time_semantics: event_time
+  end
+
+  # Core fields
+  fields
+    # Personal information
+    first_name: string, required
+    last_name: string, required
+    full_name: string, required  # Computed: first_name + " " + last_name
+    date_of_birth: date, required, cannot_change
+    ssn: string [length: 9, pattern: "^[0-9]+$"], encrypted, cannot_change
+
+    # Contact information
+    email: string [pattern: "^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$"], required
+    phone: string [pattern: "^\\+[1-9]\\d{1,14}$"], optional  # E.164 format
+
+    # Risk and segmentation
+    credit_score: integer [range: 300..850], optional
+    risk_tier: string [values: low, medium, high, very_high], default: "medium"
+    segment: string [values: premier, preferred, standard], default: "standard"
+
+    # Account status
+    status: string [values: active, suspended, closed], default: "active"
+    kyc_verified: boolean, default: false
+    kyc_verified_at: timestamp, optional
+
+    # Timestamps (auto-managed)
+    created_at: timestamp, required, cannot_change, default: now()
+    updated_at: timestamp, required, default: now()
+  end
+
+  # Primary address (nested object)
+  primary_address: object
+    street_line_1: string, required
+    street_line_2: string, optional
+    city: string, required
+    state: string [length: 2, pattern: "^[A-Z]{2}$"], required
+    postal_code: string [pattern: "^[0-9]{5}(-[0-9]{4})?$"], required
+    country: string [length: 2, pattern: "^[A-Z]{2}$"], default: "US"
+  end
+
+  # Employment information (nested object)
+  employment: object
+    employer_name: string, optional
+    occupation: string, optional
+    annual_income: decimal [precision: 12, scale: 2], optional
+    employment_status: string [values: employed, self_employed, retired, student, unemployed], optional
+    years_employed: integer [range: 0..50], optional
+  end
+
+  # Preferences (nested object)
+  preferences: object
+    communication_email: boolean, default: true
+    communication_sms: boolean, default: false
+    communication_phone: boolean, default: false
+    language: string [values: en, es, fr, zh], default: "en"
+    timezone: string, default: "America/New_York"
+  end
+
+  # Multiple addresses (list of objects)
+  addresses: list<object>
+    address_type: string [values: home, work, billing, shipping], required
+    street_line_1: string, required
+    street_line_2: string, optional
+    city: string, required
+    state: string [length: 2], required
+    postal_code: string, required
+    country: string [length: 2], default: "US"
+    is_primary: boolean, default: false
+  end
+
+  # Deprecation example - phone moved to contact object in v3.0.0
+  deprecated_fields
+    home_phone: string, deprecated: "Use phone field instead", removal: "3.0.0"
+  end
+
+  # Validation rules
+  validations
+    # At least one contact method required
+    require_contact: email is not null or phone is not null
+
+    # KYC timestamp required if verified
+    kyc_timestamp_required: kyc_verified = false or kyc_verified_at is not null
+
+    # Credit score required for premier segment
+    premier_requires_score: segment != "premier" or credit_score is not null
+  end
+
+  # Indexes for query optimization
+  indexes
+    idx_email: [email], unique: true
+    idx_segment_status: [segment, status]
+    idx_risk_tier: [risk_tier]
+    idx_created_at: [created_at]
+  end
+end
+
+# ============================================================
+# Generated Operations (from master_data pattern)
+# ============================================================
+#
+# add(customer) → Creates new customer record
+#   - Sets created_at, updated_at to now()
+#   - Validates all constraints
+#   - Creates initial history record
+#
+# update(customer_id, changes) → Updates customer with SCD Type 2
+#   - Closes current record (sets valid_to)
+#   - Creates new record with changes
+#   - Updates updated_at timestamp
+#   - Records change in customer_history
+#
+# soft_delete(customer_id) → Marks customer as deleted
+#   - Sets deleted_at timestamp
+#   - Never physically removes data
+#   - Maintains full audit trail
+#
+# retrieve(customer_id) → Gets current customer record
+#   - Returns is_current = true record
+#   - Excludes soft-deleted records by default
+#
+# get_history(customer_id) → Gets full history chain
+#   - Returns all versions ordered by valid_from
+#   - Includes change_type, changed_by, changed_at
+#
+# ============================================================
+# Generated Infrastructure
+# ============================================================
+#
+# TABLE: customer
+#   - All fields from schema
+#   - valid_from TIMESTAMP NOT NULL
+#   - valid_to TIMESTAMP (NULL for current)
+#   - is_current BOOLEAN DEFAULT TRUE
+#   - deleted_at TIMESTAMP (NULL if not deleted)
+#
+# TABLE: customer_history
+#   - history_id SERIAL PRIMARY KEY
+#   - All fields from schema
+#   - change_type VARCHAR(20) -- INSERT, UPDATE, DELETE
+#   - changed_by VARCHAR(100)
+#   - changed_at TIMESTAMP
+#   - change_reason TEXT
+#
+# TRIGGERS:
+#   - prevent_direct_update (enforce SCD Type 2)
+#   - audit_trail_insert
+#   - audit_trail_update

@@ -1,0 +1,27 @@
+// Credit Routing Rules
+// Routes credit applications based on score and status
+
+rule route_by_score:
+  if score >= 750 then
+    route_to_premium()
+  elseif score >= 650 and score < 750 then
+    if status = 'active' then
+      route_to_standard()
+    else
+      route_to_review()
+    endif
+  else
+    route_to_manual_review()
+  endif
+end
+
+rule validate_application:
+  if amount > 100000 then
+    require_manual_approval()
+  endif
+  if applicant_age < 18 then
+    reject('Applicant must be 18 or older')
+    return
+  endif
+  approve()
+end

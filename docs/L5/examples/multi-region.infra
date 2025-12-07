@@ -1,0 +1,576 @@
+# L5 Example: Multi-Region Infrastructure Binding
+#
+# Demonstrates: Multi-region deployment with replication and failover
+# Use case: Global credit card processing with disaster recovery
+# Regions: us-east-1 (primary), us-west-2 (secondary), eu-west-1 (GDPR)
+
+version: "1.0"
+environment: production-multi-region
+description: "Multi-region infrastructure for global credit card processing"
+
+# =============================================================
+# Region Configuration
+# =============================================================
+
+regions:
+  primary:
+    name: us-east-1
+    role: active
+    priority: 1
+
+  secondary:
+    name: us-west-2
+    role: standby
+    priority: 2
+    failover:
+      auto_promote: true
+      health_check_interval: 30s
+      promotion_delay: 60s
+
+  eu:
+    name: eu-west-1
+    role: active  # Independent for GDPR compliance
+    priority: 1
+    data_residency: EU
+
+# =============================================================
+# Stream Bindings - Multi-Region Kafka
+# =============================================================
+
+streams:
+  # Global auth events with regional routing
+  auth_events:
+    type: kafka
+    regional: true
+
+    # Region-specific configuration
+    us-east-1:
+      topic: us-east.auth.events.v3
+      brokers: ${KAFKA_BROKERS_US_EAST}
+      partitions: 128
+      replication: 3
+
+    us-west-2:
+      topic: us-west.auth.events.v3
+      brokers: ${KAFKA_BROKERS_US_WEST}
+      partitions: 128
+      replication: 3
+      # Mirror from primary
+      mirror:
+        source: us-east-1
+        enabled: true
+
+    eu-west-1:
+      topic: eu-west.auth.events.v3
+      brokers: ${KAFKA_BROKERS_EU_WEST}
+      partitions: 64
+      replication: 3
+      # No mirroring - data residency
+
+    # Common configuration
+    consumer:
+      group_id: auth-enrichment-consumer-v3
+      auto_offset_reset: earliest
+      isolation_level: read_committed
+
+    producer:
+      acks: all
+      idempotence: true
+      compression: lz4
+
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+
+  # Enriched output with cross-region replication
+  enriched_auths:
+    type: kafka
+    regional: true
+
+    us-east-1:
+      topic: us-east.auth.enriched.v3
+      brokers: ${KAFKA_BROKERS_US_EAST}
+      partitions: 64
+
+    us-west-2:
+      topic: us-west.auth.enriched.v3
+      brokers: ${KAFKA_BROKERS_US_WEST}
+      partitions: 64
+
+    eu-west-1:
+      topic: eu-west.auth.enriched.v3
+      brokers: ${KAFKA_BROKERS_EU_WEST}
+      partitions: 32
+
+  # Global fraud alerts - replicated everywhere
+  fraud_alerts:
+    type: kafka
+    global: true  # Same topic, all regions read
+
+    topic: global.fraud.alerts.v3
+    brokers: ${KAFKA_BROKERS_GLOBAL}
+    partitions: 32
+    replication: 5  # Cross-region replication
+
+# =============================================================
+# Lookup Bindings - Geo-Distributed Data
+# =============================================================
+
+lookups:
+  # Customer data with regional reads
+  customers:
+    type: mongodb
+    regional: true
+
+    # MongoDB Atlas global cluster
+    global:
+      uri: secret://mongo_global/uri
+      database: credit_card
+      collection: customers
+
+    us-east-1:
+      read_preference: nearest
+      read_concern: local
+      zone: US_EAST
+
+    us-west-2:
+      read_preference: nearest
+      read_concern: local
+      zone: US_WEST
+
+    eu-west-1:
+      read_preference: nearest
+      read_concern: local
+      zone: EU_WEST
+      # Additional GDPR compliance
+      audit: true
+      encryption: client_side
+
+    lookup:
+      key_field: card_id
+      projection:
+        - customer_id
+        - customer_name
+        - credit_limit
+        - risk_tier
+        - home_region
+
+    cache:
+      enabled: true
+      ttl: 5m
+      max_size: 500000
+      # Regional cache isolation
+      regional_isolation: true
+
+  # Exchange rates - globally replicated
+  currency_rates:
+    type: redis
+    global: true
+
+    # Redis Global Datastore
+    primary:
+      region: us-east-1
+      uri: secret://redis_global/uri_primary
+
+    replicas:
+      - region: us-west-2
+        uri: secret://redis_global/uri_us_west
+      - region: eu-west-1
+        uri: secret://redis_global/uri_eu_west
+
+    # Read from local replica
+    read_preference: local
+
+    lookup:
+      key_pattern: "fx:rate:{currency}:USD"
+      type: string
+
+# =============================================================
+# State Backend - Regional RocksDB
+# =============================================================
+
+state_backends:
+  default:
+    type: rocksdb
+    incremental: true
+    regional: true
+
+    us-east-1:
+      storage:
+        local_directories:
+          - /mnt/nvme1/flink-state
+          - /mnt/nvme2/flink-state
+
+    us-west-2:
+      storage:
+        local_directories:
+          - /mnt/nvme1/flink-state
+          - /mnt/nvme2/flink-state
+
+    eu-west-1:
+      storage:
+        local_directories:
+          - /mnt/nvme1/flink-state
+        # GDPR: State encryption at rest
+        encryption:
+          enabled: true
+          key_provider: aws_kms
+          kms_key_id: ${KMS_KEY_EU}
+
+    options:
+      block_cache_size: 512mb
+      write_buffer_size: 64mb
+      compression: LZ4
+
+# =============================================================
+# Checkpoint Storage - Regional S3 with Replication
+# =============================================================
+
+checkpoints:
+  auth_checkpoints:
+    type: s3
+    regional: true
+
+    us-east-1:
+      bucket: company-checkpoints-us-east
+      prefix: auth-enrichment/
+      region: us-east-1
+
+      # Cross-region replication for DR
+      replication:
+        enabled: true
+        destination_bucket: company-checkpoints-us-west
+        destination_region: us-west-2
+
+    us-west-2:
+      bucket: company-checkpoints-us-west
+      prefix: auth-enrichment/
+      region: us-west-2
+
+    eu-west-1:
+      bucket: company-checkpoints-eu-west
+      prefix: auth-enrichment/
+      region: eu-west-1
+      # No cross-region replication - GDPR
+
+    checkpoint:
+      interval: 60s
+      mode: exactly_once
+      incremental: true
+
+    encryption:
+      type: sse_kms
+
+    retention:
+      max_checkpoints: 5
+      externalized: retain_on_cancellation
+
+# =============================================================
+# Resource Configuration - Per-Region Sizing
+# =============================================================
+
+resources:
+  _defaults:
+    parallelism: 64
+    task_memory: 4gb
+    task_cpu: 2
+
+  authorization_enrichment:
+    regional: true
+
+    us-east-1:
+      parallelism: 128
+      task_memory: 4gb
+      # Primary handles more traffic
+
+    us-west-2:
+      parallelism: 64
+      task_memory: 4gb
+      # Standby with reduced capacity
+
+    eu-west-1:
+      parallelism: 64
+      task_memory: 4gb
+
+  fraud_detection:
+    regional: true
+
+    us-east-1:
+      parallelism: 64
+      task_memory: 8gb
+
+    us-west-2:
+      parallelism: 32
+      task_memory: 8gb
+
+    eu-west-1:
+      parallelism: 32
+      task_memory: 8gb
+
+# =============================================================
+# Secrets - Per-Region Secret Management
+# =============================================================
+
+secrets:
+  # Global secrets (same in all regions)
+  kafka_global:
+    provider: vault
+    path: secret/data/global/kafka
+    vault:
+      address: ${VAULT_ADDR}
+    auth:
+      method: kubernetes
+      role: flink-global
+
+  # Regional secrets
+  mongo_global:
+    provider: vault
+    path: secret/data/global/mongodb
+    vault:
+      address: ${VAULT_ADDR}
+    auth:
+      method: kubernetes
+      role: flink-global
+
+  redis_global:
+    provider: vault
+    regional: true
+    path_template: "secret/data/{region}/redis"
+    vault:
+      address: ${VAULT_ADDR}
+    auth:
+      method: kubernetes
+      role: flink-regional
+
+  # EU-specific secrets (GDPR compliance)
+  eu_encryption_key:
+    provider: vault
+    path: secret/data/eu/encryption
+    vault:
+      address: ${VAULT_ADDR_EU}  # EU Vault cluster
+    auth:
+      method: kubernetes
+      role: flink-eu
+    # Only accessible from EU region
+    regions: [eu-west-1]
+
+# =============================================================
+# Monitoring - Multi-Region Observability
+# =============================================================
+
+monitoring:
+  metrics:
+    type: prometheus
+    regional: true
+
+    us-east-1:
+      federation:
+        global_aggregator: prometheus-global.company.com:9090
+
+    us-west-2:
+      federation:
+        global_aggregator: prometheus-global.company.com:9090
+
+    eu-west-1:
+      federation:
+        # EU metrics stay in EU
+        global_aggregator: prometheus-eu.company.com:9090
+
+    labels:
+      environment: production
+      team: credit-card
+
+  tracing:
+    type: jaeger
+    regional: true
+
+    us-east-1:
+      endpoint: http://jaeger-us-east.observability:14268/api/traces
+
+    us-west-2:
+      endpoint: http://jaeger-us-west.observability:14268/api/traces
+
+    eu-west-1:
+      endpoint: http://jaeger-eu.observability:14268/api/traces
+
+    sampling_rate: 0.01
+
+  # Global alerts
+  alerts:
+    - name: region_failover
+      condition: "region_health_score < 0.5"
+      severity: critical
+      channels:
+        - pagerduty://critical
+        - slack://credit-card-incidents
+
+    - name: cross_region_lag
+      condition: "mirror_maker_lag > 10000"
+      severity: warning
+      channels:
+        - slack://credit-card-alerts
+
+    - name: regional_latency_divergence
+      condition: "abs(region_latency_p99 - global_latency_p99) > 200ms"
+      severity: warning
+      channels:
+        - slack://credit-card-alerts
+
+# =============================================================
+# Deployment - Multi-Region Kubernetes
+# =============================================================
+
+deployment:
+  type: kubernetes
+  multi_region: true
+
+  # Per-region configuration
+  us-east-1:
+    namespace: credit-card-production
+    cluster: eks-us-east-1
+
+    service_account: proc-dsl-production
+
+    job_manager:
+      replicas: 2
+      resources:
+        cpu: 4
+        memory: 8gb
+
+    task_manager:
+      replicas: 32
+      resources:
+        cpu: 8
+        memory: 16gb
+
+    pod_template:
+      spec:
+        node_selector:
+          topology.kubernetes.io/zone: us-east-1a,us-east-1b,us-east-1c
+          workload-type: streaming
+
+  us-west-2:
+    namespace: credit-card-production
+    cluster: eks-us-west-2
+
+    service_account: proc-dsl-production
+
+    job_manager:
+      replicas: 2
+      resources:
+        cpu: 4
+        memory: 8gb
+
+    task_manager:
+      replicas: 16  # Standby - fewer replicas
+      resources:
+        cpu: 8
+        memory: 16gb
+
+    # Standby mode
+    standby:
+      enabled: true
+      processing_mode: shadow  # shadow, active, inactive
+      auto_promote: true
+
+  eu-west-1:
+    namespace: credit-card-production-eu
+    cluster: eks-eu-west-1
+
+    service_account: proc-dsl-production-eu
+
+    job_manager:
+      replicas: 2
+      resources:
+        cpu: 4
+        memory: 8gb
+
+    task_manager:
+      replicas: 16
+      resources:
+        cpu: 8
+        memory: 16gb
+
+    # GDPR compliance
+    compliance:
+      data_residency: EU
+      audit_logging: true
+      encryption_at_rest: true
+
+  # Global deployment strategy
+  strategy:
+    type: rolling_regional
+
+    regional_rollout:
+      order: [us-east-1, us-west-2, eu-west-1]
+      delay_between_regions: 15m
+      validation_time: 10m
+
+    hooks:
+      pre_regional_upgrade:
+        - action: savepoint
+          timeout: 10m
+        - action: verify_mirror_lag
+          threshold: 1000
+
+      post_regional_upgrade:
+        - action: verify_health
+          timeout: 5m
+        - action: verify_processing_rate
+          threshold: 0.9  # 90% of pre-upgrade rate
+
+    rollback:
+      auto_rollback: true
+      triggers:
+        - error_rate > 0.01
+        - latency_p99 > 2000ms
+        - processing_rate < 0.5
+
+# =============================================================
+# Failover Configuration
+# =============================================================
+
+failover:
+  # Primary to secondary failover
+  us_failover:
+    primary: us-east-1
+    secondary: us-west-2
+
+    detection:
+      health_check_interval: 30s
+      failure_threshold: 3
+      recovery_threshold: 5
+
+    promotion:
+      auto_promote: true
+      promotion_delay: 60s
+      notification_channels:
+        - pagerduty://critical
+        - slack://credit-card-incidents
+
+    # Traffic switching
+    traffic:
+      dns_ttl: 30s
+      gradual_switch: true
+      switch_percentage_per_step: 25
+      step_interval: 2m
+
+  # EU is independent (no failover to US)
+  eu_failover:
+    primary: eu-west-1
+    secondary: null  # No failover - data residency
+
+    detection:
+      health_check_interval: 30s
+      failure_threshold: 3
+
+    # EU failure requires manual intervention
+    promotion:
+      auto_promote: false
+      notification_channels:
+        - pagerduty://critical
+        - slack://eu-incidents
+
+# =============================================================
+# End of Multi-Region Configuration
+# =============================================================

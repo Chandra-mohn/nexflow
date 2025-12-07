@@ -1,0 +1,301 @@
+# Nexflow Development Environment
+# Full stack: Kafka, Flink, Spark, MongoDB with Kafka Connect
+#
+# Usage:
+#   docker-compose up -d                    # Start all services
+#   docker-compose up -d kafka mongodb      # Start specific services
+#   docker-compose logs -f flink-jobmanager # Follow logs
+#   docker-compose down -v                  # Stop and remove volumes
+#
+# Ports:
+#   Kafka: 9092 (broker), 9093 (external)
+#   Schema Registry: 8081
+#   Kafka Connect: 8083
+#   Flink: 8081 (web UI)
+#   Spark: 8080 (master UI), 7077 (master), 4040 (app UI)
+#   MongoDB: 27017
+
+networks:
+  nexflow-net:
+    driver: bridge
+
+volumes:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
+  mongodb-data:
+  spark-data:
+  parquet-output:
+
+services:
+  # ============================================================================
+  # ZOOKEEPER - Kafka coordination
+  # ============================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: nexflow-zookeeper
+    hostname: zookeeper
+    networks:
+      - nexflow-net
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # KAFKA - Message broker
+  # ============================================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: nexflow-kafka
+    hostname: kafka
+    networks:
+      - nexflow-net
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ============================================================================
+  # SCHEMA REGISTRY - Avro/JSON schema management
+  # ============================================================================
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: nexflow-schema-registry
+    hostname: schema-registry
+    networks:
+      - nexflow-net
+    ports:
+      - "8081:8081"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # KAFKA CONNECT - Data integration (MongoDB Sink)
+  # ============================================================================
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.5.0
+    container_name: nexflow-kafka-connect
+    hostname: kafka-connect
+    networks:
+      - nexflow-net
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_GROUP_ID: nexflow-connect-cluster
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+      # MongoDB connector plugin installation
+      CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing MongoDB Kafka Connector..."
+        confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:1.11.0
+        echo "Starting Kafka Connect..."
+        /etc/confluent/docker/run
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  # ============================================================================
+  # MONGODB - Real-time database (receives data via Kafka Connect)
+  # ============================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: nexflow-mongodb
+    hostname: mongodb
+    networks:
+      - nexflow-net
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: nexflow
+      MONGO_INITDB_ROOT_PASSWORD: nexflow_dev
+      MONGO_INITDB_DATABASE: nexflow
+    volumes:
+      - mongodb-data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # FLINK - Stream processing cluster
+  # ============================================================================
+  flink-jobmanager:
+    image: flink:1.18-java11
+    container_name: nexflow-flink-jobmanager
+    hostname: flink-jobmanager
+    networks:
+      - nexflow-net
+    ports:
+      - "8084:8081"  # Web UI (8081 used by schema-registry)
+      - "6123:6123"  # RPC
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 1600m
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+        state.backend: rocksdb
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        execution.checkpointing.interval: 60000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  flink-taskmanager:
+    image: flink:1.18-java11
+    container_name: nexflow-flink-taskmanager
+    hostname: flink-taskmanager
+    networks:
+      - nexflow-net
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.memory.process.size: 2048m
+        taskmanager.numberOfTaskSlots: 4
+
+  # ============================================================================
+  # SPARK - Batch processing cluster (using official Apache Spark image)
+  # ============================================================================
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: nexflow-spark-master
+    hostname: spark-master
+    networks:
+      - nexflow-net
+    ports:
+      - "8080:8080"  # Web UI
+      - "7077:7077"  # Master port
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
+    volumes:
+      - spark-data:/opt/spark/data
+      - parquet-output:/opt/spark/output
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: nexflow-spark-worker
+    hostname: spark-worker
+    networks:
+      - nexflow-net
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      SPARK_WORKER_MEMORY: 2G
+      SPARK_WORKER_CORES: 2
+    volumes:
+      - spark-data:/opt/spark/data
+      - parquet-output:/opt/spark/output
+
+  # ============================================================================
+  # KAFKA UI - Web interface for Kafka management (optional but useful)
+  # ============================================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nexflow-kafka-ui
+    hostname: kafka-ui
+    networks:
+      - nexflow-net
+    ports:
+      - "8085:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nexflow-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: nexflow-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083

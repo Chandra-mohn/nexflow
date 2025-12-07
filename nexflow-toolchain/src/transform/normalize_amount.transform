@@ -1,0 +1,141 @@
+// Amount Normalization Transform - L3 Transform Example
+// Demonstrates field-level and block-level transforms
+
+transform normalize_currency
+    version: 1.0.0
+    description: "Normalizes currency amounts to USD"
+    pure: true
+
+    cache
+        ttl: 1 hour
+        key: [currency]
+    end
+
+    input
+        amount: decimal[precision: 18, scale: 2], required
+        currency: string[length: 3], required
+    end
+
+    output
+        normalized_amount: decimal[precision: 18, scale: 2], required
+    end
+
+    validate_input
+        amount > 0: "Amount must be positive"
+        currency in ["USD", "EUR", "GBP", "JPY", "CAD"]: "Unsupported currency"
+    end
+
+    apply
+        rate = get_exchange_rate(currency, "USD")
+        normalized_amount = amount * rate
+    end
+
+    validate_output
+        normalized_amount > 0: "Normalized amount must be positive"
+    end
+
+    on_error
+        action: reject
+        log_level: error
+    end
+end
+
+transform calculate_risk_score
+    version: 1.0.0
+    description: "Calculates transaction risk score"
+    pure: true
+
+    input
+        amount: decimal[precision: 18, scale: 2], required
+        velocity_24h: integer, required
+        account_age: integer, required
+        risk_tier: string, required
+    end
+
+    output
+        risk_score: decimal[precision: 5, scale: 4], required
+    end
+
+    apply
+        base_score = when amount > 10000: 0.4
+            when amount > 5000: 0.2
+            when amount > 1000: 0.1
+            otherwise: 0.05
+
+        velocity_factor = when velocity_24h > 20: 0.3
+            when velocity_24h > 10: 0.15
+            when velocity_24h > 5: 0.05
+            otherwise: 0.0
+
+        age_factor = when account_age < 30: 0.2
+            when account_age < 90: 0.1
+            when account_age < 365: 0.05
+            otherwise: 0.0
+
+        tier_factor = when risk_tier = "high": 0.25
+            when risk_tier = "medium": 0.1
+            otherwise: 0.0
+
+        risk_score = min(base_score + velocity_factor + age_factor + tier_factor, 1.0)
+    end
+end
+
+transform_block enrich_transaction
+    version: 1.0.0
+    description: "Enriches transaction with risk analysis"
+
+    use normalize_currency calculate_risk_score end
+
+    input
+        transaction: transaction, required
+        customer: customer_profile, required
+    end
+
+    output
+        enriched: enriched_transaction, required
+    end
+
+    validate_input
+        transaction.amount > 0: "Invalid transaction amount"
+        customer.customer_id = transaction.customer_id: "Customer ID mismatch"
+    end
+
+    invariant
+        enriched.normalized_amount > 0: "Normalized amount invariant violated"
+    end
+
+    mappings
+        enriched.transaction_id = transaction.transaction_id
+        enriched.customer_id = transaction.customer_id
+        enriched.amount = transaction.amount
+        enriched.normalized_amount = normalize_currency(transaction.amount, transaction.currency ?? "USD")
+        enriched.merchant_id = transaction.merchant_id
+        enriched.risk_tier = customer.risk_tier
+        enriched.credit_limit = customer.credit_limit
+        enriched.account_age = customer.account_age_days
+        enriched.velocity_24h = customer.transaction_count_24h
+        enriched.fraud_probability = calculate_risk_score(transaction.amount, customer.transaction_count_24h, customer.account_age_days, customer.risk_tier)
+        enriched.event_timestamp = transaction.event_timestamp
+        enriched.processing_timestamp = now()
+    end
+
+    validate_output
+        enriched.fraud_probability >= 0.0 and enriched.fraud_probability <= 1.0:
+            message: "Invalid probability"
+            code: "PROB_RANGE"
+            severity: error
+    end
+
+    on_change [transaction.amount, customer.risk_tier]
+        recalculate
+            enriched.normalized_amount = normalize_currency(transaction.amount, transaction.currency ?? "USD")
+            enriched.fraud_probability = calculate_risk_score(transaction.amount, customer.transaction_count_24h, customer.account_age_days, customer.risk_tier)
+        end
+    end
+
+    on_error
+        default: enriched.fraud_probability = 0.5
+        emit_to: transform_errors
+        log_level: warning
+    end
+end
