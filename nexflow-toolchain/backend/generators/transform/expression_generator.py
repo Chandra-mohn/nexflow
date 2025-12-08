@@ -84,7 +84,8 @@ class ExpressionGeneratorMixin:
         self,
         expr: ast.Expression,
         use_map: bool = False,
-        local_vars: Optional[List[str]] = None
+        local_vars: Optional[List[str]] = None,
+        assigned_output_fields: Optional[List[str]] = None
     ) -> str:
         """Generate Java code for an expression.
 
@@ -92,14 +93,19 @@ class ExpressionGeneratorMixin:
             expr: The expression AST node
             use_map: If True, generate Map.get() access instead of getter methods
             local_vars: List of local variable names to reference directly
+            assigned_output_fields: List of output fields already assigned to result map
         """
         if local_vars is None:
             local_vars = []
+        if assigned_output_fields is None:
+            assigned_output_fields = []
 
         if isinstance(expr, ast.StringLiteral):
             return f'"{expr.value}"'
 
         if isinstance(expr, ast.IntegerLiteral):
+            # Use double suffix when likely used in arithmetic with doubles
+            # Long suffix for standalone integer values
             return f"{expr.value}L"
 
         if isinstance(expr, ast.DecimalLiteral):
@@ -112,42 +118,42 @@ class ExpressionGeneratorMixin:
             return "null"
 
         if isinstance(expr, ast.ListLiteral):
-            elements = ", ".join(self.generate_expression(e, use_map, local_vars) for e in expr.values)
+            elements = ", ".join(self.generate_expression(e, use_map, local_vars, assigned_output_fields) for e in expr.values)
             return f"Arrays.asList({elements})"
 
         if isinstance(expr, ast.FieldPath):
-            return self._generate_field_path(expr, use_map, local_vars)
+            return self._generate_field_path(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.FunctionCall):
-            return self._generate_function_call(expr, use_map, local_vars)
+            return self._generate_function_call(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.WhenExpression):
-            return self._generate_when_expression(expr, use_map, local_vars)
+            return self._generate_when_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.BinaryExpression):
-            return self._generate_binary_expression(expr, use_map, local_vars)
+            return self._generate_binary_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.UnaryExpression):
-            return self._generate_unary_expression(expr, use_map, local_vars)
+            return self._generate_unary_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.BetweenExpression):
-            return self._generate_between_expression(expr, use_map, local_vars)
+            return self._generate_between_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.InExpression):
-            return self._generate_in_expression(expr, use_map, local_vars)
+            return self._generate_in_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.IsNullExpression):
-            return self._generate_is_null_expression(expr, use_map, local_vars)
+            return self._generate_is_null_expression(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.ParenExpression):
-            inner = self.generate_expression(expr.inner, use_map, local_vars)
+            inner = self.generate_expression(expr.inner, use_map, local_vars, assigned_output_fields)
             return f"({inner})"
 
         if isinstance(expr, ast.OptionalChainExpression):
-            return self._generate_optional_chain(expr, use_map, local_vars)
+            return self._generate_optional_chain(expr, use_map, local_vars, assigned_output_fields)
 
         if isinstance(expr, ast.IndexExpression):
-            return self._generate_index_expression(expr, use_map, local_vars)
+            return self._generate_index_expression(expr, use_map, local_vars, assigned_output_fields)
 
         return "/* UNSUPPORTED EXPRESSION */"
 
@@ -155,7 +161,8 @@ class ExpressionGeneratorMixin:
         self,
         fp: ast.FieldPath,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate Java getter chain for field path.
 
@@ -163,7 +170,11 @@ class ExpressionGeneratorMixin:
             fp: The field path AST node
             use_map: If True, generate Map.get() access instead of getter methods
             local_vars: List of local variable names to reference directly (normalized by caller)
+            assigned_output_fields: List of output fields already assigned to result map
         """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+
         parts = fp.parts
         first_part = parts[0]
 
@@ -177,47 +188,73 @@ class ExpressionGeneratorMixin:
             rest = ".".join(self.to_getter(p) for p in parts[1:])
             return f"{first_part_camel}.{rest}"
 
+        # Check if this is an already-assigned output field (reference to result map)
+        if use_map and first_part in assigned_output_fields:
+            # Access from result map, not input
+            if len(parts) == 1:
+                return f'result.get("{first_part}")'
+            rest = ".".join(self.to_getter(p) for p in parts[1:])
+            return f'((Object)result.get("{first_part}")).{rest}'
+
         # Input field access
         if use_map:
             # Use Map.get() for dynamic field access
-            # Cast to Number for arithmetic operations (will need explicit cast at usage site)
+            # Return raw Object - let usage context determine casting
             if len(parts) == 1:
-                return f'((Number)input.get("{first_part}")).doubleValue()'
+                return f'input.get("{first_part}")'
             # For nested paths: input.get("a") then chain getters
             # This assumes first level is Map, nested levels are POJOs
             rest = ".".join(self.to_getter(p) for p in parts[1:])
             return f'((Object)input.get("{first_part}")).{rest}'
 
-        # Standard getter chain: a.b.c -> getA().getB().getC()
+        # Standard getter chain: a.b.c -> input.getA().getB().getC()
+        # Always prefix with 'input.' to access the transform input object
         if len(parts) == 1:
-            return self.to_getter(parts[0])
+            return f"input.{self.to_getter(parts[0])}"
         getters = [self.to_getter(p) for p in parts]
-        return ".".join(getters)
+        return f"input.{'.'.join(getters)}"
 
     def _generate_function_call(
         self,
         func: ast.FunctionCall,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate Java function call."""
-        args = ", ".join(self.generate_expression(a, use_map, local_vars) for a in func.arguments)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
         java_name = self._map_function_name(func.name)
+
+        # For numeric functions like min/max, ensure arguments are numeric (double)
+        if func.name in ('min', 'max') and use_map:
+            args = ", ".join(
+                self._wrap_numeric_if_field(a, use_map, local_vars, assigned_output_fields, force_double=True)
+                for a in func.arguments
+            )
+        else:
+            args = ", ".join(
+                self.generate_expression(a, use_map, local_vars, assigned_output_fields)
+                for a in func.arguments
+            )
         return f"{java_name}({args})"
 
     def _generate_when_expression(
         self,
         when: ast.WhenExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate nested ternary for when/otherwise."""
-        result = self.generate_expression(when.otherwise, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        result = self.generate_expression(when.otherwise, use_map, local_vars, assigned_output_fields)
 
         # Build from inside out
         for branch in reversed(when.branches):
-            condition = self.generate_expression(branch.condition, use_map, local_vars)
-            branch_result = self.generate_expression(branch.result, use_map, local_vars)
+            condition = self.generate_expression(branch.condition, use_map, local_vars, assigned_output_fields)
+            branch_result = self.generate_expression(branch.result, use_map, local_vars, assigned_output_fields)
             result = f"({condition}) ? {branch_result} : {result}"
 
         return result
@@ -226,31 +263,141 @@ class ExpressionGeneratorMixin:
         self,
         binary: ast.BinaryExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate binary operation."""
-        left = self.generate_expression(binary.left, use_map, local_vars)
-        right = self.generate_expression(binary.right, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
         op = binary.operator
 
-        # Handle null coalesce operator ??
+        # Handle null coalesce operator ?? first (before generating operands)
         if op == "??":
+            left = self.generate_expression(binary.left, use_map, local_vars, assigned_output_fields)
+            right = self.generate_expression(binary.right, use_map, local_vars, assigned_output_fields)
             return f"({left} != null ? {left} : {right})"
+
+        # Determine if this is a numeric operation requiring casting
+        is_arithmetic = (
+            isinstance(op, ast.ArithmeticOp) or
+            (isinstance(op, str) and op in ('+', '-', '*', '/', '%'))
+        )
+        is_numeric_comparison = (
+            isinstance(op, ast.ComparisonOp) and
+            op in (ast.ComparisonOp.LT, ast.ComparisonOp.GT,
+                   ast.ComparisonOp.LE, ast.ComparisonOp.GE) or
+            (isinstance(op, str) and op in ('<', '>', '<=', '>='))
+        )
+
+        # For numeric operations with Map access, wrap field paths in numeric cast
+        # and convert numeric literals to double for type consistency
+        if use_map and (is_arithmetic or is_numeric_comparison):
+            left = self._wrap_numeric_if_field(binary.left, use_map, local_vars, assigned_output_fields, force_double=True)
+            right = self._wrap_numeric_if_field(binary.right, use_map, local_vars, assigned_output_fields, force_double=True)
+        else:
+            left = self.generate_expression(binary.left, use_map, local_vars, assigned_output_fields)
+            right = self.generate_expression(binary.right, use_map, local_vars, assigned_output_fields)
 
         # Map operators to Java - handle both enum and string types
         if isinstance(op, ast.ArithmeticOp):
             java_op = op.value
         elif isinstance(op, ast.ComparisonOp):
             java_op = self._map_comparison_op(op)
+            # Use .equals() for string equality comparisons
+            if self._is_string_comparison(binary, op):
+                return self._generate_string_comparison(left, right, op)
         elif isinstance(op, ast.LogicalOp):
             java_op = "&&" if op == ast.LogicalOp.AND else "||"
         elif isinstance(op, str):
             # Handle string operators from parser
             java_op = self._map_string_operator(op)
+            # Check for string equality with string operators
+            if op in ('=', '==', '!=', '<>'):
+                if self._is_string_comparison_raw(binary):
+                    return self._generate_string_comparison_raw(left, right, op)
         else:
             java_op = str(op)
 
         return f"({left} {java_op} {right})"
+
+    def _wrap_numeric_if_field(
+        self,
+        expr: ast.Expression,
+        use_map: bool,
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None,
+        force_double: bool = False
+    ) -> str:
+        """Wrap expression to produce numeric (double) value if needed.
+
+        Args:
+            expr: The expression to process
+            use_map: Whether Map-based access is used
+            local_vars: Local variable names
+            assigned_output_fields: Output fields already assigned
+            force_double: If True, convert numeric literals to double
+        """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        if isinstance(expr, ast.FieldPath) and use_map:
+            # Check if it's a local variable (don't wrap those)
+            first_part_camel = self.to_camel_case(expr.parts[0])
+            if first_part_camel in local_vars:
+                return self.generate_expression(expr, use_map, local_vars, assigned_output_fields)
+            # Wrap Map.get() in Number cast for arithmetic
+            raw = self.generate_expression(expr, use_map, local_vars, assigned_output_fields)
+            return f"((Number){raw}).doubleValue()"
+        # For integer literals in arithmetic with doubles, use double suffix for type consistency
+        if isinstance(expr, ast.IntegerLiteral):
+            return f"{expr.value}d"  # Use double suffix instead of Long
+        # For decimal literals, convert to double to ensure type consistency
+        if force_double and isinstance(expr, ast.DecimalLiteral):
+            return f"{expr.value}d"  # Append 'd' suffix for double literal
+        # For literals and other expressions, generate normally
+        return self.generate_expression(expr, use_map, local_vars, assigned_output_fields)
+
+    def _is_string_comparison(
+        self,
+        binary: ast.BinaryExpression,
+        op: ast.ComparisonOp
+    ) -> bool:
+        """Check if this is a string equality comparison."""
+        if op not in (ast.ComparisonOp.EQ, ast.ComparisonOp.NE):
+            return False
+        # Check if either operand is a string literal
+        return (isinstance(binary.left, ast.StringLiteral) or
+                isinstance(binary.right, ast.StringLiteral))
+
+    def _is_string_comparison_raw(self, binary: ast.BinaryExpression) -> bool:
+        """Check if this is a string comparison (raw string operator version)."""
+        return (isinstance(binary.left, ast.StringLiteral) or
+                isinstance(binary.right, ast.StringLiteral))
+
+    def _generate_string_comparison(
+        self,
+        left: str,
+        right: str,
+        op: ast.ComparisonOp
+    ) -> str:
+        """Generate null-safe string comparison using .equals()."""
+        if op == ast.ComparisonOp.EQ:
+            return f"Objects.equals({left}, {right})"
+        elif op == ast.ComparisonOp.NE:
+            return f"!Objects.equals({left}, {right})"
+        return f"({left} == {right})"
+
+    def _generate_string_comparison_raw(
+        self,
+        left: str,
+        right: str,
+        op: str
+    ) -> str:
+        """Generate null-safe string comparison for raw string operators."""
+        if op in ('=', '=='):
+            return f"Objects.equals({left}, {right})"
+        elif op in ('!=', '<>'):
+            return f"!Objects.equals({left}, {right})"
+        return f"({left} == {right})"
 
     def _map_string_operator(self, op: str) -> str:
         """Map string operator from parser to Java operator."""
@@ -261,10 +408,13 @@ class ExpressionGeneratorMixin:
         self,
         unary: ast.UnaryExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate unary operation."""
-        operand = self.generate_expression(unary.operand, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        operand = self.generate_expression(unary.operand, use_map, local_vars, assigned_output_fields)
         if unary.operator == ast.UnaryOp.NOT:
             return f"!({operand})"
         if unary.operator == ast.UnaryOp.MINUS:
@@ -275,12 +425,15 @@ class ExpressionGeneratorMixin:
         self,
         between: ast.BetweenExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate between check."""
-        value = self.generate_expression(between.value, use_map, local_vars)
-        lower = self.generate_expression(between.lower, use_map, local_vars)
-        upper = self.generate_expression(between.upper, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        value = self.generate_expression(between.value, use_map, local_vars, assigned_output_fields)
+        lower = self.generate_expression(between.lower, use_map, local_vars, assigned_output_fields)
+        upper = self.generate_expression(between.upper, use_map, local_vars, assigned_output_fields)
 
         expr = f"({value} >= {lower} && {value} <= {upper})"
         if between.negated:
@@ -291,12 +444,15 @@ class ExpressionGeneratorMixin:
         self,
         in_expr: ast.InExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate set membership check."""
-        value = self.generate_expression(in_expr.value, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        value = self.generate_expression(in_expr.value, use_map, local_vars, assigned_output_fields)
         elements = ", ".join(
-            self.generate_expression(e, use_map, local_vars) for e in in_expr.values.values
+            self.generate_expression(e, use_map, local_vars, assigned_output_fields) for e in in_expr.values.values
         )
         expr = f"Arrays.asList({elements}).contains({value})"
         if in_expr.negated:
@@ -307,10 +463,13 @@ class ExpressionGeneratorMixin:
         self,
         is_null: ast.IsNullExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate null check."""
-        value = self.generate_expression(is_null.value, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        value = self.generate_expression(is_null.value, use_map, local_vars, assigned_output_fields)
         if is_null.negated:
             return f"({value} != null)"
         return f"({value} == null)"
@@ -319,10 +478,13 @@ class ExpressionGeneratorMixin:
         self,
         chain: ast.OptionalChainExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate null-safe navigation."""
-        base = self._generate_field_path(chain.base, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        base = self._generate_field_path(chain.base, use_map, local_vars, assigned_output_fields)
         for field_name in chain.chain:
             getter = self.to_getter(field_name)
             base = f"Optional.ofNullable({base}).map(v -> v.{getter}).orElse(null)"
@@ -332,11 +494,14 @@ class ExpressionGeneratorMixin:
         self,
         index: ast.IndexExpression,
         use_map: bool,
-        local_vars: List[str]
+        local_vars: List[str],
+        assigned_output_fields: List[str] = None
     ) -> str:
         """Generate array/list index access."""
-        base = self._generate_field_path(index.base, use_map, local_vars)
-        idx = self.generate_expression(index.index, use_map, local_vars)
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+        base = self._generate_field_path(index.base, use_map, local_vars, assigned_output_fields)
+        idx = self.generate_expression(index.index, use_map, local_vars, assigned_output_fields)
         return f"{base}.get((int)({idx}))"
 
     def _map_comparison_op(self, op: ast.ComparisonOp) -> str:

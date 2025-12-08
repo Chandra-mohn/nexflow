@@ -59,23 +59,42 @@ class CacheGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _generate_cache_key_builder(self, key_fields: list, transform_name: str) -> list:
-        """Generate cache key builder method."""
+    def _generate_cache_key_builder(
+        self,
+        key_fields: list,
+        transform_name: str,
+        use_map: bool = True
+    ) -> list:
+        """Generate cache key builder method.
+
+        Args:
+            key_fields: List of field names to include in cache key
+            transform_name: Name of the transform
+            use_map: If True, use Map.get() access; otherwise use getter methods
+        """
         method_name = f"build{self.to_pascal_case(transform_name)}CacheKey"
+
+        # For simple transforms, input is Map<String, Object>
+        input_type = "Map<String, Object>" if use_map else "Object"
 
         lines = [
             "    /**",
             f"     * Build cache key from {', '.join(key_fields)}",
             "     */",
-            f"    private String {method_name}(Object input) {{",
+            f"    private String {method_name}({input_type} input) {{",
             "        StringBuilder keyBuilder = new StringBuilder();",
         ]
 
         for i, field in enumerate(key_fields):
-            getter = self.to_getter(field)
             if i > 0:
                 lines.append('        keyBuilder.append("::");')
-            lines.append(f"        keyBuilder.append(String.valueOf(input.{getter}));")
+            if use_map:
+                # Use Map.get() for simple transforms
+                lines.append(f'        keyBuilder.append(String.valueOf(input.get("{field}")));')
+            else:
+                # Use getter for typed POJOs
+                getter = self.to_getter(field)
+                lines.append(f"        keyBuilder.append(String.valueOf(input.{getter}));")
 
         lines.extend([
             "        return keyBuilder.toString();",

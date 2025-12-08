@@ -65,17 +65,17 @@ public class EnrichTransactionProcessFunction
         Object result = new Object();
 
         // Apply field mappings
-        result.getEnriched().setTransactionId(getTransaction().getTransactionId());
-        result.getEnriched().setCustomerId(getTransaction().getCustomerId());
-        result.getEnriched().setAmount(getTransaction().getAmount());
-        result.getEnriched().setNormalizedAmount(normalizeCurrency(getTransaction().getAmount(), (getTransaction().getCurrency() != null ? getTransaction().getCurrency() : "USD")));
-        result.getEnriched().setMerchantId(getTransaction().getMerchantId());
-        result.getEnriched().setRiskTier(getCustomer().getRiskTier());
-        result.getEnriched().setCreditLimit(getCustomer().getCreditLimit());
-        result.getEnriched().setAccountAge(getCustomer().getAccountAgeDays());
-        result.getEnriched().setVelocity24h(getCustomer().getTransactionCount24h());
-        result.getEnriched().setFraudProbability(calculateRiskScore(getTransaction().getAmount(), getCustomer().getTransactionCount24h(), getCustomer().getAccountAgeDays(), getCustomer().getRiskTier()));
-        result.getEnriched().setEventTimestamp(getTransaction().getEventTimestamp());
+        result.getEnriched().setTransactionId(input.getTransaction().getTransactionId());
+        result.getEnriched().setCustomerId(input.getTransaction().getCustomerId());
+        result.getEnriched().setAmount(input.getTransaction().getAmount());
+        result.getEnriched().setNormalizedAmount(normalizeCurrency(input.getTransaction().getAmount(), (input.getTransaction().getCurrency() != null ? input.getTransaction().getCurrency() : "USD")));
+        result.getEnriched().setMerchantId(input.getTransaction().getMerchantId());
+        result.getEnriched().setRiskTier(input.getCustomer().getRiskTier());
+        result.getEnriched().setCreditLimit(input.getCustomer().getCreditLimit());
+        result.getEnriched().setAccountAge(input.getCustomer().getAccountAgeDays());
+        result.getEnriched().setVelocity24h(input.getCustomer().getTransactionCount24h());
+        result.getEnriched().setFraudProbability(calculateRiskScore(input.getTransaction().getAmount(), input.getCustomer().getTransactionCount24h(), input.getCustomer().getAccountAgeDays(), input.getCustomer().getRiskTier()));
+        result.getEnriched().setEventTimestamp(input.getTransaction().getEventTimestamp());
         result.getEnriched().setProcessingTimestamp(Instant.now());
 
         checkInvariants(result);
@@ -92,11 +92,11 @@ public class EnrichTransactionProcessFunction
         List<String> errors = new ArrayList<>();
 
         // Validation: Invalid transaction amount
-        if (!((getTransaction().getAmount() > 0L))) {
+        if (!((input.getTransaction().getAmount() > 0L))) {
             errors.add("Invalid transaction amount");
         }
         // Validation: Customer ID mismatch
-        if (!((getCustomer().getCustomerId() == getTransaction().getCustomerId()))) {
+        if (!((input.getCustomer().getCustomerId() == input.getTransaction().getCustomerId()))) {
             errors.add("Customer ID mismatch");
         }
 
@@ -112,7 +112,7 @@ public class EnrichTransactionProcessFunction
         List<String> errors = new ArrayList<>();
 
         // Validation: Invalid probability
-        if (!(((getEnriched().getFraudProbability() >= new BigDecimal("0.0")) && (getEnriched().getFraudProbability() <= new BigDecimal("1.0"))))) {
+        if (!(((output.getEnriched().getFraudProbability() >= new BigDecimal("0.0")) && (output.getEnriched().getFraudProbability() <= new BigDecimal("1.0"))))) {
             errors.add("Invalid probability");
         }
 
@@ -124,11 +124,11 @@ public class EnrichTransactionProcessFunction
     /**
      * Checks invariant conditions.
      */
-    private void checkInvariants(Object context) throws InvariantViolationException {
+    private void checkInvariants(Object result) throws InvariantViolationException {
         List<String> violations = new ArrayList<>();
 
         // Invariant: Normalized amount invariant violated
-        if (!((getEnriched().getNormalizedAmount() > 0L))) {
+        if (!((result.getEnriched().getNormalizedAmount() > 0L))) {
             violations.add("Normalized amount invariant violated");
         }
 
@@ -172,7 +172,7 @@ public class EnrichTransactionProcessFunction
      * Error handler for enrich_transaction
      */
     private Object handleError(Exception e, Object input) {
-
+        LOG.warn("Transform error: {}", e.getMessage());
         // Emit error to transform_errors
         ErrorRecord errorRecord = new ErrorRecord();
         errorRecord.setOriginalRecord(input);
@@ -180,7 +180,6 @@ public class EnrichTransactionProcessFunction
         errorRecord.setErrorCode("TRANSFORM_ERROR");
         errorRecord.setTimestamp(Instant.now());
         emitToSideOutput("transform_errors", errorRecord);
-        LOG.warning("Transform error: {}", e.getMessage());
         return null;
     }
     /**
@@ -239,9 +238,9 @@ public class EnrichTransactionProcessFunction
         return !Collections.disjoint(WATCHED_FIELDS, changedFields);
     }
 
-    private void recalculate(Object context) {
-        context.getEnriched().setNormalizedAmount(normalizeCurrency(getTransaction().getAmount(), (getTransaction().getCurrency() != null ? getTransaction().getCurrency() : "USD")));
-        context.getEnriched().setFraudProbability(calculateRiskScore(getTransaction().getAmount(), getCustomer().getTransactionCount24h(), getCustomer().getAccountAgeDays(), getCustomer().getRiskTier()));
+    private void recalculate(Object input) {
+        input.getEnriched().setNormalizedAmount(normalizeCurrency(input.getTransaction().getAmount(), (input.getTransaction().getCurrency() != null ? input.getTransaction().getCurrency() : "USD")));
+        input.getEnriched().setFraudProbability(calculateRiskScore(input.getTransaction().getAmount(), input.getCustomer().getTransactionCount24h(), input.getCustomer().getAccountAgeDays(), input.getCustomer().getRiskTier()));
     }
 
 }

@@ -24,7 +24,13 @@ class ErrorGeneratorMixin:
         on_error: ast.OnErrorBlock,
         transform_name: str
     ) -> str:
-        """Generate error handling code."""
+        """Generate error handling code.
+
+        Collects all error actions and generates code in proper order:
+        1. Logging statements (from all actions)
+        2. Error emission to side outputs (from all actions)
+        3. Terminal action (throw/return) - only ONE, must be last
+        """
         if not on_error:
             return ""
 
@@ -35,29 +41,99 @@ class ErrorGeneratorMixin:
             "    private Object handleError(Exception e, Object input) {",
         ]
 
-        # Process each error action
-        for action in on_error.actions:
-            lines.append(self._generate_error_action(action))
+        # Collect all actions to generate in proper order
+        log_lines = []
+        emit_lines = []
+        terminal_lines = []
 
-        lines.extend([
-            "        return null;",
-            "    }",
-        ])
+        for action in on_error.actions:
+            # 1. Collect log statements
+            if action.log_level:
+                # SLF4J uses 'warn' not 'warning'
+                log_method = action.log_level.value.lower()
+                if log_method == 'warning':
+                    log_method = 'warn'
+                log_lines.append(
+                    f'        LOG.{log_method}("Transform error: {{}}", e.getMessage());'
+                )
+
+            # 2. Collect emit_to statements
+            if action.emit_to:
+                emit_lines.extend([
+                    f'        // Emit error to {action.emit_to}',
+                    '        ErrorRecord errorRecord = new ErrorRecord();',
+                    '        errorRecord.setOriginalRecord(input);',
+                    '        errorRecord.setErrorMessage(e.getMessage());',
+                    '        errorRecord.setErrorCode('
+                    f'"{action.error_code if action.error_code else "TRANSFORM_ERROR"}");',
+                    '        errorRecord.setTimestamp(Instant.now());',
+                    f'        emitToSideOutput("{action.emit_to}", errorRecord);',
+                ])
+
+            # 3. Collect terminal action (only take the first one)
+            if action.action_type and not terminal_lines:
+                if action.action_type == ast.ErrorActionType.REJECT:
+                    terminal_lines.append('        throw new TransformRejectedException(e);')
+                elif action.action_type == ast.ErrorActionType.SKIP:
+                    terminal_lines.append('        // Skip this record')
+                    terminal_lines.append('        return null;')
+                elif action.action_type == ast.ErrorActionType.USE_DEFAULT:
+                    if action.default_value:
+                        default_val = self.generate_expression(action.default_value)
+                        terminal_lines.append(f'        return {default_val};')
+                    else:
+                        terminal_lines.append('        return getDefaultValue();')
+                elif action.action_type == ast.ErrorActionType.RAISE:
+                    terminal_lines.append(
+                        '        throw new TransformException("Transform failed", e);'
+                    )
+
+        # Generate in proper order: log -> emit -> terminal
+        lines.extend(log_lines)
+        lines.extend(emit_lines)
+        lines.extend(terminal_lines)
+
+        # Only add return null if no terminal action (throw/return) was generated
+        if not terminal_lines:
+            lines.append("        return null;")
+        lines.append("    }")
 
         return '\n'.join(lines)
 
     def _generate_error_action(self, action: ast.ErrorAction) -> str:
-        """Generate code for a single error action."""
+        """Generate code for a single error action.
+
+        Order of generated code:
+        1. Logging (if configured)
+        2. Error emission to side output (if configured)
+        3. Action (throw/return) - must be last as it terminates flow
+        """
         lines = []
 
-        # Log level handling
+        # 1. Log level handling - always first
         if action.log_level:
+            # SLF4J uses 'warn' not 'warning'
             log_method = action.log_level.value.lower()
+            if log_method == 'warning':
+                log_method = 'warn'
             lines.append(
                 f'        LOG.{log_method}("Transform error: {{}}", e.getMessage());'
             )
 
-        # Action type handling
+        # 2. Error emission handling - before any throw/return
+        if action.emit_to:
+            lines.extend([
+                f'        // Emit error to {action.emit_to}',
+                '        ErrorRecord errorRecord = new ErrorRecord();',
+                '        errorRecord.setOriginalRecord(input);',
+                '        errorRecord.setErrorMessage(e.getMessage());',
+                '        errorRecord.setErrorCode('
+                f'"{action.error_code if action.error_code else "TRANSFORM_ERROR"}");',
+                '        errorRecord.setTimestamp(Instant.now());',
+                f'        emitToSideOutput("{action.emit_to}", errorRecord);',
+            ])
+
+        # 3. Action type handling - must be last (throw/return terminates)
         if action.action_type:
             if action.action_type == ast.ErrorActionType.REJECT:
                 lines.append('        throw new TransformRejectedException(e);')
@@ -77,19 +153,6 @@ class ErrorGeneratorMixin:
                 lines.append(
                     '        throw new TransformException("Transform failed", e);'
                 )
-
-        # Error emission handling
-        if action.emit_to:
-            lines.extend([
-                f'        // Emit error to {action.emit_to}',
-                '        ErrorRecord errorRecord = new ErrorRecord();',
-                '        errorRecord.setOriginalRecord(input);',
-                '        errorRecord.setErrorMessage(e.getMessage());',
-                '        errorRecord.setErrorCode('
-                f'"{action.error_code if action.error_code else "TRANSFORM_ERROR"}");',
-                '        errorRecord.setTimestamp(Instant.now());',
-                f'        emitToSideOutput("{action.emit_to}", errorRecord);',
-            ])
 
         return '\n'.join(lines)
 

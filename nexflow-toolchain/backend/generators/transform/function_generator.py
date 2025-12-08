@@ -51,28 +51,30 @@ class FunctionGeneratorMixin:
             "",
             "    private static final Logger LOG = LoggerFactory.getLogger("
             f"{class_name}.class);",
-            "",
         ]
 
         # Add pure annotation if applicable
         if transform.pure:
-            lines.insert(-1, "    // Pure function - no side effects")
+            lines.append("    // Pure function - no side effects")
+
+        # Add blank line after LOG/pure comment
+        lines.append("")
 
         # Add cache if defined
         if transform.cache:
             lines.append(self.generate_cache_code(transform.cache, transform.name))
             lines.append("")
 
-        # Add map method
+        # Add map method - use 'input' as parameter name for consistency with transform()
         lines.extend([
             "    @Override",
-            f"    public {actual_output_type} map({actual_input_type} value) throws Exception {{",
+            f"    public {actual_output_type} map({actual_input_type} input) throws Exception {{",
         ])
 
         if transform.cache:
-            lines.append("        return transformWithCache(value);")
+            lines.append("        return transformWithCache(input);")
         else:
-            lines.append("        return transform(value);")
+            lines.append("        return transform(input);")
 
         lines.extend([
             "    }",
@@ -80,17 +82,20 @@ class FunctionGeneratorMixin:
         ])
 
         # Add internal transform method
+        # Use actual types (Map<String, Object> instead of Object) for consistency
         lines.append(self.generate_transform_function_method(
-            transform, input_type, output_type
+            transform, actual_input_type, actual_output_type
         ))
         lines.append("")
 
         # Add validation methods if needed
+        # Simple transforms use Map<String, Object>, so use_map=True
         if transform.validate_input or transform.validate_output:
             lines.append(self.generate_validation_code(
                 transform.validate_input,
                 transform.validate_output,
-                None
+                None,
+                use_map=True  # Simple transforms use Map access
             ))
             lines.append(self._generate_validation_exception_class())
             lines.append("")
@@ -98,7 +103,7 @@ class FunctionGeneratorMixin:
         # Add cached wrapper if cache is defined
         if transform.cache:
             lines.append(self.generate_cached_transform_wrapper(
-                transform.name, transform.cache, input_type, output_type
+                transform.name, transform.cache, actual_input_type, actual_output_type
             ))
             lines.append("")
 
@@ -164,11 +169,15 @@ class FunctionGeneratorMixin:
         lines.append("")
 
         # Add validation methods
+        # Block transforms use typed POJOs, so use_map=False
+        # Invariants check the result, so context should be 'result'
         if block.validate_input or block.validate_output or block.invariant:
             lines.append(self.generate_validation_code(
                 block.validate_input,
                 block.validate_output,
-                block.invariant
+                block.invariant,
+                use_map=False,  # Block transforms use typed POJOs
+                invariant_context="result"  # Invariants check the result
             ))
             lines.append(self._generate_validation_exception_class())
             lines.append(self._generate_invariant_exception_class())
@@ -261,13 +270,13 @@ class FunctionGeneratorMixin:
             "        return !Collections.disjoint(WATCHED_FIELDS, changedFields);",
             "    }",
             "",
-            "    private void recalculate(Object context) {",
+            "    private void recalculate(Object input) {",
         ]
 
         for assignment in on_change.recalculate.assignments:
             target = self._generate_setter_chain(assignment.target)
             value = self.generate_expression(assignment.value)
-            lines.append(f"        context.{target}({value});")
+            lines.append(f"        input.{target}({value});")
 
         lines.append("    }")
         return '\n'.join(lines)

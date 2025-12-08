@@ -24,38 +24,60 @@ class ValidationGeneratorMixin:
         self,
         validate_input: ast.ValidateInputBlock = None,
         validate_output: ast.ValidateOutputBlock = None,
-        invariant: ast.InvariantBlock = None
+        invariant: ast.InvariantBlock = None,
+        use_map: bool = False,
+        invariant_context: str = "input"
     ) -> str:
-        """Generate all validation methods."""
+        """Generate all validation methods.
+
+        Args:
+            validate_input: Input validation block
+            validate_output: Output validation block
+            invariant: Invariant block
+            use_map: If True, generate Map.get() access for fields
+            invariant_context: Variable name to use in invariant checks
+        """
         lines = []
 
         if validate_input:
-            lines.append(self._generate_input_validation(validate_input))
+            lines.append(self._generate_input_validation(validate_input, use_map))
             lines.append("")
 
         if validate_output:
-            lines.append(self._generate_output_validation(validate_output))
+            lines.append(self._generate_output_validation(validate_output, use_map))
             lines.append("")
 
         if invariant:
-            lines.append(self._generate_invariant_check(invariant))
+            lines.append(self._generate_invariant_check(invariant, invariant_context, use_map))
             lines.append("")
 
         return '\n'.join(lines)
 
-    def _generate_input_validation(self, block: ast.ValidateInputBlock) -> str:
-        """Generate input validation method."""
+    def _generate_input_validation(
+        self,
+        block: ast.ValidateInputBlock,
+        use_map: bool = False
+    ) -> str:
+        """Generate input validation method.
+
+        Args:
+            block: The validation block AST node
+            use_map: If True, generate Map.get() access for fields
+        """
+        # Use appropriate type for parameter
+        param_type = "Map<String, Object>" if use_map else "Object"
+
         lines = [
             "    /**",
             "     * Validates input data before transformation.",
             "     */",
-            "    private void validateInput(Object input) throws ValidationException {",
+            f"    private void validateInput({param_type} input) throws ValidationException {{",
             "        List<String> errors = new ArrayList<>();",
             "",
         ]
 
         for rule in block.rules:
-            lines.append(self._generate_validation_rule(rule, "input"))
+            lines.append(self._generate_validation_rule(rule, "input", use_map))
 
         lines.extend([
             "",
@@ -67,19 +89,31 @@ class ValidationGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _generate_output_validation(self, block: ast.ValidateOutputBlock) -> str:
-        """Generate output validation method."""
+    def _generate_output_validation(
+        self,
+        block: ast.ValidateOutputBlock,
+        use_map: bool = False
+    ) -> str:
+        """Generate output validation method.
+
+        Args:
+            block: The validation block AST node
+            use_map: If True, generate Map.get() access for fields
+        """
+        # Use appropriate type for parameter
+        param_type = "Map<String, Object>" if use_map else "Object"
+
         lines = [
             "    /**",
             "     * Validates output data after transformation.",
             "     */",
-            "    private void validateOutput(Object output) throws ValidationException {",
+            f"    private void validateOutput({param_type} output) throws ValidationException {{",
             "        List<String> errors = new ArrayList<>();",
             "",
         ]
 
         for rule in block.rules:
-            lines.append(self._generate_validation_rule(rule, "output"))
+            lines.append(self._generate_validation_rule(rule, "output", use_map))
 
         lines.extend([
             "",
@@ -91,19 +125,30 @@ class ValidationGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _generate_invariant_check(self, block: ast.InvariantBlock) -> str:
-        """Generate invariant checking method."""
+    def _generate_invariant_check(
+        self,
+        block: ast.InvariantBlock,
+        context: str = "input",
+        use_map: bool = False
+    ) -> str:
+        """Generate invariant checking method.
+
+        Args:
+            block: The invariant block AST node
+            context: The base variable name to use in expressions
+            use_map: If True, generate Map.get() access for fields
+        """
         lines = [
             "    /**",
             "     * Checks invariant conditions.",
             "     */",
-            "    private void checkInvariants(Object context) throws InvariantViolationException {",
+            f"    private void checkInvariants(Object {context}) throws InvariantViolationException {{",
             "        List<String> violations = new ArrayList<>();",
             "",
         ]
 
         for rule in block.rules:
-            lines.append(self._generate_invariant_rule(rule))
+            lines.append(self._generate_invariant_rule(rule, context, use_map))
 
         lines.extend([
             "",
@@ -115,9 +160,25 @@ class ValidationGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _generate_validation_rule(self, rule: ast.ValidationRule, context: str) -> str:
-        """Generate code for a single validation rule."""
-        condition = self.generate_expression(rule.condition)
+    def _generate_validation_rule(
+        self,
+        rule: ast.ValidationRule,
+        context: str,
+        use_map: bool = False
+    ) -> str:
+        """Generate code for a single validation rule.
+
+        Args:
+            rule: The validation rule AST node
+            context: The base variable name to use ('input' or 'output')
+            use_map: If True, generate Map.get() access instead of getter methods
+        """
+        # Generate expression with the correct base variable
+        # For now, we use local_vars to make the first part of field paths reference the context var
+        condition = self.generate_expression(rule.condition, use_map=use_map)
+        # Replace 'input.' with the actual context variable name if different
+        if context != 'input':
+            condition = condition.replace('input.', f'{context}.')
         message = self._get_validation_message(rule.message)
 
         lines = [
@@ -131,15 +192,23 @@ class ValidationGeneratorMixin:
         if rule.nested_rules:
             lines.append(f"        if ({condition}) {{")
             for nested in rule.nested_rules:
-                nested_code = self._generate_validation_rule(nested, context)
+                nested_code = self._generate_validation_rule(nested, context, use_map)
                 lines.append(self.indent(nested_code, 2))
             lines.append("        }")
 
         return '\n'.join(lines)
 
-    def _generate_invariant_rule(self, rule: ast.ValidationRule) -> str:
+    def _generate_invariant_rule(
+        self,
+        rule: ast.ValidationRule,
+        context: str = "input",
+        use_map: bool = False
+    ) -> str:
         """Generate code for an invariant rule."""
-        condition = self.generate_expression(rule.condition)
+        condition = self.generate_expression(rule.condition, use_map=use_map)
+        # Replace 'input.' with the actual context variable name if different
+        if context != 'input':
+            condition = condition.replace('input.', f'{context}.')
         message = self._get_validation_message(rule.message)
 
         return f'''        // Invariant: {message}

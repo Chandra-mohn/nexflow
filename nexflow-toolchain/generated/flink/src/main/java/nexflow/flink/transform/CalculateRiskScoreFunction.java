@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -23,29 +25,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class CalculateRiskScoreFunction implements MapFunction<Object, Object> {
+public class CalculateRiskScoreFunction implements MapFunction<Map<String, Object>, Map<String, Object>> {
 
     private static final Logger LOG = LoggerFactory.getLogger(CalculateRiskScoreFunction.class);
     // Pure function - no side effects
 
     @Override
-    public Object map(Object value) throws Exception {
-        return transform(value);
+    public Map<String, Object> map(Map<String, Object> input) throws Exception {
+        return transform(input);
     }
 
     /**
      * Transform: calculate_risk_score
      * Calculates transaction risk score
      */
-    public Object transform(Object input) throws Exception {
-        Object result = new Object();
+    public Map<String, Object> transform(Map<String, Object> input) throws Exception {
+        Map<String, Object> result = new HashMap<>();
 
         // Apply transformation logic
-        result.setBaseScore(((getAmount() > 10000L)) ? new BigDecimal("0.4") : ((getAmount() > 5000L)) ? new BigDecimal("0.2") : ((getAmount() > 1000L)) ? new BigDecimal("0.1") : new BigDecimal("0.05"));
-        result.setVelocityFactor(((getVelocity24h() > 20L)) ? new BigDecimal("0.3") : ((getVelocity24h() > 10L)) ? new BigDecimal("0.15") : ((getVelocity24h() > 5L)) ? new BigDecimal("0.05") : new BigDecimal("0.0"));
-        result.setAgeFactor(((getAccountAge() < 30L)) ? new BigDecimal("0.2") : ((getAccountAge() < 90L)) ? new BigDecimal("0.1") : ((getAccountAge() < 365L)) ? new BigDecimal("0.05") : new BigDecimal("0.0"));
-        result.setTierFactor(((getRiskTier() == "high")) ? new BigDecimal("0.25") : ((getRiskTier() == "medium")) ? new BigDecimal("0.1") : new BigDecimal("0.0"));
-        result.setRiskScore(Math.min((((getBaseScore() + getVelocityFactor()) + getAgeFactor()) + getTierFactor()), new BigDecimal("1.0")));
+        result.put("base_score", ((((Number)input.get("amount")).doubleValue() > 10000d)) ? new BigDecimal("0.4") : ((((Number)input.get("amount")).doubleValue() > 5000d)) ? new BigDecimal("0.2") : ((((Number)input.get("amount")).doubleValue() > 1000d)) ? new BigDecimal("0.1") : new BigDecimal("0.05"));
+        result.put("velocity_factor", ((((Number)input.get("velocity_24h")).doubleValue() > 20d)) ? new BigDecimal("0.3") : ((((Number)input.get("velocity_24h")).doubleValue() > 10d)) ? new BigDecimal("0.15") : ((((Number)input.get("velocity_24h")).doubleValue() > 5d)) ? new BigDecimal("0.05") : new BigDecimal("0.0"));
+        result.put("age_factor", ((((Number)input.get("account_age")).doubleValue() < 30d)) ? new BigDecimal("0.2") : ((((Number)input.get("account_age")).doubleValue() < 90d)) ? new BigDecimal("0.1") : ((((Number)input.get("account_age")).doubleValue() < 365d)) ? new BigDecimal("0.05") : new BigDecimal("0.0"));
+        result.put("tier_factor", (Objects.equals(input.get("risk_tier"), "high")) ? new BigDecimal("0.25") : (Objects.equals(input.get("risk_tier"), "medium")) ? new BigDecimal("0.1") : new BigDecimal("0.0"));
+        result.put("risk_score", Math.min((((((Number)result.get("base_score")).doubleValue() + ((Number)result.get("velocity_factor")).doubleValue()) + ((Number)result.get("age_factor")).doubleValue()) + ((Number)result.get("tier_factor")).doubleValue()), 1.0d));
 
         return result;
     }

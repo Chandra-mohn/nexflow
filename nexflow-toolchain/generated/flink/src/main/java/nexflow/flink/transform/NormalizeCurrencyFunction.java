@@ -16,7 +16,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -30,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
+public class NormalizeCurrencyFunction extends RichMapFunction<Map<String, Object>, Map<String, Object>> {
 
     private static final Logger LOG = LoggerFactory.getLogger(NormalizeCurrencyFunction.class);
     // Pure function - no side effects
@@ -58,30 +60,30 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
     /**
      * Build cache key from currency
      */
-    private String buildNormalizeCurrencyCacheKey(Object input) {
+    private String buildNormalizeCurrencyCacheKey(Map<String, Object> input) {
         StringBuilder keyBuilder = new StringBuilder();
-        keyBuilder.append(String.valueOf(input.getCurrency()));
+        keyBuilder.append(String.valueOf(input.get("currency")));
         return keyBuilder.toString();
     }
 
 
     @Override
-    public Object map(Object value) throws Exception {
-        return transformWithCache(value);
+    public Map<String, Object> map(Map<String, Object> input) throws Exception {
+        return transformWithCache(input);
     }
 
     /**
      * Transform: normalize_currency
      * Normalizes currency amounts to USD
      */
-    public Object transform(Object input) throws Exception {
+    public Map<String, Object> transform(Map<String, Object> input) throws Exception {
         validateInput(input);
 
-        Object result = new Object();
+        Map<String, Object> result = new HashMap<>();
 
         // Apply transformation logic
-        result.setRate(getExchangeRate(getCurrency(), "USD"));
-        result.setNormalizedAmount((getAmount() * getRate()));
+        result.put("rate", getExchangeRate(input.get("currency"), "USD"));
+        result.put("normalized_amount", (((Number)input.get("amount")).doubleValue() * ((Number)result.get("rate")).doubleValue()));
 
         validateOutput(result);
 
@@ -91,15 +93,15 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
     /**
      * Validates input data before transformation.
      */
-    private void validateInput(Object input) throws ValidationException {
+    private void validateInput(Map<String, Object> input) throws ValidationException {
         List<String> errors = new ArrayList<>();
 
         // Validation: Amount must be positive
-        if (!((getAmount() > 0L))) {
+        if (!((((Number)input.get("amount")).doubleValue() > 0d))) {
             errors.add("Amount must be positive");
         }
         // Validation: Unsupported currency
-        if (!(Arrays.asList("USD", "EUR", "GBP", "JPY", "CAD").contains(getCurrency()))) {
+        if (!(Arrays.asList("USD", "EUR", "GBP", "JPY", "CAD").contains(input.get("currency")))) {
             errors.add("Unsupported currency");
         }
 
@@ -111,11 +113,11 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
     /**
      * Validates output data after transformation.
      */
-    private void validateOutput(Object output) throws ValidationException {
+    private void validateOutput(Map<String, Object> output) throws ValidationException {
         List<String> errors = new ArrayList<>();
 
         // Validation: Normalized amount must be positive
-        if (!((getNormalizedAmount() > 0L))) {
+        if (!((((Number)output.get("normalized_amount")).doubleValue() > 0d))) {
             errors.add("Normalized amount must be positive");
         }
 
@@ -143,15 +145,15 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
     /**
      * Cached version of normalize_currency transform using Flink state.
      */
-    public Object transformWithCache(Object input) throws Exception {
+    public Map<String, Object> transformWithCache(Map<String, Object> input) throws Exception {
         // Try state lookup
         Object cached = normalizeCurrencyCacheState.value();
         if (cached != null) {
-            return (Object) cached;
+            return (Map<String, Object>) cached;
         }
 
         // Execute transform and cache result in state
-        Object result = transform(input);
+        Map<String, Object> result = transform(input);
         normalizeCurrencyCacheState.update(result);
 
         return result;
@@ -161,9 +163,8 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Object, Object> {
      * Error handler for normalize_currency
      */
     private Object handleError(Exception e, Object input) {
-        throw new TransformRejectedException(e);
         LOG.error("Transform error: {}", e.getMessage());
-        return null;
+        throw new TransformRejectedException(e);
     }
     /**
      * Exception thrown when a record should be rejected.

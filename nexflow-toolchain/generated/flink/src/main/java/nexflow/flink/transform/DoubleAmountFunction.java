@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -23,25 +25,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class DoubleAmountFunction implements MapFunction<Object, Object> {
+public class DoubleAmountFunction implements MapFunction<Map<String, Object>, Map<String, Object>> {
 
     private static final Logger LOG = LoggerFactory.getLogger(DoubleAmountFunction.class);
     // Pure function - no side effects
 
     @Override
-    public Object map(Object value) throws Exception {
-        return transform(value);
+    public Map<String, Object> map(Map<String, Object> input) throws Exception {
+        return transform(input);
     }
 
     /**
      * Transform: double_amount
      * Doubles the input amount
      */
-    public Object transform(Object input) throws Exception {
-        Object result = new Object();
+    public Map<String, Object> transform(Map<String, Object> input) throws Exception {
+        Map<String, Object> result = new HashMap<>();
 
         // Apply transformation logic
-        result.setResult((getAmount() * 2L));
+        result.put("result", (((Number)input.get("amount")).doubleValue() * 2d));
 
         return result;
     }

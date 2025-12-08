@@ -71,27 +71,39 @@ class MappingGeneratorMixin:
         return ".".join(setters)
 
     def generate_apply_block_code(self, apply: ast.ApplyBlock, use_map: bool = False) -> str:
-        """Generate code for apply block (simple transforms)."""
+        """Generate code for apply block (simple transforms).
+
+        Handles local variables and output field assignments, tracking which
+        fields have been assigned so later expressions can reference them.
+        """
         if not apply or not apply.statements:
             return "        // No apply logic defined"
 
         lines = []
         local_vars = []
+        # Track output fields that have been assigned (for result.get() access)
+        assigned_output_fields = []
 
         for stmt in apply.statements:
             if isinstance(stmt, ast.LocalAssignment):
-                # Local variable assignment
+                # Local variable assignment - creates a Java local var
                 var_name = self.to_camel_case(stmt.name)
-                value = self.generate_expression(stmt.value, use_map, local_vars)
+                value = self.generate_expression(
+                    stmt.value, use_map, local_vars, assigned_output_fields
+                )
                 lines.append(f"        var {var_name} = {value};")
                 local_vars.append(var_name)
 
             elif isinstance(stmt, ast.Assignment):
-                # Output field assignment
+                # Output field assignment - stores in result map/object
                 target_field = stmt.target.parts[-1] if stmt.target.parts else "result"
-                value = self.generate_expression(stmt.value, use_map, local_vars)
+                value = self.generate_expression(
+                    stmt.value, use_map, local_vars, assigned_output_fields
+                )
                 if use_map:
                     lines.append(f'        result.put("{target_field}", {value});')
+                    # Track this field as assigned for later reference
+                    assigned_output_fields.append(target_field)
                 else:
                     target = self._generate_setter_chain(stmt.target)
                     lines.append(f"        result.{target}({value});")
@@ -105,9 +117,9 @@ class MappingGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate the main transform function method."""
-        # Use Map for Object types to allow dynamic field access
-        use_map = output_type == "Object"
-        actual_output_type = "Map<String, Object>" if use_map else output_type
+        # Use Map for Object or Map<String, Object> types to allow dynamic field access
+        use_map = output_type in ("Object", "Map<String, Object>")
+        actual_output_type = "Map<String, Object>" if output_type == "Object" else output_type
         actual_input_type = "Map<String, Object>" if input_type == "Object" else input_type
 
         lines = [
