@@ -43,6 +43,9 @@ class PojoGeneratorMixin:
         fields_block = self.indent('\n'.join(field_declarations))
         methods_block = self.indent('\n\n'.join(getter_setters))
 
+        # Generate correlation key method
+        correlation_method = self._generate_correlation_key_method(all_fields)
+
         return f'''{header}
 {package_decl}
 {imports}
@@ -58,6 +61,8 @@ public class {class_name} implements Serializable {{
     }}
 
 {methods_block}
+
+{correlation_method}
 
     @Override
     public String toString() {{
@@ -114,3 +119,74 @@ public class {class_name} implements Serializable {{
             else:
                 parts.append(f'                "{separator}{field_name}=" + {field_name} +')
         return '\n'.join(parts)
+
+    def _generate_correlation_key_method(self: BaseGenerator,
+                                          fields: List[ast.FieldDecl]) -> str:
+        """Generate correlation key methods for Flink keying.
+
+        These methods support:
+        - getCorrelationKey(String[] fields): Dynamic key from specified fields
+        - getBufferKey(String[] fields): Alias for correlation key (used in hold patterns)
+        - getKey(): Simple key accessor for RoutedEvent compatibility
+        """
+        # Build field name to getter mapping
+        field_getters = []
+        for field_decl in fields:
+            field_name = field_decl.name
+            getter_name = f"get{self.to_java_field_name(field_name)[0].upper()}{self.to_java_field_name(field_name)[1:]}"
+            field_getters.append((field_name, getter_name))
+
+        # Build switch cases for correlation key method
+        switch_cases = []
+        for field_name, getter_name in field_getters:
+            switch_cases.append(f'''                case "{field_name}":
+                    sb.append({getter_name}());
+                    break;''')
+        switch_block = '\n'.join(switch_cases)
+
+        return f'''    /**
+     * Generate correlation key from specified fields.
+     * Used by Flink keying operations for event correlation.
+     *
+     * @param fields Array of field names to include in the key
+     * @return Concatenated string key from field values
+     */
+    public String getCorrelationKey(String[] fields) {{
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fields.length; i++) {{
+            if (i > 0) sb.append(":");
+            switch (fields[i]) {{
+{switch_block}
+                default:
+                    sb.append("null");
+            }}
+        }}
+        return sb.toString();
+    }}
+
+    /**
+     * Alias for getCorrelationKey - used by hold patterns for buffer keying.
+     */
+    public String getBufferKey(String[] fields) {{
+        return getCorrelationKey(fields);
+    }}
+
+    /**
+     * Get simple key for this record (first identity field or fallback).
+     * Used by window operations and RoutedEvent compatibility.
+     */
+    public String getKey() {{
+        // Return first non-null identity field as default key
+{self._generate_default_key_body(field_getters)}
+    }}'''
+
+    def _generate_default_key_body(self: BaseGenerator,
+                                    field_getters: List[tuple]) -> str:
+        """Generate default key body for getKey() method."""
+        if not field_getters:
+            return '        return "default";'
+
+        # Return first field value as string
+        first_field, first_getter = field_getters[0]
+        return f'''        Object val = {first_getter}();
+        return val != null ? val.toString() : "null";'''

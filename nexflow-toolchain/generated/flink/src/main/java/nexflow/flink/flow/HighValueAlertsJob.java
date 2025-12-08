@@ -9,15 +9,26 @@
 package nexflow.flink.flow;
 
 import java.time.Duration;
+import nexflow.flink.completion.CompletionEvent;
+import nexflow.flink.correlation.AlertsConfirmationAwaitFunction;
+import nexflow.flink.correlation.CorrelatedEvent;
+import nexflow.flink.schema.FraudAlert;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
-import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.formats.json.JsonDeserializationSchema;
+import org.apache.flink.formats.json.JsonSerializationSchema;
+import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
+import org.apache.flink.util.OutputTag;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 public class HighValueAlertsJob {
@@ -47,26 +58,97 @@ public class HighValueAlertsJob {
     public void buildPipeline(StreamExecutionEnvironment env) {
 
         // Source: fraud_alerts
-        KafkaSource<FraudAlert> fraud_alertsSource = KafkaSource
+        KafkaSource<FraudAlert> fraudAlertsSource = KafkaSource
             .<FraudAlert>builder()
             .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
             .setTopics("fraud_alerts")
             .setGroupId("high_value_alerts-consumer")
             .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
+            .setValueOnlyDeserializer(new JsonDeserializationSchema<>(FraudAlert.class))
             .build();
 
         DataStream<FraudAlert> fraudAlertsStream = env
             .fromSource(
-                fraud_alertsSource,
+                fraudAlertsSource,
                 WatermarkStrategy.<FraudAlert>forBoundedOutOfOrderness(Duration.ofMillis(5000)),
                 "fraud_alerts"
             );
 
-        // Processing Pipeline
-        // TODO: Wire up processing operators
+
+        // Correlation Block
+        // Await: alerts until confirmation arrives matching on [transaction_id]
+        // Timeout: 5min -> emit
+
+        // Generate second source for trigger events
+        KafkaSource<FraudAlert> confirmationSource = KafkaSource
+            .<FraudAlert>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setTopics("confirmation_events")
+            .setGroupId("high_value_alerts-confirmation-consumer")
+            .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
+            .setValueOnlyDeserializer(new JsonDeserializationSchema<>(FraudAlert.class))
+            .build();
+
+        DataStream<FraudAlert> confirmationStream = env
+            .fromSource(
+                confirmationSource,
+                WatermarkStrategy.<FraudAlert>forBoundedOutOfOrderness(Duration.ofMillis(5000)),
+                "confirmation"
+            );
+
+        OutputTag<FraudAlert> timeoutTag = new OutputTag<FraudAlert>("timeout") {};
+
+        KeyedStream<FraudAlert, String> keyedAlerts = fraudAlertsStream
+            .keyBy(event -> event.getCorrelationKey(new String[]{"transaction_id"}));
+
+        KeyedStream<FraudAlert, String> keyedConfirmation = confirmationStream
+            .keyBy(event -> event.getCorrelationKey(new String[]{"transaction_id"}));
+
+        ConnectedStreams<FraudAlert, FraudAlert> connectedStreams = keyedAlerts
+            .connect(keyedConfirmation);
+
+        SingleOutputStreamOperator<CorrelatedEvent> correlatedStream = connectedStreams
+            .process(new AlertsConfirmationAwaitFunction(300000L, timeoutTag))
+            .name("await-alerts-until-confirmation");
+
+        // Timed-out events are available via side output:
+        // correlatedStream.getSideOutput(timeoutTag)
+
 
         // Sinks
-        // - emit to escalated_alerts
+        // Sink: escalated_alerts
+        KafkaSink<CorrelatedEvent> escalatedAlertsSink = KafkaSink
+            .<CorrelatedEvent>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<CorrelatedEvent>builder()
+                    .setTopic("escalated_alerts")
+                    .setValueSerializationSchema(new JsonSerializationSchema<CorrelatedEvent>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        correlatedStream.sinkTo(escalatedAlertsSink).name("sink-escalated_alerts");
+
+
+        // Completion Event Callbacks
+        // On Commit Failure: emit completion failure to alert_failures
+        // Correlation field: FieldPath(parts=['transaction_id'])
+        // Note: Failure events are captured via error handler side outputs
+        // and routed to the failure completion topic
+        KafkaSink<CompletionEvent> completionFailureSink = KafkaSink
+            .<CompletionEvent>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<CompletionEvent>builder()
+                    .setTopic("alert_failures")
+                    .setValueSerializationSchema(new JsonSerializationSchema<CompletionEvent>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
     }
 
 }

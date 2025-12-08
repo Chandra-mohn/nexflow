@@ -146,6 +146,16 @@ def generate_pom(
         </dependency>
 
         <!-- ============================================== -->
+        <!-- Serialization: JSON                           -->
+        <!-- ============================================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-json</artifactId>
+            <version>${{flink.version}}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ============================================== -->
         <!-- Serialization: Avro                           -->
         <!-- ============================================== -->
         <dependency>

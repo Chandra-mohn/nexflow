@@ -3,6 +3,17 @@ Schema Generator Module
 
 Orchestrates Java code generation from L2 Schema DSL definitions.
 Uses mixin classes for modular generation of POJOs, Builders, and PII helpers.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+L2 generates: POJOs, builders, validators
+L2 NEVER generates: Processing logic, business rules
+
+Generated POJOs must:
+- Compile independently
+- Include all fields with correct Java types
+- Be complete and production-ready
+─────────────────────────────────────────────────────────────────────
 """
 
 from pathlib import Path

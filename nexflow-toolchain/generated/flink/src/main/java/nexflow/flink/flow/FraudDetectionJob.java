@@ -9,15 +9,38 @@
 package nexflow.flink.flow;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import nexflow.flink.completion.CompletionEvent;
+import nexflow.flink.rules.FraudRulesRouter;
+import nexflow.flink.rules.RoutedEvent;
+import nexflow.flink.schema.EnrichedTransaction;
+import nexflow.flink.schema.Transaction;
+import nexflow.flink.transform.CustomerLookupAsyncFunction;
+import nexflow.flink.transform.FraudSummaryAggregator;
+import nexflow.flink.transform.FraudSummaryResult;
+import nexflow.flink.transform.NormalizeAmountFunction;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import org.apache.flink.formats.json.JsonDeserializationSchema;
+import org.apache.flink.formats.json.JsonSerializationSchema;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.datastream.WindowedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows;
+import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.util.OutputTag;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 public class FraudDetectionJob {
@@ -46,38 +69,122 @@ public class FraudDetectionJob {
      */
     public void buildPipeline(StreamExecutionEnvironment env) {
 
+        // Checkpoint Configuration
+        env.enableCheckpointing(60000, CheckpointingMode.EXACTLY_ONCE);
+        env.getCheckpointConfig().setCheckpointStorage("s3_checkpoint");
+
+
         // Source: kafka_transactions
-        KafkaSource<Transaction> kafka_transactionsSource = KafkaSource
+        KafkaSource<Transaction> kafkaTransactionsSource = KafkaSource
             .<Transaction>builder()
             .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
             .setTopics("kafka_transactions")
             .setGroupId("fraud_detection-consumer")
             .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
+            .setValueOnlyDeserializer(new JsonDeserializationSchema<>(Transaction.class))
             .build();
 
         DataStream<Transaction> kafkaTransactionsStream = env
             .fromSource(
-                kafka_transactionsSource,
+                kafkaTransactionsSource,
                 WatermarkStrategy.<Transaction>forBoundedOutOfOrderness(Duration.ofMillis(5000)),
                 "kafka_transactions"
             );
 
 
-        // Checkpoint Configuration
-        env.enableCheckpointing(60000, CheckpointingMode.EXACTLY_ONCE);
-        env.getCheckpointConfig().setCheckpointStorage("s3_checkpoint");
-
         // Processing Pipeline
-        // TODO: Wire up processing operators
-        // - EnrichDecl: customer_lookup
-        // - TransformDecl: normalize_amount
-        // - RouteDecl: fraud_rules
-        // - WindowDecl: tumbling window
-        // - AggregateDecl: fraud_summary
+        // Enrich: customer_lookup on [customer_id]
+        DataStream<EnrichedTransaction> enriched0Stream = AsyncDataStream
+            .unorderedWait(
+                kafkaTransactionsStream,
+                new CustomerLookupAsyncFunction(new String[]{"customer_id"}),
+                30, TimeUnit.SECONDS,
+                100  // async capacity
+            )
+            .name("enrich-customer_lookup");
+
+        // Transform: normalize_amount
+        DataStream<Map<String, Object>> transformed1Stream = enriched0Stream
+            .map(new NormalizeAmountFunction())
+            .name("transform-normalize_amount");
+
+        // Route: fraud_rules
+        SingleOutputStreamOperator<RoutedEvent> routed2Stream = transformed1Stream
+            .process(new FraudRulesRouter())
+            .name("route-fraud_rules");
+
+        // Side outputs for each routing decision are available via:
+        // routed2Stream.getSideOutput(FraudRulesRouter.APPROVED_TAG)
+        // routed2Stream.getSideOutput(FraudRulesRouter.FLAGGED_TAG)
+        // routed2Stream.getSideOutput(FraudRulesRouter.BLOCKED_TAG)
+
+        // Window: tumbling 1min
+        WindowedStream<RoutedEvent, String, TimeWindow> windowed3Stream = routed2Stream
+            .keyBy(record -> record.getKey())  // TODO: Extract key field from DSL
+            .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+            .allowedLateness(Time.seconds(10));
+
+        // Aggregate: fraud_summary
+        // Note: Aggregate follows preceding window operation
+        DataStream<FraudSummaryResult> aggregated4Stream = windowed3Stream
+            .aggregate(new FraudSummaryAggregator())
+            .name("aggregate-fraud_summary");
+
 
         // Sinks
-        // - emit to processed_transactions
-        // - emit to fraud_alerts
+        // Sink: processed_transactions
+        KafkaSink<FraudSummaryResult> processedTransactionsSink = KafkaSink
+            .<FraudSummaryResult>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<FraudSummaryResult>builder()
+                    .setTopic("processed_transactions")
+                    .setValueSerializationSchema(new JsonSerializationSchema<FraudSummaryResult>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        aggregated4Stream.sinkTo(processedTransactionsSink).name("sink-processed_transactions");
+
+        // Sink: fraud_alerts
+        KafkaSink<FraudSummaryResult> fraudAlertsSink = KafkaSink
+            .<FraudSummaryResult>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<FraudSummaryResult>builder()
+                    .setTopic("fraud_alerts")
+                    .setValueSerializationSchema(new JsonSerializationSchema<FraudSummaryResult>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        aggregated4Stream.sinkTo(fraudAlertsSink).name("sink-fraud_alerts");
+
+
+        // Completion Event Callbacks
+        // On Commit: emit completion to transaction_completions
+        // Correlation field: FieldPath(parts=['transaction_id'])
+        KafkaSink<CompletionEvent> completionSuccessSink = KafkaSink
+            .<CompletionEvent>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<CompletionEvent>builder()
+                    .setTopic("transaction_completions")
+                    .setValueSerializationSchema(new JsonSerializationSchema<CompletionEvent>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        // Create completion event stream from main output
+        DataStream<CompletionEvent> completionStream = aggregated4Stream
+            .map(record -> CompletionEvent.success(record, "FieldPath(parts=['transaction_id'])", new String[]{"customer_id", "amount"}))
+            .name("completion-event-transform");
+
+        completionStream.sinkTo(completionSuccessSink).name("sink-completion-transaction_completions");
+
     }
 
 }

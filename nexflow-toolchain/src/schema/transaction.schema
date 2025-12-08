@@ -101,3 +101,57 @@ schema enriched_transaction
         processing_timestamp: timestamp required
     end
 end
+
+schema fraud_alert
+    pattern event_log
+
+    version 1.0.0
+
+    identity
+        alert_id: uuid required
+        transaction_id: uuid required
+    end
+
+    streaming
+        key_fields: [alert_id]
+        time_field: event_timestamp
+    end
+
+    fields
+        alert_id: uuid required
+        transaction_id: uuid required
+        customer_id: string required
+        amount: decimal required
+        alert_type: string required
+        severity: string required
+        confidence_score: decimal required
+        event_timestamp: timestamp required
+    end
+end
+
+schema escalation
+    pattern event_log
+
+    version 1.0.0
+
+    identity
+        escalation_id: uuid required
+        alert_id: uuid required
+    end
+
+    streaming
+        key_fields: [escalation_id]
+        time_field: event_timestamp
+    end
+
+    fields
+        escalation_id: uuid required
+        alert_id: uuid required
+        transaction_id: uuid required
+        customer_id: string required
+        escalation_reason: string required
+        priority: integer required
+        assigned_to: string optional
+        event_timestamp: timestamp required
+    end
+end

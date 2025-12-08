@@ -3,6 +3,18 @@ Rules Generator Module
 
 Main generator class for L4 Rules DSL → Java rule evaluators.
 Orchestrates mixin classes for modular generation.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+L4 generates: ProcessFunction, decision tables, procedural rules
+L4 NEVER generates: Data structure definitions, schema types
+
+Generated rules must:
+- Return ACTUAL decision values (never null placeholders)
+- Generate REAL conditions (never "if (true)")
+- Compile and execute correctly
+- Map all actions to executable code
+─────────────────────────────────────────────────────────────────────
 """
 
 from pathlib import Path

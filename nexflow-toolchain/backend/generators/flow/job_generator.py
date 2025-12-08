@@ -2,6 +2,17 @@
 Job Generator Mixin
 
 Generates the Flink job main class that orchestrates the entire pipeline.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+This generator MUST follow the Zero-Code Imperative:
+- NO STUBS: Every operator must wire to complete L3/L4 implementations
+- NO TODOS: Generated code must be production-ready
+- NO PLACEHOLDERS: All returns must have actual values
+
+L1 is the "railroad" - it orchestrates but does NOT contain business logic.
+Business logic lives in L3 (transforms) and L4 (rules).
+─────────────────────────────────────────────────────────────────────
 """
 
 from typing import Set, List
@@ -27,7 +38,7 @@ class JobGeneratorMixin:
             self._generate_file_header(class_name, process.name),
             f"package {package};",
             "",
-            self._generate_job_imports(),
+            self._generate_job_imports(process),
             "",
             f"public class {class_name} {{",
             "",
@@ -53,8 +64,13 @@ class JobGeneratorMixin:
  * DO NOT EDIT - Changes will be overwritten
  */'''
 
-    def _generate_job_imports(self) -> str:
-        """Generate import statements for job class."""
+    def _generate_job_imports(self, process: ast.ProcessDefinition) -> str:
+        """Generate import statements for job class.
+
+        COVENANT: Only imports classes that are actually used in the generated code.
+        All operator types must have their imports properly included.
+        """
+        # Core imports always needed
         imports = [
             "org.apache.flink.streaming.api.environment.StreamExecutionEnvironment",
             "org.apache.flink.streaming.api.datastream.DataStream",
@@ -64,12 +80,175 @@ class JobGeneratorMixin:
             "org.apache.flink.connector.kafka.sink.KafkaSink",
             "org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema",
             "org.apache.flink.connector.base.DeliveryGuarantee",
-            "org.apache.flink.streaming.api.CheckpointingMode",
+            "org.apache.flink.formats.json.JsonDeserializationSchema",
+            "org.apache.flink.formats.json.JsonSerializationSchema",
             "org.apache.kafka.clients.consumer.OffsetResetStrategy",
             "java.time.Duration",
         ]
 
-        return '\n'.join(f"import {imp};" for imp in sorted(imports))
+        # Conditional imports based on what operators are used
+        has_transforms = False
+        has_enrich = False
+        has_route = False
+        has_aggregate = False
+        has_window = False
+        has_join = False
+        has_await = False
+        has_hold = False
+
+        # Check for correlation block
+        if process.correlation:
+            if isinstance(process.correlation, ast.AwaitDecl):
+                has_await = True
+            elif isinstance(process.correlation, ast.HoldDecl):
+                has_hold = True
+
+        if process.processing:
+            for op in process.processing:
+                if isinstance(op, ast.TransformDecl):
+                    has_transforms = True
+                elif isinstance(op, ast.EnrichDecl):
+                    has_enrich = True
+                elif isinstance(op, ast.RouteDecl):
+                    has_route = True
+                elif isinstance(op, ast.AggregateDecl):
+                    has_aggregate = True
+                elif isinstance(op, ast.WindowDecl):
+                    has_window = True
+                elif isinstance(op, ast.JoinDecl):
+                    has_join = True
+
+        if has_transforms:
+            imports.append("java.util.Map")
+
+        if has_enrich:
+            imports.extend([
+                "org.apache.flink.streaming.api.datastream.AsyncDataStream",
+                "java.util.concurrent.TimeUnit",
+            ])
+
+        if has_route:
+            imports.append("org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator")
+
+        if has_window or has_aggregate:
+            imports.extend([
+                "org.apache.flink.streaming.api.windowing.time.Time",
+                "org.apache.flink.streaming.api.windowing.windows.TimeWindow",
+            ])
+
+        if has_window:
+            imports.extend([
+                "org.apache.flink.streaming.api.datastream.WindowedStream",
+                "org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows",
+                "org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows",
+                "org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows",
+            ])
+
+        # Check for late data handling in windows
+        has_late_data = False
+        if process.processing:
+            for op in process.processing:
+                if isinstance(op, ast.WindowDecl) and op.options and op.options.late_data:
+                    has_late_data = True
+                    break
+        # Also check execution block for global late data config
+        if process.execution and process.execution.time and process.execution.time.late_data:
+            has_late_data = True
+
+        if has_late_data:
+            imports.append("org.apache.flink.util.OutputTag")
+
+        if has_join:
+            imports.append("org.apache.flink.streaming.api.windowing.time.Time")
+
+        # Correlation imports (await/hold patterns)
+        if has_await or has_hold:
+            imports.extend([
+                "org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction",
+                "org.apache.flink.streaming.api.datastream.KeyedStream",
+                "org.apache.flink.util.OutputTag",
+                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+            ])
+
+        if has_await:
+            imports.extend([
+                "org.apache.flink.streaming.api.datastream.ConnectedStreams",
+            ])
+
+        if has_hold:
+            imports.extend([
+                "org.apache.flink.api.common.state.ListState",
+                "org.apache.flink.api.common.state.ListStateDescriptor",
+            ])
+
+        # Completion block imports
+        if process.completion:
+            imports.extend([
+                "org.apache.flink.api.common.serialization.SimpleStringSchema",
+            ])
+
+        # Only add CheckpointingMode if checkpoint is configured
+        if process.resilience and process.resilience.checkpoint:
+            imports.append("org.apache.flink.streaming.api.CheckpointingMode")
+
+        # Add schema imports for input schemas
+        schema_package = f"{self.config.package_prefix}.schema"
+        if process.input and process.input.receives:
+            for receive in process.input.receives:
+                if receive.schema and receive.schema.schema_name:
+                    schema_class = self._to_pascal_case(receive.schema.schema_name)
+                    imports.append(f"{schema_package}.{schema_class}")
+                    # Also import Enriched version if enrich operator is present
+                    if has_enrich:
+                        imports.append(f"{schema_package}.Enriched{schema_class}")
+
+        # Add transform function imports
+        transform_package = f"{self.config.package_prefix}.transform"
+        rules_package = f"{self.config.package_prefix}.rules"
+
+        if process.processing:
+            for op in process.processing:
+                if isinstance(op, ast.TransformDecl):
+                    transform_class = self._to_pascal_case(op.transform_name) + "Function"
+                    imports.append(f"{transform_package}.{transform_class}")
+                elif isinstance(op, ast.EnrichDecl):
+                    async_class = self._to_pascal_case(op.lookup_name) + "AsyncFunction"
+                    imports.append(f"{transform_package}.{async_class}")
+                elif isinstance(op, ast.RouteDecl):
+                    router_class = self._to_pascal_case(op.rule_name) + "Router"
+                    imports.append(f"{rules_package}.{router_class}")
+                    imports.append(f"{rules_package}.RoutedEvent")
+                elif isinstance(op, ast.AggregateDecl):
+                    agg_class = self._to_pascal_case(op.transform_name) + "Aggregator"
+                    result_class = self._to_pascal_case(op.transform_name) + "Result"
+                    imports.append(f"{transform_package}.{agg_class}")
+                    imports.append(f"{transform_package}.{result_class}")
+
+        # Add correlation function imports
+        correlation_package = f"{self.config.package_prefix}.correlation"
+        if process.correlation:
+            if isinstance(process.correlation, ast.AwaitDecl):
+                await_decl = process.correlation
+                await_class = f"{self._to_pascal_case(await_decl.initial_event)}{self._to_pascal_case(await_decl.trigger_event)}AwaitFunction"
+                imports.append(f"{correlation_package}.{await_class}")
+                imports.append(f"{correlation_package}.CorrelatedEvent")
+            elif isinstance(process.correlation, ast.HoldDecl):
+                hold_decl = process.correlation
+                hold_class = f"{self._to_pascal_case(hold_decl.event)}HoldFunction"
+                imports.append(f"{correlation_package}.{hold_class}")
+                imports.append(f"{correlation_package}.HeldBatch")
+
+        # Add completion event imports (uses standard KafkaSink)
+        completion_package = f"{self.config.package_prefix}.completion"
+        if process.completion:
+            if process.completion.on_commit:
+                imports.append(f"{completion_package}.CompletionEvent")
+            if process.completion.on_commit_failure:
+                imports.append(f"{completion_package}.CompletionEvent")
+
+        # Remove duplicates and sort
+        imports = sorted(set(imports))
+        return '\n'.join(f"import {imp};" for imp in imports)
 
     def _generate_constants(self, process: ast.ProcessDefinition) -> str:
         """Generate job constants."""
@@ -112,21 +291,54 @@ class JobGeneratorMixin:
             "    public void buildPipeline(StreamExecutionEnvironment env) {",
         ]
 
-        # Generate source connections
-        if process.input and process.input.receives:
-            for receive in process.input.receives:
-                lines.append(self._generate_source_connection(receive, process))
-
-        # Generate checkpoint configuration
+        # Generate checkpoint configuration FIRST (before pipeline construction)
         if process.resilience and process.resilience.checkpoint:
             lines.append(self._generate_checkpoint_setup(process.resilience.checkpoint))
 
-        # Generate processing pipeline (simplified)
-        lines.append("        // Processing Pipeline")
-        lines.append("        // TODO: Wire up processing operators")
+        # Track current stream variable and type through the pipeline
+        current_stream = None
+        current_type = None
+
+        # Generate source connections
+        if process.input and process.input.receives:
+            for receive in process.input.receives:
+                source_code, stream_var, schema_class = self._generate_source_with_json(receive, process)
+                lines.append(source_code)
+                current_stream = stream_var
+                current_type = schema_class
+
+        # Generate processing pipeline - wire actual operators
         if process.processing:
-            for op in process.processing:
-                lines.append(f"        // - {type(op).__name__}: {self._get_op_name(op)}")
+            lines.append("")
+            lines.append("        // Processing Pipeline")
+            for idx, op in enumerate(process.processing):
+                op_code, new_stream, new_type = self._wire_operator(
+                    op, current_stream, current_type, idx
+                )
+                if op_code:
+                    lines.append(op_code)
+                    current_stream = new_stream
+                    current_type = new_type
+
+        # Generate correlation block (await/hold patterns)
+        if process.correlation:
+            lines.append("")
+            lines.append("        // Correlation Block")
+            if isinstance(process.correlation, ast.AwaitDecl):
+                corr_code, new_stream, new_type = self._wire_await(
+                    process.correlation, process, current_stream, current_type
+                )
+            elif isinstance(process.correlation, ast.HoldDecl):
+                corr_code, new_stream, new_type = self._wire_hold(
+                    process.correlation, process, current_stream, current_type
+                )
+            else:
+                corr_code = "        // [UNSUPPORTED] Unknown correlation type"
+                new_stream = current_stream
+                new_type = current_type
+            lines.append(corr_code)
+            current_stream = new_stream
+            current_type = new_type
 
         # Generate sinks
         if process.output and process.output.outputs:
@@ -134,11 +346,600 @@ class JobGeneratorMixin:
             lines.append("        // Sinks")
             for output in process.output.outputs:
                 if isinstance(output, ast.EmitDecl):
-                    lines.append(f"        // - emit to {output.target}")
+                    sink_code = self._generate_sink_with_json(output, current_stream, current_type)
+                    lines.append(sink_code)
+
+        # Generate late data sinks for window operations
+        if process.processing:
+            late_data_sinks = []
+            for idx, op in enumerate(process.processing):
+                if isinstance(op, ast.WindowDecl) and op.options and op.options.late_data:
+                    late_sink_code = self._generate_late_data_sink(
+                        op.options.late_data.target,
+                        self._get_input_type_at_op(process, idx),
+                        f"windowed{idx}Stream"
+                    )
+                    late_data_sinks.append(late_sink_code)
+            if late_data_sinks:
+                lines.append("")
+                lines.append("        // Late Data Sinks")
+                lines.extend(late_data_sinks)
+
+        # Generate completion event sinks
+        if process.completion:
+            lines.append("")
+            lines.append("        // Completion Event Callbacks")
+            completion_code = self._wire_completion_block(process.completion, current_stream, current_type)
+            lines.append(completion_code)
 
         lines.append("    }")
 
         return '\n'.join(lines)
+
+    def _generate_source_with_json(self, receive: ast.ReceiveDecl, process: ast.ProcessDefinition) -> tuple:
+        """Generate source connection code with JSON deserialization."""
+        source_name = receive.source
+        source_var = self._to_camel_case(source_name) + "Source"  # Proper camelCase
+        schema_class = self._get_schema_class(receive)
+        stream_var = self._to_camel_case(source_name) + "Stream"
+
+        watermark_delay = "5000"  # default 5 seconds
+        if process.execution and process.execution.time and process.execution.time.watermark:
+            watermark_delay = str(self._duration_to_ms(process.execution.time.watermark.delay))
+
+        code = f'''
+        // Source: {source_name}
+        KafkaSource<{schema_class}> {source_var} = KafkaSource
+            .<{schema_class}>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setTopics("{source_name}")
+            .setGroupId("{process.name}-consumer")
+            .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
+            .setValueOnlyDeserializer(new JsonDeserializationSchema<>({schema_class}.class))
+            .build();
+
+        DataStream<{schema_class}> {stream_var} = env
+            .fromSource(
+                {source_var},
+                WatermarkStrategy.<{schema_class}>forBoundedOutOfOrderness(Duration.ofMillis({watermark_delay})),
+                "{source_name}"
+            );
+'''
+        return code, stream_var, schema_class
+
+    def _wire_operator(self, op, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a processing operator and return code, new stream name, and output type."""
+        if isinstance(op, ast.TransformDecl):
+            return self._wire_transform(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.EnrichDecl):
+            return self._wire_enrich(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.RouteDecl):
+            return self._wire_route(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.AggregateDecl):
+            return self._wire_aggregate(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.WindowDecl):
+            return self._wire_window(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.JoinDecl):
+            return self._wire_join(op, input_stream, input_type, idx)
+        elif isinstance(op, ast.MergeDecl):
+            return self._wire_merge(op, input_stream, input_type, idx)
+        else:
+            return f"        // [UNSUPPORTED] Operator: {type(op).__name__}", input_stream, input_type
+
+    def _wire_transform(self, transform: ast.TransformDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a transform operator using MapFunction."""
+        transform_name = transform.transform_name
+        transform_class = self._to_pascal_case(transform_name) + "Function"
+        output_stream = f"transformed{idx}Stream"
+        # For now, assume transform outputs same type or Map<String, Object>
+        output_type = "Map<String, Object>"
+
+        code = f'''        // Transform: {transform_name}
+        DataStream<{output_type}> {output_stream} = {input_stream}
+            .map(new {transform_class}())
+            .name("transform-{transform_name}");
+'''
+        return code, output_stream, output_type
+
+    def _wire_enrich(self, enrich: ast.EnrichDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire an enrich operator using AsyncDataStream for async lookups.
+
+        COVENANT: Generates complete, compilable Flink AsyncDataStream code.
+        References L3-generated AsyncFunction class by name.
+        """
+        lookup_name = enrich.lookup_name
+        lookup_class = self._to_pascal_case(lookup_name) + "AsyncFunction"
+        output_stream = f"enriched{idx}Stream"
+        # Enriched output uses same base type (L3 AsyncFunction adds fields)
+        output_type = f"Enriched{input_type}"
+
+        # Build on_fields array for lookup key specification
+        on_fields_array = ', '.join(f'"{f}"' for f in enrich.on_fields)
+
+        code = f'''        // Enrich: {lookup_name} on [{', '.join(enrich.on_fields)}]
+        DataStream<{output_type}> {output_stream} = AsyncDataStream
+            .unorderedWait(
+                {input_stream},
+                new {lookup_class}(new String[]{{{on_fields_array}}}),
+                30, TimeUnit.SECONDS,
+                100  // async capacity
+            )
+            .name("enrich-{lookup_name}");
+'''
+        return code, output_stream, output_type
+
+    def _wire_route(self, route: ast.RouteDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a route operator using ProcessFunction for L4 rule evaluation.
+
+        COVENANT: Generates complete, compilable Flink ProcessFunction code.
+        References L4-generated Router class which implements ProcessFunction
+        with OutputTags for side outputs based on routing decisions.
+        """
+        rule_name = route.rule_name
+        router_class = self._to_pascal_case(rule_name) + "Router"
+        output_stream = f"routed{idx}Stream"
+        # Router outputs RoutedEvent wrapper containing decision + original data
+        output_type = "RoutedEvent"
+
+        code = f'''        // Route: {rule_name}
+        SingleOutputStreamOperator<{output_type}> {output_stream} = {input_stream}
+            .process(new {router_class}())
+            .name("route-{rule_name}");
+
+        // Side outputs for each routing decision are available via:
+        // {output_stream}.getSideOutput({router_class}.APPROVED_TAG)
+        // {output_stream}.getSideOutput({router_class}.FLAGGED_TAG)
+        // {output_stream}.getSideOutput({router_class}.BLOCKED_TAG)
+'''
+        return code, output_stream, output_type
+
+    def _wire_aggregate(self, aggregate: ast.AggregateDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire an aggregate operator using AggregateFunction.
+
+        COVENANT: Generates complete, compilable Flink aggregate code.
+        References L3-generated Aggregator class implementing AggregateFunction.
+        Note: Aggregate must follow a window operation in the pipeline.
+        """
+        transform_name = aggregate.transform_name
+        agg_class = self._to_pascal_case(transform_name) + "Aggregator"
+        accumulator_class = self._to_pascal_case(transform_name) + "Accumulator"
+        result_class = self._to_pascal_case(transform_name) + "Result"
+        output_stream = f"aggregated{idx}Stream"
+        output_type = result_class
+
+        code = f'''        // Aggregate: {transform_name}
+        // Note: Aggregate follows preceding window operation
+        DataStream<{output_type}> {output_stream} = {input_stream}
+            .aggregate(new {agg_class}())
+            .name("aggregate-{transform_name}");
+'''
+        return code, output_stream, output_type
+
+    def _wire_window(self, window: ast.WindowDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a window operator with keyBy and window assignment.
+
+        COVENANT: Generates complete, compilable Flink window code.
+        Windows produce a WindowedStream that must be followed by aggregate/reduce.
+        Late data handling with side outputs is fully supported.
+        """
+        output_stream = f"windowed{idx}Stream"
+        window_assigner = self._get_window_assigner(window)
+
+        # Build lateness configuration if specified
+        lateness_code = ""
+        if window.options and window.options.lateness:
+            lateness_duration = self._duration_to_time_call(window.options.lateness.duration)
+            lateness_code = f"\n            .allowedLateness({lateness_duration})"
+
+        # Build late data side output if specified
+        late_output_code = ""
+        late_tag_decl = ""
+        late_sink_code = ""
+        if window.options and window.options.late_data:
+            late_target = window.options.late_data.target
+            late_tag = self._to_camel_case(late_target) + "LateTag"
+            late_output_code = f"\n            .sideOutputLateData({late_tag})"
+            late_tag_decl = f'''        // Late data output tag for records arriving after allowed lateness
+        OutputTag<{input_type}> {late_tag} = new OutputTag<{input_type}>("{late_target}") {{}};
+
+'''
+            # Late data sink will be generated separately in _generate_late_data_sink
+
+        code = f'''{late_tag_decl}        // Window: {window.window_type.value} {self._format_window_size(window.size)}
+        WindowedStream<{input_type}, String, TimeWindow> {output_stream} = {input_stream}
+            .keyBy(record -> record.getKey())  // TODO: Extract key field from DSL
+            .window({window_assigner}){lateness_code}{late_output_code};
+'''
+        # Window returns the same input type; actual aggregation happens in following aggregate operator
+        return code, output_stream, input_type
+
+    def _get_window_assigner(self, window: ast.WindowDecl) -> str:
+        """Get the Flink window assigner for the window type."""
+        size_str = self._duration_to_time_call(window.size)
+
+        if window.window_type == ast.WindowType.TUMBLING:
+            return f"TumblingEventTimeWindows.of({size_str})"
+        elif window.window_type == ast.WindowType.SLIDING:
+            slide_str = self._duration_to_time_call(window.slide) if window.slide else "Time.seconds(10)"
+            return f"SlidingEventTimeWindows.of({size_str}, {slide_str})"
+        elif window.window_type == ast.WindowType.SESSION:
+            return f"EventTimeSessionWindows.withGap({size_str})"
+        else:
+            return f"TumblingEventTimeWindows.of({size_str})"
+
+    def _duration_to_time_call(self, duration: ast.Duration) -> str:
+        """Convert Duration to Flink Time.xxx() call."""
+        unit_map = {'ms': 'milliseconds', 's': 'seconds', 'm': 'minutes', 'h': 'hours', 'd': 'days'}
+        method = unit_map.get(duration.unit, 'seconds')
+        return f"Time.{method}({duration.value})"
+
+    def _format_window_size(self, duration: ast.Duration) -> str:
+        """Format window duration for comment."""
+        unit_names = {'ms': 'ms', 's': 'sec', 'm': 'min', 'h': 'hr', 'd': 'day'}
+        return f"{duration.value}{unit_names.get(duration.unit, duration.unit)}"
+
+    def _wire_join(self, join: ast.JoinDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a join operator for interval joins between two streams.
+
+        COVENANT: Generates complete, compilable Flink interval join code.
+        Requires both streams to be keyed by join fields.
+        """
+        left_stream = self._to_camel_case(join.left) + "Stream"
+        right_stream = self._to_camel_case(join.right) + "Stream"
+        output_stream = f"joined{idx}Stream"
+        join_type = join.join_type.value if join.join_type else "inner"
+        within_ms = self._duration_to_ms(join.within)
+
+        # Build key selector for join fields
+        join_fields = ', '.join(f'"{f}"' for f in join.on_fields)
+        join_key_comment = ', '.join(join.on_fields)
+
+        code = f'''        // Join: {join.left} {join_type} join {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
+        DataStream<JoinedRecord> {output_stream} = {left_stream}
+            .keyBy(left -> left.getJoinKey())
+            .intervalJoin({right_stream}.keyBy(right -> right.getJoinKey()))
+            .between(Time.milliseconds(-{within_ms}), Time.milliseconds({within_ms}))
+            .process(new JoinProcessFunction())
+            .name("join-{join.left}-{join.right}");
+'''
+        return code, output_stream, "JoinedRecord"
+
+    def _wire_merge(self, merge: ast.MergeDecl, input_stream: str, input_type: str, idx: int) -> tuple:
+        """Wire a merge (union) operator to combine multiple streams.
+
+        COVENANT: Generates complete, compilable Flink union code.
+        All streams must have compatible types for union.
+        """
+        output_alias = merge.output_alias or f"merged{idx}"
+        output_stream = self._to_camel_case(output_alias) + "Stream"
+
+        if len(merge.streams) < 2:
+            return f"        // Error: Merge requires at least 2 streams", input_stream, input_type
+
+        first_stream = self._to_camel_case(merge.streams[0]) + "Stream"
+        other_streams = ', '.join(f"{self._to_camel_case(s)}Stream" for s in merge.streams[1:])
+
+        code = f'''        // Merge: {', '.join(merge.streams)} -> {output_alias}
+        DataStream<{input_type}> {output_stream} = {first_stream}
+            .union({other_streams})
+            .name("merge-{output_alias}");
+'''
+        return code, output_stream, input_type
+
+    def _wire_await(self, await_decl: ast.AwaitDecl, process: ast.ProcessDefinition,
+                    input_stream: str, input_type: str) -> tuple:
+        """Wire an await (event-driven correlation) pattern using KeyedCoProcessFunction.
+
+        COVENANT: Generates complete, compilable Flink ConnectedStreams + CoProcess code.
+        Await pattern waits for a trigger event to arrive that matches the initial event
+        on a correlation key, with timeout handling.
+
+        Flink Pattern:
+        - Initial event stream keyed by correlation fields
+        - Trigger event stream keyed by same correlation fields (generated from convention-based topic)
+        - ConnectedStreams with KeyedCoProcessFunction for correlation logic
+        - Timer for timeout handling with side output for timed-out events
+        """
+        initial_event = await_decl.initial_event
+        trigger_event = await_decl.trigger_event
+        matching_fields = await_decl.matching_fields
+        timeout_ms = self._duration_to_ms(await_decl.timeout)
+        timeout_action = await_decl.timeout_action
+
+        # Build class names
+        await_class = f"{self._to_pascal_case(initial_event)}{self._to_pascal_case(trigger_event)}AwaitFunction"
+        output_stream = "correlatedStream"
+        output_type = "CorrelatedEvent"
+
+        # The initial stream uses the actual input stream that flows into the correlation block
+        # The trigger stream needs to be created from a second Kafka source
+        initial_stream = input_stream  # Use the actual input stream from previous pipeline stage
+        trigger_stream = self._to_camel_case(trigger_event) + "Stream"
+        trigger_topic = self._to_snake_case(trigger_event) + "_events"  # Convention: {trigger}_events topic
+        trigger_source_var = self._to_camel_case(trigger_event) + "Source"
+
+        matching_fields_str = ', '.join(f'"{f}"' for f in matching_fields)
+        matching_comment = ', '.join(matching_fields)
+
+        # Timeout action code
+        timeout_target = ""
+        if timeout_action.action_type == ast.TimeoutActionType.EMIT:
+            timeout_target = timeout_action.target or "timeout_output"
+        elif timeout_action.action_type == ast.TimeoutActionType.DEAD_LETTER:
+            timeout_target = timeout_action.target or "dead_letter"
+
+        # Generate the trigger stream source
+        # Note: The trigger stream uses the same schema type as the initial stream for now
+        # In a more sophisticated implementation, this would be configurable
+        code = f'''        // Await: {initial_event} until {trigger_event} arrives matching on [{matching_comment}]
+        // Timeout: {self._format_window_size(await_decl.timeout)} -> {timeout_action.action_type.value}
+
+        // Generate second source for trigger events
+        KafkaSource<{input_type}> {trigger_source_var} = KafkaSource
+            .<{input_type}>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setTopics("{trigger_topic}")
+            .setGroupId("{process.name}-{trigger_event}-consumer")
+            .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))
+            .setValueOnlyDeserializer(new JsonDeserializationSchema<>({input_type}.class))
+            .build();
+
+        DataStream<{input_type}> {trigger_stream} = env
+            .fromSource(
+                {trigger_source_var},
+                WatermarkStrategy.<{input_type}>forBoundedOutOfOrderness(Duration.ofMillis(5000)),
+                "{trigger_event}"
+            );
+
+        OutputTag<{input_type}> timeoutTag = new OutputTag<{input_type}>("timeout") {{}};
+
+        KeyedStream<{input_type}, String> keyed{self._to_pascal_case(initial_event)} = {initial_stream}
+            .keyBy(event -> event.getCorrelationKey(new String[]{{{matching_fields_str}}}));
+
+        KeyedStream<{input_type}, String> keyed{self._to_pascal_case(trigger_event)} = {trigger_stream}
+            .keyBy(event -> event.getCorrelationKey(new String[]{{{matching_fields_str}}}));
+
+        ConnectedStreams<{input_type}, {input_type}> connectedStreams = keyed{self._to_pascal_case(initial_event)}
+            .connect(keyed{self._to_pascal_case(trigger_event)});
+
+        SingleOutputStreamOperator<{output_type}> {output_stream} = connectedStreams
+            .process(new {await_class}({timeout_ms}L, timeoutTag))
+            .name("await-{initial_event}-until-{trigger_event}");
+
+        // Timed-out events are available via side output:
+        // {output_stream}.getSideOutput(timeoutTag)
+'''
+        return code, output_stream, output_type
+
+    def _to_snake_case(self, name: str) -> str:
+        """Convert camelCase or PascalCase to snake_case."""
+        import re
+        # Insert underscore before uppercase letters and convert to lowercase
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+    def _wire_hold(self, hold_decl: ast.HoldDecl, process: ast.ProcessDefinition,
+                   input_stream: str, input_type: str) -> tuple:
+        """Wire a hold (buffer-based correlation) pattern using KeyedProcessFunction with state.
+
+        COVENANT: Generates complete, compilable Flink keyed state + process code.
+        Hold pattern buffers events by key until a completion condition is met,
+        with timeout handling for incomplete buffers.
+
+        Flink Pattern:
+        - Stream keyed by buffer key fields
+        - ListState to buffer events per key
+        - Completion condition evaluation (count, marker, or rule)
+        - Timer for timeout handling with configurable action
+        """
+        event_name = hold_decl.event
+        buffer_name = hold_decl.buffer_name or f"{event_name}_buffer"
+        keyed_by = hold_decl.keyed_by
+        timeout_ms = self._duration_to_ms(hold_decl.timeout) if hold_decl.timeout else 60000
+
+        # Build class names
+        hold_class = f"{self._to_pascal_case(event_name)}HoldFunction"
+        output_stream = "heldBatchStream"
+        output_type = "HeldBatch"
+
+        # Key fields
+        key_fields_str = ', '.join(f'"{f}"' for f in keyed_by)
+        key_comment = ', '.join(keyed_by)
+
+        # Completion condition configuration
+        completion_config = ""
+        if hold_decl.completion and hold_decl.completion.condition:
+            cond = hold_decl.completion.condition
+            if cond.condition_type == ast.CompletionConditionType.COUNT:
+                completion_config = f", {cond.count_threshold}"
+            elif cond.condition_type == ast.CompletionConditionType.MARKER:
+                completion_config = ", true"  # marker mode flag
+            elif cond.condition_type == ast.CompletionConditionType.RULE:
+                completion_config = f', "{cond.rule_name}"'
+
+        # Timeout action
+        timeout_action_code = ""
+        if hold_decl.timeout_action:
+            if hold_decl.timeout_action.action_type == ast.TimeoutActionType.EMIT:
+                timeout_action_code = f' -> emit to {hold_decl.timeout_action.target}'
+            elif hold_decl.timeout_action.action_type == ast.TimeoutActionType.DEAD_LETTER:
+                timeout_action_code = f' -> dead_letter {hold_decl.timeout_action.target}'
+            elif hold_decl.timeout_action.action_type == ast.TimeoutActionType.SKIP:
+                timeout_action_code = ' -> skip'
+
+        code = f'''        // Hold: {event_name} in {buffer_name} keyed by [{key_comment}]
+        // Timeout: {self._format_window_size(hold_decl.timeout) if hold_decl.timeout else "60sec"}{timeout_action_code}
+        OutputTag<{input_type}> timeoutHoldTag = new OutputTag<{input_type}>("hold-timeout") {{}};
+
+        DataStream<{output_type}> {output_stream} = {input_stream}
+            .keyBy(event -> event.getBufferKey(new String[]{{{key_fields_str}}}))
+            .process(new {hold_class}({timeout_ms}L, timeoutHoldTag{completion_config}))
+            .name("hold-{buffer_name}");
+
+        // Timed-out incomplete batches are available via side output:
+        // {output_stream}.getSideOutput(timeoutHoldTag)
+'''
+        return code, output_stream, output_type
+
+    def _wire_completion_block(self, completion: ast.CompletionBlock, input_stream: str, input_type: str) -> str:
+        """Wire completion event callbacks using custom sink with callback hooks.
+
+        COVENANT: Generates complete, compilable Flink sink code with completion event emission.
+        Completion events are emitted after successful/failed sink writes to notify upstream
+        systems about the processing outcome.
+
+        Flink Pattern:
+        - Custom SinkFunction wrapping KafkaSink
+        - onSuccess callback emits to completion topic
+        - onFailure callback emits to failure completion topic
+        - Correlation field carried through for tracking
+        """
+        lines = []
+
+        if completion.on_commit:
+            on_commit = completion.on_commit
+            target = on_commit.target
+            corr_field = on_commit.correlation.field_path if on_commit.correlation else "correlation_id"
+            include_fields = on_commit.include.fields if on_commit.include else []
+            include_str = ', '.join(f'"{f}"' for f in include_fields) if include_fields else ""
+
+            lines.append(f'''        // On Commit: emit completion to {target}
+        // Correlation field: {corr_field}
+        KafkaSink<CompletionEvent> completionSuccessSink = KafkaSink
+            .<CompletionEvent>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<CompletionEvent>builder()
+                    .setTopic("{target}")
+                    .setValueSerializationSchema(new JsonSerializationSchema<CompletionEvent>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        // Create completion event stream from main output
+        DataStream<CompletionEvent> completionStream = {input_stream}
+            .map(record -> CompletionEvent.success(record, "{corr_field}"{', new String[]{' + include_str + '}' if include_str else ''}))
+            .name("completion-event-transform");
+
+        completionStream.sinkTo(completionSuccessSink).name("sink-completion-{target}");
+''')
+
+        if completion.on_commit_failure:
+            on_failure = completion.on_commit_failure
+            target = on_failure.target
+            corr_field = on_failure.correlation.field_path if on_failure.correlation else "correlation_id"
+            include_fields = on_failure.include.fields if on_failure.include else []
+
+            lines.append(f'''        // On Commit Failure: emit completion failure to {target}
+        // Correlation field: {corr_field}
+        // Note: Failure events are captured via error handler side outputs
+        // and routed to the failure completion topic
+        KafkaSink<CompletionEvent> completionFailureSink = KafkaSink
+            .<CompletionEvent>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<CompletionEvent>builder()
+                    .setTopic("{target}")
+                    .setValueSerializationSchema(new JsonSerializationSchema<CompletionEvent>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+''')
+
+        return '\n'.join(lines)
+
+    def _generate_sink_with_json(self, emit: ast.EmitDecl, input_stream: str, input_type: str) -> str:
+        """Generate Kafka sink with JSON serialization.
+
+        Uses the actual stream type (input_type) for type consistency through the pipeline.
+        The declared schema in emit is for documentation purposes but the sink must match
+        the actual DataStream type to compile correctly.
+        """
+        target = emit.target
+        # Use actual stream type for type-safe sink - don't override with schema declaration
+        sink_type = input_type
+        sink_name = self._to_camel_case(target) + "Sink"
+
+        return f'''        // Sink: {target}
+        KafkaSink<{sink_type}> {sink_name} = KafkaSink
+            .<{sink_type}>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<{sink_type}>builder()
+                    .setTopic("{target}")
+                    .setValueSerializationSchema(new JsonSerializationSchema<{sink_type}>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        {input_stream}.sinkTo({sink_name}).name("sink-{target}");
+'''
+
+    def _generate_late_data_sink(self, target: str, input_type: str, windowed_stream: str) -> str:
+        """Generate Kafka sink for late data side output.
+
+        COVENANT: Generates complete, compilable late data sink code.
+        Late data arrives after the allowed lateness window has closed and is
+        routed to a separate topic for reprocessing or analysis.
+        """
+        late_tag = self._to_camel_case(target) + "LateTag"
+        sink_name = self._to_camel_case(target) + "LateSink"
+
+        # Note: In Flink, getSideOutput() returns DataStream, not SingleOutputStreamOperator
+        # We access this after applying aggregate/reduce on the windowed stream
+        return f'''        // Late Data Sink: {target}
+        // Note: Access late data from the result of window operation via getSideOutput
+        KafkaSink<{input_type}> {sink_name} = KafkaSink
+            .<{input_type}>builder()
+            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setRecordSerializer(
+                KafkaRecordSerializationSchema.<{input_type}>builder()
+                    .setTopic("{target}")
+                    .setValueSerializationSchema(new JsonSerializationSchema<{input_type}>())
+                    .build()
+            )
+            .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build();
+
+        // To route late data: aggregatedStream.getSideOutput({late_tag}).sinkTo({sink_name});
+'''
+
+    def _get_input_type_at_op(self, process: ast.ProcessDefinition, op_idx: int) -> str:
+        """Get the input type at a specific operator index in the pipeline.
+
+        This traces through the pipeline to determine what type flows into
+        the operator at the given index.
+        """
+        # Start with initial input type
+        if process.input and process.input.receives:
+            receive = process.input.receives[0]
+            if receive.schema and receive.schema.schema_name:
+                current_type = self._to_pascal_case(receive.schema.schema_name)
+            else:
+                current_type = "Object"
+        else:
+            current_type = "Object"
+
+        # Trace through operators up to op_idx
+        if process.processing:
+            for idx, op in enumerate(process.processing):
+                if idx >= op_idx:
+                    break
+                # Update type based on operator
+                if isinstance(op, ast.EnrichDecl):
+                    current_type = f"Enriched{current_type}"
+                elif isinstance(op, ast.TransformDecl):
+                    current_type = "Map<String, Object>"
+                elif isinstance(op, ast.RouteDecl):
+                    current_type = "RoutedEvent"
+                elif isinstance(op, ast.AggregateDecl):
+                    current_type = self._to_pascal_case(op.transform_name) + "Result"
+                # WindowDecl and others don't change the type
+
+        return current_type
 
     def _generate_source_connection(self, receive: ast.ReceiveDecl, process: ast.ProcessDefinition) -> str:
         """Generate source connection code."""

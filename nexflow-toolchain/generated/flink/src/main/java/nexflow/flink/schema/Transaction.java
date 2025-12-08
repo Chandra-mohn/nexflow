@@ -143,6 +143,81 @@ public class Transaction implements Serializable {
         this.deviceFingerprint = deviceFingerprint;
     }
 
+    /**
+     * Generate correlation key from specified fields.
+     * Used by Flink keying operations for event correlation.
+     *
+     * @param fields Array of field names to include in the key
+     * @return Concatenated string key from field values
+     */
+    public String getCorrelationKey(String[] fields) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) sb.append(":");
+            switch (fields[i]) {
+                case "transaction_id":
+                    sb.append(getTransactionId());
+                    break;
+                case "customer_id":
+                    sb.append(getCustomerId());
+                    break;
+                case "amount":
+                    sb.append(getAmount());
+                    break;
+                case "currency":
+                    sb.append(getCurrency());
+                    break;
+                case "merchant_id":
+                    sb.append(getMerchantId());
+                    break;
+                case "merchant_name":
+                    sb.append(getMerchantName());
+                    break;
+                case "category":
+                    sb.append(getCategory());
+                    break;
+                case "event_timestamp":
+                    sb.append(getEventTimestamp());
+                    break;
+                case "processing_timestamp":
+                    sb.append(getProcessingTimestamp());
+                    break;
+                case "status":
+                    sb.append(getStatus());
+                    break;
+                case "risk_score":
+                    sb.append(getRiskScore());
+                    break;
+                case "ip_address":
+                    sb.append(getIpAddress());
+                    break;
+                case "device_fingerprint":
+                    sb.append(getDeviceFingerprint());
+                    break;
+                default:
+                    sb.append("null");
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Alias for getCorrelationKey - used by hold patterns for buffer keying.
+     */
+    public String getBufferKey(String[] fields) {
+        return getCorrelationKey(fields);
+    }
+
+    /**
+     * Get simple key for this record (first identity field or fallback).
+     * Used by window operations and RoutedEvent compatibility.
+     */
+    public String getKey() {
+        // Return first non-null identity field as default key
+        Object val = getTransactionId();
+        return val != null ? val.toString() : "null";
+    }
+
     @Override
     public String toString() {
         return "Transaction{" +

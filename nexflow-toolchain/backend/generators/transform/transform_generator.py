@@ -3,6 +3,18 @@ Transform Generator Module
 
 Main generator class for L3 Transform DSL → Java transform functions.
 Orchestrates mixin classes for modular generation.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+L3 generates: MapFunction implementations with complete logic
+L3 NEVER generates: Routing decisions, rule evaluations
+
+Generated transforms must:
+- Compile and run without modification
+- NO placeholder returns (return null)
+- NO stub methods
+- Complete expression evaluation code
+─────────────────────────────────────────────────────────────────────
 """
 
 from pathlib import Path
