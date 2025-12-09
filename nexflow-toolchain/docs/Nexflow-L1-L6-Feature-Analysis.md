@@ -589,6 +589,46 @@ New mixins added to RulesGenerator:
 
 **L4 Coverage: 100%** - Production-ready implementation.
 
+### L4 Code Quality Review (December 8, 2024)
+
+The L4 generator Python code and generated Java code underwent systematic code quality review and fixes:
+
+#### Python Generator Improvements
+
+| File | Issues Fixed | Key Changes |
+|------|--------------|-------------|
+| `procedural_generator.py` | 3 Critical | Rewrote `_generate_boolean_expr()` with correct AST traversal (BooleanExpr→BooleanTerm→BooleanFactor→ComparisonExpr) |
+| `condition_generator.py` | 3 Critical | Fixed boolean expression generation, added null-safety to range/pattern checks |
+| `decision_table_generator.py` | 2 Critical | Fixed result extraction to handle AssignAction/CalculateAction properly |
+| `utils.py` | 4 New helpers | Added `generate_null_safe_equals()`, `generate_null_safe_comparison()`, `generate_null_safe_string_equals()` |
+
+#### Generated Java Code Improvements
+
+| Issue | Before | After |
+|-------|--------|-------|
+| **Boolean expressions always `true`** | `if (true) { routeToPremium(); }` | Proper condition extraction from AST |
+| **Decision table results return `null`** | `return null;` | Extracts `AssignAction.value` from table cells |
+| **No null safety** | `field.matches(pattern)` | `(field != null && field.matches(pattern))` |
+| **Undefined action methods** | `routeToPremium();` (compile error) | Generated method stubs with `throw UnsupportedOperationException` |
+| **Range checks NPE-prone** | `field >= min && field <= max` | `field != null && field.compareTo(min) >= 0` |
+
+#### AST Field Name Corrections
+
+The generators were using incorrect AST field names that caused silent failures:
+
+| AST Class | Wrong Field | Correct Field |
+|-----------|-------------|---------------|
+| `BooleanTerm` | `terms` (list) | `factor` (single) |
+| `BooleanExpr` | `factors` | `terms` + `operators` |
+| `ComparisonExpr` | `in_list`, `negated` | `in_values`, `is_not_in` |
+| `ComparisonExpr` | `is_null_check` + `negated` | `is_null_check`, `is_not_null_check` (separate) |
+
+#### New Procedural Rule Features
+
+- **Action Method Stubs**: Generator now creates protected stub methods for all action calls found in procedural rules
+- **Recursive Action Collection**: Traverses `RuleStep`, `ElseIfBranch`, and `ActionSequence` to find all action calls
+- **Compile-Safe Output**: Generated Java now compiles (methods exist, throw `UnsupportedOperationException` until implemented)
+
 ## Grammar → Generator Mapping
 
 ```

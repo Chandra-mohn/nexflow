@@ -10,9 +10,22 @@ L4 Lookup NEVER generates: Placeholder stubs, incomplete implementations
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Set, List, Optional
+import logging
+from typing import Set, List, Optional, TYPE_CHECKING
 
-from backend.ast import rules_ast as ast
+from backend.generators.rules.utils import (
+    to_camel_case,
+    to_setter,
+    generate_value_expr,
+    get_concurrent_imports,
+    get_time_imports,
+    DEFAULT_CACHE_TTL_SECONDS,
+)
+
+if TYPE_CHECKING:
+    from backend.ast import rules_ast as ast
+
+LOG = logging.getLogger(__name__)
 
 
 class LookupGeneratorMixin:
@@ -28,7 +41,7 @@ class LookupGeneratorMixin:
 
     def generate_lookup_action(
         self,
-        action: ast.LookupAction,
+        action: 'ast.LookupAction',
         output_var: str,
         output_field: Optional[str] = None
     ) -> str:
@@ -42,34 +55,44 @@ class LookupGeneratorMixin:
         Returns:
             Java code for the lookup operation
         """
-        lookup_method = self._to_camel_case(action.table_name) + "Lookup"
+        if action is None:
+            LOG.warning("Null LookupAction provided")
+            return "        // ERROR: null lookup action"
 
-        # Generate key arguments
-        key_args = ", ".join(
-            self._generate_value_expr(key) for key in action.keys
-        )
+        table_name = getattr(action, 'table_name', None)
+        if not table_name:
+            LOG.warning("LookupAction missing table_name")
+            return "        // ERROR: lookup action missing table_name"
+
+        lookup_method = to_camel_case(table_name) + "Lookup"
+
+        # Generate key arguments with null safety
+        keys = getattr(action, 'keys', None) or []
+        key_args = ", ".join(generate_value_expr(key) for key in keys)
 
         lines = []
 
         # Check for temporal (as_of) lookup
-        if action.as_of:
-            as_of_expr = self._generate_value_expr(action.as_of)
-            lines.append(f"        // Temporal lookup: {action.table_name} as of {as_of_expr}")
+        as_of = getattr(action, 'as_of', None)
+        if as_of:
+            as_of_expr = generate_value_expr(as_of)
+            lines.append(f"        // Temporal lookup: {table_name} as of {as_of_expr}")
             lines.append(f"        var lookupResult = {lookup_method}AsOf({key_args}, {as_of_expr});")
         else:
-            lines.append(f"        // Lookup: {action.table_name}")
+            lines.append(f"        // Lookup: {table_name}")
             lines.append(f"        var lookupResult = {lookup_method}({key_args});")
 
         # Handle default value fallback
-        if action.default_value:
-            default_expr = self._generate_value_expr(action.default_value)
+        default_value = getattr(action, 'default_value', None)
+        if default_value:
+            default_expr = generate_value_expr(default_value)
             lines.append(f"        if (lookupResult == null) {{")
             lines.append(f"            lookupResult = {default_expr};")
             lines.append(f"        }}")
 
         # Set result on output if field specified
         if output_field:
-            setter = self._to_setter(output_field)
+            setter = to_setter(output_field)
             lines.append(f"        {output_var}.{setter}(lookupResult);")
 
         return '\n'.join(lines)
@@ -90,8 +113,8 @@ class LookupGeneratorMixin:
         Returns:
             Method signature string
         """
-        method_name = self._to_camel_case(table_name) + "Lookup"
-        params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types))
+        method_name = to_camel_case(table_name) + "Lookup"
+        params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types or []))
 
         return f"    protected abstract {return_type} {method_name}({params});"
 
@@ -111,8 +134,8 @@ class LookupGeneratorMixin:
         Returns:
             Method signature string
         """
-        method_name = self._to_camel_case(table_name) + "LookupAsOf"
-        params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types))
+        method_name = to_camel_case(table_name) + "LookupAsOf"
+        params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types or []))
         if params:
             params += ", "
         params += "Instant asOfTime"
@@ -135,8 +158,9 @@ class LookupGeneratorMixin:
         Returns:
             Java code for async lookup wrapper
         """
-        method_name = self._to_camel_case(table_name) + "Lookup"
-        async_method_name = self._to_camel_case(table_name) + "LookupAsync"
+        method_name = to_camel_case(table_name) + "Lookup"
+        async_method_name = to_camel_case(table_name) + "LookupAsync"
+        key_types = key_types or []
         params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types))
         args = ", ".join(f"key{i}" for i in range(len(key_types)))
 
@@ -146,7 +170,7 @@ class LookupGeneratorMixin:
      * @return CompletableFuture with lookup result
      */
     protected CompletableFuture<{return_type}> {async_method_name}({params}) {{
-        return CompletableFuture.supplyAsync(() -> {method_name}({args}), lookupExecutor);
+        return CompletableFuture.supplyAsync(() -> {method_name}({args}), getLookupExecutor());
     }}'''
 
     def generate_cached_lookup_wrapper(
@@ -154,7 +178,7 @@ class LookupGeneratorMixin:
         table_name: str,
         key_types: List[str],
         return_type: str = "Object",
-        cache_ttl_seconds: int = 300
+        cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS
     ) -> str:
         """Generate cached lookup wrapper with TTL.
 
@@ -167,9 +191,11 @@ class LookupGeneratorMixin:
         Returns:
             Java code for cached lookup wrapper
         """
-        method_name = self._to_camel_case(table_name) + "Lookup"
-        cached_method_name = self._to_camel_case(table_name) + "LookupCached"
-        cache_name = self._to_camel_case(table_name) + "Cache"
+        method_name = to_camel_case(table_name) + "Lookup"
+        cached_method_name = to_camel_case(table_name) + "LookupCached"
+        cache_name = to_camel_case(table_name) + "Cache"
+        cache_ttl_const = table_name.upper() + "_CACHE_TTL_MS"
+        key_types = key_types or []
         params = ", ".join(f"{kt} key{i}" for i, kt in enumerate(key_types))
 
         # Build cache key
@@ -177,13 +203,14 @@ class LookupGeneratorMixin:
             cache_key = "String.valueOf(key0)"
         else:
             key_parts = " + \":\" + ".join(f"String.valueOf(key{i})" for i in range(len(key_types)))
-            cache_key = key_parts
+            cache_key = key_parts if key_parts else '""'
 
         args = ", ".join(f"key{i}" for i in range(len(key_types)))
+        cache_ttl_ms = cache_ttl_seconds * 1000
 
         return f'''    // Cache for {table_name} lookups
     private transient Map<String, CacheEntry<{return_type}>> {cache_name};
-    private static final long {table_name.upper()}_CACHE_TTL_MS = {cache_ttl_seconds * 1000}L;
+    private static final long {cache_ttl_const} = {cache_ttl_ms}L;
 
     /**
      * Cached lookup for {table_name} with {cache_ttl_seconds}s TTL.
@@ -201,7 +228,7 @@ class LookupGeneratorMixin:
         }}
 
         {return_type} result = {method_name}({args});
-        {cache_name}.put(cacheKey, new CacheEntry<>(result, {table_name.upper()}_CACHE_TTL_MS));
+        {cache_name}.put(cacheKey, new CacheEntry<>(result, {cache_ttl_const}));
         return result;
     }}'''
 
@@ -250,7 +277,7 @@ class LookupGeneratorMixin:
     def collect_lookup_actions(
         self,
         table: 'ast.DecisionTableDef'
-    ) -> List[ast.LookupAction]:
+    ) -> List['ast.LookupAction']:
         """Collect all lookup actions from a decision table.
 
         Args:
@@ -259,13 +286,25 @@ class LookupGeneratorMixin:
         Returns:
             List of LookupAction nodes found in the table
         """
+        from backend.ast import rules_ast as ast
+
         lookups = []
 
-        if table.decide and table.decide.matrix:
-            for row in table.decide.matrix.rows:
-                for cell in row.cells:
-                    if isinstance(cell.content, ast.LookupAction):
-                        lookups.append(cell.content)
+        decide = getattr(table, 'decide', None)
+        if not decide:
+            return lookups
+
+        matrix = getattr(decide, 'matrix', None)
+        if not matrix:
+            return lookups
+
+        rows = getattr(matrix, 'rows', None) or []
+        for row in rows:
+            cells = getattr(row, 'cells', None) or []
+            for cell in cells:
+                content = getattr(cell, 'content', None)
+                if isinstance(content, ast.LookupAction):
+                    lookups.append(content)
 
         return lookups
 
@@ -276,7 +315,7 @@ class LookupGeneratorMixin:
     def has_temporal_lookups(self, table: 'ast.DecisionTableDef') -> bool:
         """Check if decision table contains temporal (as_of) lookups."""
         lookups = self.collect_lookup_actions(table)
-        return any(lookup.as_of is not None for lookup in lookups)
+        return any(getattr(lookup, 'as_of', None) is not None for lookup in lookups)
 
     def has_async_lookups(self, table: 'ast.DecisionTableDef') -> bool:
         """Check if decision table should use async lookups.
@@ -287,47 +326,9 @@ class LookupGeneratorMixin:
 
     def get_lookup_imports(self) -> Set[str]:
         """Get required imports for lookup generation."""
-        return {
-            'java.util.Map',
-            'java.util.HashMap',
-            'java.util.concurrent.CompletableFuture',
-            'java.util.concurrent.ExecutorService',
-            'java.util.concurrent.Executors',
-            'java.time.Instant',
-        }
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
-
-    def _to_setter(self, field_name: str) -> str:
-        """Convert field name to setter method name."""
-        camel = self._to_camel_case(field_name)
-        return f"set{camel[0].upper()}{camel[1:]}"
-
-    def _generate_value_expr(self, expr) -> str:
-        """Generate Java code for a value expression.
-
-        Note: This method should be provided by the parent class or another mixin.
-        """
-        if isinstance(expr, ast.FieldPath):
-            parts = expr.parts
-            if len(parts) == 1:
-                camel = self._to_camel_case(parts[0])
-                return f"get{camel[0].upper()}{camel[1:]}()"
-            return ".".join(
-                f"get{self._to_camel_case(p)[0].upper()}{self._to_camel_case(p)[1:]}()"
-                for p in parts
-            )
-        if isinstance(expr, ast.StringLiteral):
-            return f'"{expr.value}"'
-        if isinstance(expr, ast.IntegerLiteral):
-            return f'{expr.value}L'
-        if isinstance(expr, ast.DecimalLiteral):
-            return f'new BigDecimal("{expr.value}")'
-        if isinstance(expr, ast.BooleanLiteral):
-            return 'true' if expr.value else 'false'
-        if isinstance(expr, ast.NullLiteral):
-            return 'null'
-        return str(expr)
+        imports = set()
+        imports.add('java.util.Map')
+        imports.add('java.util.HashMap')
+        imports.update(get_concurrent_imports())
+        imports.update(get_time_imports())
+        return imports

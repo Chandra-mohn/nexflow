@@ -10,9 +10,18 @@ L4 Emit NEVER generates: Incomplete stubs, placeholder code
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Set, List, Optional
+import logging
+from typing import Set, List, Optional, TYPE_CHECKING
 
-from backend.ast import rules_ast as ast
+from backend.generators.rules.utils import (
+    to_camel_case,
+    to_pascal_case,
+)
+
+if TYPE_CHECKING:
+    from backend.ast import rules_ast as ast
+
+LOG = logging.getLogger(__name__)
 
 
 class EmitGeneratorMixin:
@@ -27,7 +36,7 @@ class EmitGeneratorMixin:
 
     def generate_emit_action(
         self,
-        action: ast.EmitAction,
+        action: 'ast.EmitAction',
         value_expr: str = "result"
     ) -> str:
         """Generate Java code for an emit action.
@@ -39,8 +48,16 @@ class EmitGeneratorMixin:
         Returns:
             Java code for the emit operation
         """
-        tag_name = self._to_camel_case(action.target) + "OutputTag"
+        if action is None:
+            LOG.warning("Null EmitAction provided")
+            return "        // ERROR: null emit action"
 
+        target = getattr(action, 'target', None)
+        if not target:
+            LOG.warning("EmitAction missing target")
+            return "        // ERROR: emit action missing target"
+
+        tag_name = to_camel_case(target) + "OutputTag"
         return f"        ctx.output({tag_name}, {value_expr});"
 
     def generate_output_tag_declaration(
@@ -57,7 +74,11 @@ class EmitGeneratorMixin:
         Returns:
             Java OutputTag declaration
         """
-        tag_name = self._to_camel_case(target_name) + "OutputTag"
+        if not target_name:
+            LOG.warning("Empty target_name for OutputTag declaration")
+            return "    // ERROR: empty target name for OutputTag"
+
+        tag_name = to_camel_case(target_name) + "OutputTag"
         tag_id = target_name.lower().replace('_', '-')
 
         return f'''    /**
@@ -80,8 +101,12 @@ class EmitGeneratorMixin:
         Returns:
             Java helper method for emission
         """
-        method_name = "emitTo" + self._to_pascal_case(target_name)
-        tag_name = self._to_camel_case(target_name) + "OutputTag"
+        if not target_name:
+            LOG.warning("Empty target_name for emit helper method")
+            return "    // ERROR: empty target name for emit helper"
+
+        method_name = "emitTo" + to_pascal_case(target_name)
+        tag_name = to_camel_case(target_name) + "OutputTag"
 
         return f'''    /**
      * Emit a value to the {target_name} side output.
@@ -170,8 +195,8 @@ class EmitGeneratorMixin:
 
         lines = []
         for target in emit_targets:
-            tag_name = self._to_camel_case(target) + "OutputTag"
-            getter_name = "get" + self._to_pascal_case(target) + "OutputTag"
+            tag_name = to_camel_case(target) + "OutputTag"
+            getter_name = "get" + to_pascal_case(target) + "OutputTag"
 
             lines.append(f'''    /**
      * Get the OutputTag for {target} side output.
@@ -196,13 +221,27 @@ class EmitGeneratorMixin:
         Returns:
             List of unique emit target names
         """
+        from backend.ast import rules_ast as ast
+
         targets = set()
 
-        if table.decide and table.decide.matrix:
-            for row in table.decide.matrix.rows:
-                for cell in row.cells:
-                    if isinstance(cell.content, ast.EmitAction):
-                        targets.add(cell.content.target)
+        decide = getattr(table, 'decide', None)
+        if not decide:
+            return sorted(list(targets))
+
+        matrix = getattr(decide, 'matrix', None)
+        if not matrix:
+            return sorted(list(targets))
+
+        rows = getattr(matrix, 'rows', None) or []
+        for row in rows:
+            cells = getattr(row, 'cells', None) or []
+            for cell in cells:
+                content = getattr(cell, 'content', None)
+                if isinstance(content, ast.EmitAction):
+                    target = getattr(content, 'target', None)
+                    if target:
+                        targets.add(target)
 
         return sorted(list(targets))
 
@@ -218,8 +257,9 @@ class EmitGeneratorMixin:
         Returns:
             List of unique emit target names
         """
-        targets = set()
-        self._collect_emit_targets_from_block_items(rule.items, targets)
+        targets: Set[str] = set()
+        items = getattr(rule, 'items', None) or []
+        self._collect_emit_targets_from_block_items(items, targets)
         return sorted(list(targets))
 
     def _collect_emit_targets_from_block_items(
@@ -228,29 +268,47 @@ class EmitGeneratorMixin:
         targets: Set[str]
     ) -> None:
         """Recursively collect emit targets from block items."""
+        from backend.ast import rules_ast as ast
+
+        if not items:
+            return
+
         for item in items:
             if isinstance(item, ast.RuleStep):
                 # Check then block
-                if item.then_block:
-                    self._collect_emit_targets_from_block_items(
-                        item.then_block.items, targets
-                    )
+                then_block = getattr(item, 'then_block', None)
+                if then_block:
+                    block_items = getattr(then_block, 'items', None) or []
+                    self._collect_emit_targets_from_block_items(block_items, targets)
+
                 # Check elseif branches
-                for branch in item.elseif_branches:
-                    if branch.block:
-                        self._collect_emit_targets_from_block_items(
-                            branch.block.items, targets
-                        )
+                elseif_branches = getattr(item, 'elseif_branches', None) or []
+                for branch in elseif_branches:
+                    block = getattr(branch, 'block', None)
+                    if block:
+                        block_items = getattr(block, 'items', None) or []
+                        self._collect_emit_targets_from_block_items(block_items, targets)
+
                 # Check else block
-                if item.else_block:
-                    self._collect_emit_targets_from_block_items(
-                        item.else_block.items, targets
-                    )
+                else_block = getattr(item, 'else_block', None)
+                if else_block:
+                    block_items = getattr(else_block, 'items', None) or []
+                    self._collect_emit_targets_from_block_items(block_items, targets)
+
             elif isinstance(item, ast.ActionSequence):
-                for action in item.actions:
-                    # ActionCallStmt doesn't contain EmitAction directly
-                    # but we could extend this if needed
-                    pass
+                # Check actions for EmitAction
+                actions = getattr(item, 'actions', None) or []
+                for action in actions:
+                    if isinstance(action, ast.EmitAction):
+                        target = getattr(action, 'target', None)
+                        if target:
+                            targets.add(target)
+
+            elif isinstance(item, ast.EmitAction):
+                # Direct EmitAction item
+                target = getattr(item, 'target', None)
+                if target:
+                    targets.add(target)
 
     def has_emit_actions(self, table: 'ast.DecisionTableDef') -> bool:
         """Check if decision table contains any emit actions."""
@@ -270,12 +328,3 @@ class EmitGeneratorMixin:
             'org.apache.flink.util.OutputTag',
             'org.apache.flink.streaming.api.functions.ProcessFunction',
         }
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
-
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))

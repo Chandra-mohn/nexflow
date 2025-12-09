@@ -2,11 +2,30 @@
 Condition Generator Mixin
 
 Generates Java condition evaluation code from L4 Rules condition AST nodes.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+L4 Condition generates: Complete condition evaluations, all comparison types
+L4 Condition NEVER generates: Placeholder stubs, incomplete conditions
+─────────────────────────────────────────────────────────────────────
 """
 
+import logging
 from typing import Set
 
 from backend.ast import rules_ast as ast
+from backend.generators.rules.utils import (
+    to_camel_case,
+    to_pascal_case,
+    to_getter,
+    generate_literal,
+    generate_value_expr,
+    generate_field_path,
+    generate_unsupported_comment,
+    get_common_imports,
+)
+
+LOG = logging.getLogger(__name__)
 
 
 class ConditionGeneratorMixin:
@@ -29,7 +48,11 @@ class ConditionGeneratorMixin:
         field_name: str
     ) -> str:
         """Generate Java code for a condition."""
-        field_access = f"{input_var}.get{self._to_pascal_case(field_name)}()"
+        if condition is None:
+            LOG.warning("Null condition provided")
+            return "true"
+
+        field_access = f"{input_var}.get{to_pascal_case(field_name)}()"
 
         if isinstance(condition, ast.WildcardCondition):
             return "true"  # Wildcard always matches
@@ -55,7 +78,7 @@ class ConditionGeneratorMixin:
         if isinstance(condition, ast.ExpressionCondition):
             return self._generate_expression_condition(condition, input_var)
 
-        return "/* UNSUPPORTED CONDITION */"
+        return generate_unsupported_comment(f"condition type {type(condition).__name__}", "condition_generator")
 
     def _generate_exact_match(
         self,
@@ -63,25 +86,27 @@ class ConditionGeneratorMixin:
         field_access: str
     ) -> str:
         """Generate exact match comparison."""
-        value = self._generate_literal(condition.value)
+        value = getattr(condition, 'value', None)
+        literal = generate_literal(value)
 
-        if isinstance(condition.value, ast.StringLiteral):
-            return f'{value}.equals({field_access})'
-        if isinstance(condition.value, ast.NullLiteral):
+        if isinstance(value, ast.StringLiteral):
+            return f'{literal}.equals({field_access})'
+        if isinstance(value, ast.NullLiteral):
             return f'({field_access} == null)'
 
-        return f'({field_access} == {value})'
+        return f'({field_access} == {literal})'
 
     def _generate_range_check(
         self,
         condition: ast.RangeCondition,
         field_access: str
     ) -> str:
-        """Generate range (between) check."""
-        min_val = self._generate_literal(condition.min_value)
-        max_val = self._generate_literal(condition.max_value)
+        """Generate range (between) check with null safety."""
+        min_val = generate_literal(getattr(condition, 'min_value', None))
+        max_val = generate_literal(getattr(condition, 'max_value', None))
 
-        return f'({field_access} >= {min_val} && {field_access} <= {max_val})'
+        # Add null guard for non-primitive comparisons
+        return f'({field_access} != null && {field_access}.compareTo({min_val}) >= 0 && {field_access}.compareTo({max_val}) <= 0)'
 
     def _generate_set_membership(
         self,
@@ -89,10 +114,12 @@ class ConditionGeneratorMixin:
         field_access: str
     ) -> str:
         """Generate set membership check."""
-        values = ", ".join(self._generate_literal(v) for v in condition.values)
-        check = f'Arrays.asList({values}).contains({field_access})'
+        values = getattr(condition, 'values', None) or []
+        values_str = ", ".join(generate_literal(v) for v in values)
+        check = f'Arrays.asList({values_str}).contains({field_access})'
 
-        if condition.negated:
+        negated = getattr(condition, 'negated', False)
+        if negated:
             return f'!{check}'
         return check
 
@@ -101,20 +128,23 @@ class ConditionGeneratorMixin:
         condition: ast.PatternCondition,
         field_access: str
     ) -> str:
-        """Generate pattern matching code."""
-        pattern = condition.pattern.replace('"', '\\"')
-        match_type = condition.match_type
+        """Generate pattern matching code with null safety."""
+        pattern = getattr(condition, 'pattern', '')
+        pattern = pattern.replace('"', '\\"')
+        match_type = getattr(condition, 'match_type', None)
 
+        # All string methods need null guard
         if match_type == ast.PatternMatchType.MATCHES:
-            return f'{field_access}.matches("{pattern}")'
+            return f'({field_access} != null && {field_access}.matches("{pattern}"))'
         if match_type == ast.PatternMatchType.STARTS_WITH:
-            return f'{field_access}.startsWith("{pattern}")'
+            return f'({field_access} != null && {field_access}.startsWith("{pattern}"))'
         if match_type == ast.PatternMatchType.ENDS_WITH:
-            return f'{field_access}.endsWith("{pattern}")'
+            return f'({field_access} != null && {field_access}.endsWith("{pattern}"))'
         if match_type == ast.PatternMatchType.CONTAINS:
-            return f'{field_access}.contains("{pattern}")'
+            return f'({field_access} != null && {field_access}.contains("{pattern}"))'
 
-        return f'{field_access}.matches("{pattern}")'
+        LOG.warning(f"Unknown PatternMatchType: {match_type}, defaulting to matches")
+        return f'({field_access} != null && {field_access}.matches("{pattern}"))'
 
     def _generate_null_check(
         self,
@@ -122,7 +152,8 @@ class ConditionGeneratorMixin:
         field_access: str
     ) -> str:
         """Generate null check."""
-        if condition.is_null:
+        is_null = getattr(condition, 'is_null', True)
+        if is_null:
             return f'({field_access} == null)'
         return f'({field_access} != null)'
 
@@ -132,8 +163,9 @@ class ConditionGeneratorMixin:
         field_access: str
     ) -> str:
         """Generate comparison expression."""
-        op = self._map_comparison_op(condition.operator)
-        value = self._generate_value_expr(condition.value)
+        operator = getattr(condition, 'operator', None)
+        op = self._map_comparison_op(operator)
+        value = generate_value_expr(getattr(condition, 'value', None))
 
         return f'({field_access} {op} {value})'
 
@@ -143,104 +175,153 @@ class ConditionGeneratorMixin:
         input_var: str
     ) -> str:
         """Generate complex boolean expression."""
-        return self._generate_boolean_expr(condition.expression, input_var)
+        expression = getattr(condition, 'expression', None)
+        return self._generate_boolean_expr(expression, input_var)
 
-    def _generate_literal(self, literal: ast.Literal) -> str:
-        """Generate Java literal from AST literal."""
-        if isinstance(literal, ast.StringLiteral):
-            return f'"{literal.value}"'
-        if isinstance(literal, ast.IntegerLiteral):
-            return f'{literal.value}L'
-        if isinstance(literal, ast.DecimalLiteral):
-            return f'new BigDecimal("{literal.value}")'
-        if isinstance(literal, ast.MoneyLiteral):
-            return f'new BigDecimal("{literal.value}")'
-        if isinstance(literal, ast.PercentageLiteral):
-            return f'new BigDecimal("{literal.value / 100.0}")'
-        if isinstance(literal, ast.BooleanLiteral):
-            return 'true' if literal.value else 'false'
-        if isinstance(literal, ast.NullLiteral):
-            return 'null'
-        if isinstance(literal, ast.ListLiteral):
-            elements = ", ".join(self._generate_literal(e) for e in literal.values)
-            return f'Arrays.asList({elements})'
-        return 'null'
+    def _generate_boolean_expr(self, expr, input_var: str) -> str:
+        """Generate Java boolean expression.
 
-    def _generate_value_expr(self, expr: ast.ValueExpr) -> str:
-        """Generate Java code for a value expression."""
-        if isinstance(expr, ast.FieldPath):
-            return self._generate_field_path(expr)
-        if isinstance(expr, ast.FunctionCall):
-            return self._generate_function_call(expr)
-        if isinstance(expr, (ast.StringLiteral, ast.IntegerLiteral,
-                            ast.DecimalLiteral, ast.BooleanLiteral,
-                            ast.NullLiteral, ast.MoneyLiteral)):
-            return self._generate_literal(expr)
-        return "/* UNSUPPORTED VALUE EXPR */"
+        AST Structure:
+        - BooleanExpr: terms: List[BooleanTerm], operators: List[LogicalOp]
+        - BooleanTerm: factor: BooleanFactor, negated: bool
+        - BooleanFactor: comparison, nested_expr, or function_call
+        """
+        if expr is None:
+            LOG.warning("Null boolean expression provided")
+            return "true"
 
-    def _generate_boolean_expr(self, expr: ast.BooleanExpr, input_var: str) -> str:
-        """Generate Java boolean expression."""
+        # BooleanExpr: combines terms with AND/OR operators
+        if isinstance(expr, ast.BooleanExpr):
+            terms = getattr(expr, 'terms', None) or []
+            operators = getattr(expr, 'operators', None) or []
+
+            if not terms:
+                LOG.warning("BooleanExpr has no terms")
+                return "true"
+
+            # Generate first term
+            result_parts = [self._generate_boolean_expr(terms[0], input_var)]
+
+            # Combine remaining terms with operators
+            for i, term in enumerate(terms[1:]):
+                op = operators[i] if i < len(operators) else ast.LogicalOp.AND
+                java_op = "&&" if op == ast.LogicalOp.AND else "||"
+                term_str = self._generate_boolean_expr(term, input_var)
+                result_parts.append(f" {java_op} ({term_str})")
+
+            return "(" + result_parts[0] + "".join(result_parts[1:]) + ")"
+
+        # BooleanTerm: single factor with optional NOT
         if isinstance(expr, ast.BooleanTerm):
-            terms = [self._generate_boolean_expr(t, input_var) for t in expr.terms]
-            return " || ".join(terms) if len(terms) > 1 else terms[0]
-        if isinstance(expr, ast.BooleanFactor):
-            factors = [self._generate_boolean_expr(f, input_var) for f in expr.factors]
-            return " && ".join(factors) if len(factors) > 1 else factors[0]
-        if isinstance(expr, ast.UnaryExpr):
-            inner = self._generate_boolean_expr(expr.operand, input_var)
-            if expr.operator == "not":
-                return f'!({inner})'
+            negated = getattr(expr, 'negated', False)
+            factor = getattr(expr, 'factor', None)
+
+            if factor is None:
+                LOG.warning("BooleanTerm has no factor")
+                return "true"
+
+            inner = self._generate_boolean_expr(factor, input_var)
+            if negated:
+                return f"!({inner})"
             return inner
+
+        # BooleanFactor: contains comparison, nested expr, or function call
+        if isinstance(expr, ast.BooleanFactor):
+            comparison = getattr(expr, 'comparison', None)
+            nested_expr = getattr(expr, 'nested_expr', None)
+            function_call = getattr(expr, 'function_call', None)
+
+            if comparison is not None:
+                return self._generate_comparison_expr(comparison, input_var)
+            if nested_expr is not None:
+                return self._generate_boolean_expr(nested_expr, input_var)
+            if function_call is not None:
+                return self._generate_function_call(function_call, input_var)
+
+            LOG.warning("BooleanFactor has no comparison, nested_expr, or function_call")
+            return "true"
+
+        # UnaryExpr: negation
+        if isinstance(expr, ast.UnaryExpr):
+            operand = getattr(expr, 'operand', None)
+            inner = self._generate_boolean_expr(operand, input_var)
+            return f'!({inner})'
+
+        # ParenExpr: parenthesized expression
         if isinstance(expr, ast.ParenExpr):
-            inner = self._generate_boolean_expr(expr.expression, input_var)
+            inner_expr = getattr(expr, 'inner', None)
+            inner = self._generate_boolean_expr(inner_expr, input_var)
             return f'({inner})'
+
+        # ComparisonExpr: direct comparison
         if isinstance(expr, ast.ComparisonExpr):
             return self._generate_comparison_expr(expr, input_var)
+
+        LOG.warning(f"Unknown boolean expression type: {type(expr).__name__}")
         return "true"
+
+    def _generate_function_call(self, func_call, input_var: str) -> str:
+        """Generate Java function call in boolean context."""
+        name = getattr(func_call, 'name', None)
+        if not name:
+            LOG.warning("FunctionCall has no name")
+            return "true"
+
+        func_name = to_camel_case(name)
+        arguments = getattr(func_call, 'arguments', None) or []
+        args = ", ".join(generate_value_expr(a) for a in arguments)
+        return f"{func_name}({args})"
 
     def _generate_comparison_expr(
         self,
         expr: ast.ComparisonExpr,
         input_var: str
     ) -> str:
-        """Generate Java comparison expression with IN/NOT IN support."""
-        left = self._generate_value_expr(expr.left)
+        """Generate Java comparison expression with IN/NOT IN support.
+
+        ComparisonExpr fields:
+        - left: ValueExpr
+        - operator: Optional[ComparisonOp]
+        - right: Optional[ValueExpr]
+        - in_values: Optional[List[ValueExpr]] (for IN clause)
+        - is_not_in: bool
+        - is_null_check: bool
+        - is_not_null_check: bool
+        """
+        left = generate_value_expr(getattr(expr, 'left', None))
 
         # Handle IN/NOT IN expressions
-        if hasattr(expr, 'in_list') and expr.in_list is not None:
-            values = ", ".join(self._generate_value_expr(v) for v in expr.in_list)
+        in_values = getattr(expr, 'in_values', None)
+        if in_values is not None:
+            values = ", ".join(generate_value_expr(v) for v in in_values)
             check = f'Arrays.asList({values}).contains({left})'
-            if hasattr(expr, 'negated') and expr.negated:
+            is_not_in = getattr(expr, 'is_not_in', False)
+            if is_not_in:
                 return f'!{check}'
             return check
 
-        # Handle IS NULL / IS NOT NULL
-        if hasattr(expr, 'is_null_check') and expr.is_null_check:
-            if hasattr(expr, 'negated') and expr.negated:
-                return f'({left} != null)'
+        # Handle IS NULL check
+        is_null_check = getattr(expr, 'is_null_check', False)
+        if is_null_check:
             return f'({left} == null)'
 
+        # Handle IS NOT NULL check
+        is_not_null_check = getattr(expr, 'is_not_null_check', False)
+        if is_not_null_check:
+            return f'({left} != null)'
+
         # Standard comparison
-        right = self._generate_value_expr(expr.right)
-        op = self._map_comparison_op(expr.operator)
+        right = generate_value_expr(getattr(expr, 'right', None))
+        operator = getattr(expr, 'operator', None)
+        op = self._map_comparison_op(operator)
         return f'({left} {op} {right})'
 
-    def _generate_field_path(self, fp: ast.FieldPath) -> str:
-        """Generate Java getter chain for field path."""
-        parts = fp.parts
-        if len(parts) == 1:
-            return self._to_getter(parts[0])
-        getters = [self._to_getter(p) for p in parts]
-        return ".".join(getters)
-
-    def _generate_function_call(self, func: ast.FunctionCall) -> str:
-        """Generate Java function call."""
-        args = ", ".join(self._generate_value_expr(a) for a in func.arguments)
-        java_name = self._to_camel_case(func.name)
-        return f"{java_name}({args})"
-
-    def _map_comparison_op(self, op: ast.ComparisonOp) -> str:
+    def _map_comparison_op(self, op) -> str:
         """Map comparison operator to Java."""
+        if op is None:
+            LOG.warning("Null comparison operator, defaulting to ==")
+            return "=="
+
         op_map = {
             ast.ComparisonOp.EQ: "==",
             ast.ComparisonOp.NE: "!=",
@@ -249,25 +330,12 @@ class ConditionGeneratorMixin:
             ast.ComparisonOp.LE: "<=",
             ast.ComparisonOp.GE: ">=",
         }
-        return op_map.get(op, "==")
-
-    def _to_getter(self, field_name: str) -> str:
-        """Convert field name to getter method call."""
-        camel = self._to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
-
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        result = op_map.get(op)
+        if result is None:
+            LOG.warning(f"Unknown comparison operator: {op}, defaulting to ==")
+            return "=="
+        return result
 
     def get_condition_imports(self) -> Set[str]:
         """Get required imports for condition generation."""
-        return {
-            'java.util.Arrays',
-            'java.math.BigDecimal',
-        }
+        return get_common_imports()

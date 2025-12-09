@@ -2,11 +2,29 @@
 Decision Table Generator Mixin
 
 Generates Java decision table evaluators from L4 Rules decision tables.
+
+COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
+─────────────────────────────────────────────────────────────────────
+L4 Decision Table generates: Complete evaluators with hit policies
+L4 Decision Table NEVER generates: Placeholder stubs, incomplete evaluators
+─────────────────────────────────────────────────────────────────────
 """
 
+import logging
 from typing import Set, List
 
 from backend.ast import rules_ast as ast
+from backend.generators.rules.utils import (
+    to_camel_case,
+    to_pascal_case,
+    generate_literal,
+    get_java_type,
+    get_common_imports,
+    get_logging_imports,
+    get_collection_imports,
+)
+
+LOG = logging.getLogger(__name__)
 
 
 class DecisionTableGeneratorMixin:
@@ -25,7 +43,8 @@ class DecisionTableGeneratorMixin:
         package: str
     ) -> str:
         """Generate complete decision table evaluator class."""
-        class_name = self._to_pascal_case(table.name) + "Table"
+        table_name = getattr(table, 'name', 'unknown')
+        class_name = to_pascal_case(table_name) + "Table"
         input_type = class_name + "Input"
         output_type = self._get_output_type(table)
 
@@ -33,7 +52,7 @@ class DecisionTableGeneratorMixin:
 
         lines = [
             self.generate_java_header(
-                class_name, f"Decision Table: {table.name}"
+                class_name, f"Decision Table: {table_name}"
             ),
             f"package {package};",
             "",
@@ -69,7 +88,7 @@ class DecisionTableGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate main evaluate method based on hit policy."""
-        hit_policy = table.hit_policy or ast.HitPolicyType.FIRST_MATCH
+        hit_policy = getattr(table, 'hit_policy', None) or ast.HitPolicyType.FIRST_MATCH
 
         if hit_policy == ast.HitPolicyType.FIRST_MATCH:
             return self._generate_first_match_evaluate(table, input_type, output_type)
@@ -78,6 +97,7 @@ class DecisionTableGeneratorMixin:
         if hit_policy == ast.HitPolicyType.SINGLE_HIT:
             return self._generate_single_hit_evaluate(table, input_type, output_type)
 
+        LOG.warning(f"Unknown hit policy: {hit_policy}, defaulting to FIRST_MATCH")
         return self._generate_first_match_evaluate(table, input_type, output_type)
 
     def _generate_first_match_evaluate(
@@ -87,17 +107,20 @@ class DecisionTableGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate first-match hit policy evaluate method."""
-        rows = table.decide.matrix.rows if table.decide else []
+        table_name = getattr(table, 'name', 'unknown')
+        decide = getattr(table, 'decide', None)
+        matrix = getattr(decide, 'matrix', None) if decide else None
+        rows = getattr(matrix, 'rows', None) if matrix else []
 
         lines = [
             "    /**",
-            f"     * Evaluate decision table: {table.name}",
+            f"     * Evaluate decision table: {table_name}",
             "     * Hit Policy: FIRST_MATCH - returns first matching row's result",
             "     */",
             f"    public Optional<{output_type}> evaluate({input_type} input) {{",
         ]
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(rows or []):
             method_name = f"matchRow{i + 1}"
             lines.append(f"        if ({method_name}(input)) {{")
             lines.append(f"            return Optional.of(getRow{i + 1}Result(input));")
@@ -118,11 +141,14 @@ class DecisionTableGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate multi-hit hit policy evaluate method."""
-        rows = table.decide.matrix.rows if table.decide else []
+        table_name = getattr(table, 'name', 'unknown')
+        decide = getattr(table, 'decide', None)
+        matrix = getattr(decide, 'matrix', None) if decide else None
+        rows = getattr(matrix, 'rows', None) if matrix else []
 
         lines = [
             "    /**",
-            f"     * Evaluate decision table: {table.name}",
+            f"     * Evaluate decision table: {table_name}",
             "     * Hit Policy: MULTI_HIT - returns all matching rows' results",
             "     */",
             f"    public List<{output_type}> evaluate({input_type} input) {{",
@@ -130,7 +156,7 @@ class DecisionTableGeneratorMixin:
             "",
         ]
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(rows or []):
             method_name = f"matchRow{i + 1}"
             lines.append(f"        if ({method_name}(input)) {{")
             lines.append(f"            results.add(getRow{i + 1}Result(input));")
@@ -151,11 +177,14 @@ class DecisionTableGeneratorMixin:
         output_type: str
     ) -> str:
         """Generate single-hit hit policy evaluate method."""
-        rows = table.decide.matrix.rows if table.decide else []
+        table_name = getattr(table, 'name', 'unknown')
+        decide = getattr(table, 'decide', None)
+        matrix = getattr(decide, 'matrix', None) if decide else None
+        rows = getattr(matrix, 'rows', None) if matrix else []
 
         lines = [
             "    /**",
-            f"     * Evaluate decision table: {table.name}",
+            f"     * Evaluate decision table: {table_name}",
             "     * Hit Policy: SINGLE_HIT - validates exactly one row matches",
             "     */",
             f"    public {output_type} evaluate({input_type} input) {{",
@@ -163,7 +192,7 @@ class DecisionTableGeneratorMixin:
             "",
         ]
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(rows or []):
             method_name = f"matchRow{i + 1}"
             lines.append(f"        if ({method_name}(input)) {{")
             lines.append(f"            matches.add(getRow{i + 1}Result(input));")
@@ -190,21 +219,25 @@ class DecisionTableGeneratorMixin:
         input_type: str
     ) -> str:
         """Generate row matching and result methods."""
-        if not table.decide or not table.decide.matrix:
-            return "    // No rows defined"
+        decide = getattr(table, 'decide', None)
+        if not decide:
+            return "    // No decide block defined"
 
-        matrix = table.decide.matrix
-        headers = matrix.headers
-        rows = matrix.rows
+        matrix = getattr(decide, 'matrix', None)
+        if not matrix:
+            return "    // No matrix defined"
+
+        headers = getattr(matrix, 'headers', None) or []
+        rows = getattr(matrix, 'rows', None) or []
 
         # Determine which headers are conditions vs actions
-        given_fields = []
-        if table.given:
-            given_fields = [p.name for p in table.given.params]
+        given = getattr(table, 'given', None)
+        given_params = getattr(given, 'params', None) if given else []
+        given_fields = [getattr(p, 'name', '') for p in given_params]
 
-        return_fields = []
-        if table.return_spec:
-            return_fields = [p.name for p in table.return_spec.params]
+        return_spec = getattr(table, 'return_spec', None)
+        return_params = getattr(return_spec, 'params', None) if return_spec else []
+        return_fields = [getattr(p, 'name', '') for p in return_params]
 
         lines = []
         for i, row in enumerate(rows):
@@ -227,8 +260,8 @@ class DecisionTableGeneratorMixin:
     def _generate_row_match_method(
         self,
         row_num: int,
-        row: ast.TableRow,
-        headers: List[ast.ColumnHeader],
+        row,
+        headers: List,
         given_fields: List[str],
         input_type: str
     ) -> str:
@@ -238,13 +271,13 @@ class DecisionTableGeneratorMixin:
         ]
 
         conditions = []
-        for j, cell in enumerate(row.cells):
+        cells = getattr(row, 'cells', None) or []
+        for j, cell in enumerate(cells):
             if j < len(headers):
-                header_name = headers[j].name
+                header_name = getattr(headers[j], 'name', '')
                 if header_name in given_fields:
-                    cond = self.generate_condition(
-                        cell.content, "input", header_name
-                    )
+                    content = getattr(cell, 'content', None)
+                    cond = self.generate_condition(content, "input", header_name)
                     conditions.append(cond)
 
         if conditions:
@@ -259,12 +292,20 @@ class DecisionTableGeneratorMixin:
     def _generate_row_result_method(
         self,
         row_num: int,
-        row: ast.TableRow,
-        headers: List[ast.ColumnHeader],
+        row,
+        headers: List,
         return_fields: List[str],
         input_type: str
     ) -> str:
-        """Generate method to get row's result value."""
+        """Generate method to get row's result value.
+
+        Extracts action values from cells that match return fields.
+        Cell content can be:
+        - AssignAction: contains value (Literal)
+        - Literal directly (StringLiteral, IntegerLiteral, etc.)
+        - CalculateAction: contains expression
+        - NoAction: wildcard/skip
+        """
         output_type = "String"  # Default, should be derived from return_spec
 
         lines = [
@@ -272,24 +313,59 @@ class DecisionTableGeneratorMixin:
         ]
 
         # Find the action cell (last column typically, or matching return field)
-        for j, cell in enumerate(row.cells):
+        cells = getattr(row, 'cells', None) or []
+        result_generated = False
+
+        for j, cell in enumerate(cells):
             if j < len(headers):
-                header_name = headers[j].name
-                if header_name in return_fields or j == len(row.cells) - 1:
-                    result = self.generate_action(
-                        cell.content, "result", header_name
-                    )
-                    if isinstance(cell.content, (ast.StringLiteral,
-                                                 ast.IntegerLiteral,
-                                                 ast.DecimalLiteral)):
-                        value = self._generate_literal(cell.content)
+                header_name = getattr(headers[j], 'name', '')
+                # Check if this is a return/action column
+                if header_name in return_fields or j == len(cells) - 1:
+                    content = getattr(cell, 'content', None)
+                    value = self._extract_action_value(content)
+                    if value is not None:
                         lines.append(f"        return {value};")
+                        result_generated = True
                         break
-        else:
+
+        if not result_generated:
+            LOG.warning(f"Row {row_num} has no result value, returning null")
             lines.append('        return null;')
 
         lines.append("    }")
         return '\n'.join(lines)
+
+    def _extract_action_value(self, content) -> str:
+        """Extract Java value expression from action cell content."""
+        if content is None:
+            return None
+
+        # NoAction - skip
+        if isinstance(content, ast.NoAction):
+            return None
+
+        # AssignAction - extract the value literal
+        if isinstance(content, ast.AssignAction):
+            value = getattr(content, 'value', None)
+            if value is not None:
+                return generate_literal(value)
+            return None
+
+        # CalculateAction - extract expression
+        if isinstance(content, ast.CalculateAction):
+            from backend.generators.rules.utils import generate_value_expr
+            expression = getattr(content, 'expression', None)
+            if expression is not None:
+                return generate_value_expr(expression)
+            return None
+
+        # Direct literal values
+        if isinstance(content, (ast.StringLiteral, ast.IntegerLiteral,
+                               ast.DecimalLiteral, ast.BooleanLiteral)):
+            return generate_literal(content)
+
+        LOG.warning(f"Unknown action content type: {type(content).__name__}")
+        return None
 
     def _generate_input_class(
         self,
@@ -297,25 +373,32 @@ class DecisionTableGeneratorMixin:
         class_name: str
     ) -> str:
         """Generate input POJO class."""
+        table_name = getattr(table, 'name', 'unknown')
         lines = [
             f"    /**",
-            f"     * Input data class for {table.name}",
+            f"     * Input data class for {table_name}",
             f"     */",
             f"    public static class {class_name} {{",
         ]
 
-        if table.given:
-            for param in table.given.params:
-                java_type = self._get_java_type(param.param_type)
-                field_name = self._to_camel_case(param.name)
+        given = getattr(table, 'given', None)
+        if given:
+            params = getattr(given, 'params', None) or []
+            for param in params:
+                param_type = getattr(param, 'param_type', None)
+                param_name = getattr(param, 'name', 'unknown')
+                java_type = get_java_type(param_type)
+                field_name = to_camel_case(param_name)
                 lines.append(f"        private {java_type} {field_name};")
 
             lines.append("")
 
             # Generate getters/setters
-            for param in table.given.params:
-                java_type = self._get_java_type(param.param_type)
-                field_name = self._to_camel_case(param.name)
+            for param in params:
+                param_type = getattr(param, 'param_type', None)
+                param_name = getattr(param, 'name', 'unknown')
+                java_type = get_java_type(param_type)
+                field_name = to_camel_case(param_name)
                 getter_name = f"get{field_name[0].upper()}{field_name[1:]}"
                 setter_name = f"set{field_name[0].upper()}{field_name[1:]}"
 
@@ -333,62 +416,39 @@ class DecisionTableGeneratorMixin:
 
     def _get_output_type(self, table: ast.DecisionTableDef) -> str:
         """Get Java type for decision table output."""
-        if table.return_spec and table.return_spec.params:
-            param = table.return_spec.params[0]
-            return self._get_java_type(param.param_type)
+        return_spec = getattr(table, 'return_spec', None)
+        if return_spec:
+            params = getattr(return_spec, 'params', None) or []
+            if params:
+                param_type = getattr(params[0], 'param_type', None)
+                return get_java_type(param_type)
         return "String"
-
-    def _get_java_type(self, param_type) -> str:
-        """Convert rule type to Java type."""
-        if isinstance(param_type, ast.BaseType):
-            type_map = {
-                ast.BaseType.TEXT: "String",
-                ast.BaseType.NUMBER: "Long",
-                ast.BaseType.BOOLEAN: "Boolean",
-                ast.BaseType.DATE: "LocalDate",
-                ast.BaseType.TIMESTAMP: "Instant",
-                ast.BaseType.MONEY: "BigDecimal",
-                ast.BaseType.PERCENTAGE: "BigDecimal",
-            }
-            return type_map.get(param_type, "Object")
-        if isinstance(param_type, str):
-            return self._to_pascal_case(param_type)
-        return "Object"
-
-    def _generate_literal(self, literal) -> str:
-        """Generate Java literal."""
-        if isinstance(literal, ast.StringLiteral):
-            return f'"{literal.value}"'
-        if isinstance(literal, ast.IntegerLiteral):
-            return f'{literal.value}L'
-        if isinstance(literal, ast.DecimalLiteral):
-            return f'new BigDecimal("{literal.value}")'
-        return 'null'
 
     def _collect_decision_table_imports(
         self,
         table: ast.DecisionTableDef
     ) -> Set[str]:
         """Collect imports for decision table class."""
-        imports = {
-            'java.util.Optional',
-            'java.util.List',
-            'java.util.ArrayList',
-            'java.util.Arrays',
-            'org.slf4j.Logger',
-            'org.slf4j.LoggerFactory',
-        }
+        imports = set()
+        imports.update(get_collection_imports())
+        imports.update(get_common_imports())
+        imports.update(get_logging_imports())
 
         imports.update(self.get_condition_imports())
         imports.update(self.get_action_imports())
 
         return imports
 
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+    def generate_java_header(self, class_name: str, description: str) -> str:
+        """Generate Java file header comment."""
+        return f'''/**
+ * {description}
+ *
+ * Auto-generated by Nexflow L4 Rules Generator.
+ * DO NOT EDIT - Changes will be overwritten.
+ */'''
 
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+    def generate_imports(self, imports: List[str]) -> str:
+        """Generate import statements."""
+        sorted_imports = sorted(imports)
+        return '\n'.join(f'import {imp};' for imp in sorted_imports)

@@ -10,9 +10,19 @@ L4 Execute NEVER generates: Incomplete stubs, placeholder code
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Set, List, Optional
+import logging
+from typing import Set, TYPE_CHECKING
 
-from backend.ast import rules_ast as ast
+from backend.generators.rules.utils import (
+    to_camel_case,
+    to_pascal_case,
+    get_collection_imports,
+)
+
+if TYPE_CHECKING:
+    from backend.ast import rules_ast as ast
+
+LOG = logging.getLogger(__name__)
 
 
 class ExecuteGeneratorMixin:
@@ -27,7 +37,7 @@ class ExecuteGeneratorMixin:
 
     def generate_execute_method(
         self,
-        table: ast.DecisionTableDef,
+        table: 'ast.DecisionTableDef',
         input_type: str
     ) -> str:
         """Generate execute method based on execute spec.
@@ -39,10 +49,16 @@ class ExecuteGeneratorMixin:
         Returns:
             Java code for execute method
         """
-        if not table.execute_spec:
+        from backend.ast import rules_ast as ast
+
+        execute_spec = getattr(table, 'execute_spec', None)
+        if not execute_spec:
             return ""
 
-        exec_type = table.execute_spec.execute_type
+        exec_type = getattr(execute_spec, 'execute_type', None)
+        if exec_type is None:
+            LOG.warning(f"ExecuteSpec missing execute_type for table {getattr(table, 'name', 'unknown')}")
+            return ""
 
         if exec_type == ast.ExecuteType.YES:
             return self._generate_single_execute(table, input_type)
@@ -51,18 +67,20 @@ class ExecuteGeneratorMixin:
         if exec_type == ast.ExecuteType.CUSTOM:
             return self._generate_custom_execute(table, input_type)
 
+        LOG.warning(f"Unknown ExecuteType: {exec_type}")
         return ""
 
     def _generate_single_execute(
         self,
-        table: ast.DecisionTableDef,
+        table: 'ast.DecisionTableDef',
         input_type: str
     ) -> str:
         """Generate single-action execute method.
 
         When `execute: yes`, the action column result is executed.
         """
-        class_name = self._to_pascal_case(table.name) + "Table"
+        table_name = getattr(table, 'name', 'unknown')
+        class_name = to_pascal_case(table_name) + "Table"
 
         return f'''    /**
      * Execute the action determined by evaluating the decision table.
@@ -94,14 +112,15 @@ class ExecuteGeneratorMixin:
 
     def _generate_multi_execute(
         self,
-        table: ast.DecisionTableDef,
+        table: 'ast.DecisionTableDef',
         input_type: str
     ) -> str:
         """Generate multi-action execute method.
 
         When `execute: multi`, all matching actions are executed.
         """
-        class_name = self._to_pascal_case(table.name) + "Table"
+        table_name = getattr(table, 'name', 'unknown')
+        class_name = to_pascal_case(table_name) + "Table"
 
         return f'''    /**
      * Execute all actions determined by evaluating the decision table.
@@ -153,15 +172,16 @@ class ExecuteGeneratorMixin:
 
     def _generate_custom_execute(
         self,
-        table: ast.DecisionTableDef,
+        table: 'ast.DecisionTableDef',
         input_type: str
     ) -> str:
         """Generate custom execute method placeholder.
 
         When `execute: custom_name`, a specific handler is invoked.
         """
-        custom_name = table.execute_spec.custom_name if hasattr(table.execute_spec, 'custom_name') else "custom"
-        handler_name = self._to_camel_case(custom_name) + "Handler"
+        execute_spec = getattr(table, 'execute_spec', None)
+        custom_name = getattr(execute_spec, 'custom_name', 'custom') if execute_spec else 'custom'
+        handler_name = to_camel_case(custom_name) + "Handler"
 
         return f'''    /**
      * Execute using custom handler: {custom_name}
@@ -216,28 +236,18 @@ class ExecuteGeneratorMixin:
         }
     }'''
 
-    def has_execute_spec(self, table: ast.DecisionTableDef) -> bool:
+    def has_execute_spec(self, table: 'ast.DecisionTableDef') -> bool:
         """Check if decision table has an execute specification."""
-        return table.execute_spec is not None
+        return getattr(table, 'execute_spec', None) is not None
 
-    def has_hybrid_spec(self, table: ast.DecisionTableDef) -> bool:
+    def has_hybrid_spec(self, table: 'ast.DecisionTableDef') -> bool:
         """Check if decision table has both return and execute specs."""
-        return table.return_spec is not None and table.execute_spec is not None
+        return (
+            getattr(table, 'return_spec', None) is not None and
+            getattr(table, 'execute_spec', None) is not None
+        )
 
     def get_execute_imports(self) -> Set[str]:
         """Get required imports for execute generation."""
-        return {
-            'java.util.Map',
-            'java.util.HashMap',
-            'java.util.List',
-            'java.util.ArrayList',
-        }
-
-    def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
-
-    def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+        imports = get_collection_imports()
+        return imports
