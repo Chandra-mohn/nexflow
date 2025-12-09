@@ -12,6 +12,10 @@ from .sink_generator import SinkGeneratorMixin
 from .state_generator import StateGeneratorMixin
 from .resilience_generator import ResilienceGeneratorMixin
 from .job_generator import JobGeneratorMixin
+from .job_imports import JobImportsMixin
+from .job_operators import JobOperatorsMixin
+from .job_correlation import JobCorrelationMixin
+from .job_sinks import JobSinksMixin
 
 __all__ = [
     'FlowGenerator',
@@ -22,4 +26,8 @@ __all__ = [
     'StateGeneratorMixin',
     'ResilienceGeneratorMixin',
     'JobGeneratorMixin',
+    'JobImportsMixin',
+    'JobOperatorsMixin',
+    'JobCorrelationMixin',
+    'JobSinksMixin',
 ]

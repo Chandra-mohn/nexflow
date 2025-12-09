@@ -14,12 +14,14 @@ L1 Input Block Features:
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from backend.ast import proc_ast as ast
+from backend.generators.flow.source_projection import SourceProjectionMixin
+from backend.generators.flow.source_correlation import SourceCorrelationMixin
 
 
-class SourceGeneratorMixin:
+class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
     """
     Mixin for generating Flink source connectors.
 
@@ -112,171 +114,6 @@ class SourceGeneratorMixin:
             stream_var = matched_var
 
         return '\n'.join(lines)
-
-    def _generate_projection(
-        self,
-        receive: ast.ReceiveDecl,
-        stream_var: str,
-        schema_class: str,
-        stream_alias: str
-    ) -> Tuple[str, str]:
-        """
-        Generate field projection code.
-
-        Feature 2: project [fields] / project except [fields]
-
-        Strategy: Post-deserialization projection using Map<String, Object>
-        - Deserialize full schema first
-        - Map to only needed fields
-        - Reduces memory footprint for downstream operators
-        """
-        project = receive.project
-        projected_var = f"projected{self.to_java_class_name(stream_alias)}Stream"
-
-        if project.is_except:
-            # project except [fields] - include all EXCEPT these fields
-            # This requires knowing all fields, so we generate runtime exclusion
-            excluded_fields = ', '.join(f'"{f}"' for f in project.fields)
-            lines = [
-                f"// Projection: exclude [{', '.join(project.fields)}]",
-                f"DataStream<Map<String, Object>> {projected_var} = {stream_var}",
-                f"    .map(event -> {{",
-                f"        Map<String, Object> projected = new HashMap<>();",
-                f"        java.util.Set<String> excluded = java.util.Set.of({excluded_fields});",
-                f"        // Copy all fields except excluded ones",
-                f"        // Note: For production, use reflection or generated field list",
-                f"        java.lang.reflect.Method[] methods = event.getClass().getMethods();",
-                f"        for (java.lang.reflect.Method method : methods) {{",
-                f"            String name = method.getName();",
-                f"            if (name.startsWith(\"get\") && !name.equals(\"getClass\") && method.getParameterCount() == 0) {{",
-                f"                String fieldName = Character.toLowerCase(name.charAt(3)) + name.substring(4);",
-                f"                // Convert camelCase to snake_case for DSL field names",
-                f"                String snakeCase = fieldName.replaceAll(\"([a-z])([A-Z])\", \"$1_$2\").toLowerCase();",
-                f"                if (!excluded.contains(snakeCase)) {{",
-                f"                    try {{",
-                f"                        projected.put(snakeCase, method.invoke(event));",
-                f"                    }} catch (Exception e) {{ /* skip */ }}",
-                f"                }}",
-                f"            }}",
-                f"        }}",
-                f"        return projected;",
-                f"    }})",
-                f"    .name(\"project-except-{stream_alias}\");",
-                "",
-            ]
-        else:
-            # project [fields] - include ONLY these fields
-            field_mappings = []
-            for field in project.fields:
-                getter = f"event.get{self._to_pascal_case(field)}()"
-                field_mappings.append(f'        projected.put("{field}", {getter});')
-
-            lines = [
-                f"// Projection: include only [{', '.join(project.fields)}]",
-                f"DataStream<Map<String, Object>> {projected_var} = {stream_var}",
-                f"    .map(event -> {{",
-                f"        Map<String, Object> projected = new HashMap<>({len(project.fields)});",
-                '\n'.join(field_mappings),
-                f"        return projected;",
-                f"    }})",
-                f"    .name(\"project-{stream_alias}\");",
-                "",
-            ]
-
-        return '\n'.join(lines), projected_var
-
-    def _generate_store_action(
-        self,
-        store_action: ast.StoreAction,
-        stream_var: str,
-        schema_class: str,
-        stream_alias: str
-    ) -> str:
-        """
-        Generate store action code.
-
-        Feature 3a: store in buffer
-
-        Stores incoming events in a named buffer (ListState) for later
-        correlation with match operations.
-        """
-        buffer_name = store_action.state_name
-
-        lines = [
-            f"// Store: buffer events in '{buffer_name}' for later matching",
-            f"// Note: Actual buffering implemented in KeyedProcessFunction",
-            f"// The buffer '{buffer_name}' will be populated when processing keyed stream",
-            f"// See: {self.to_java_class_name(buffer_name)}BufferFunction",
-            "",
-        ]
-
-        return '\n'.join(lines)
-
-    def _generate_match_action(
-        self,
-        match_action: ast.MatchAction,
-        stream_var: str,
-        schema_class: str,
-        stream_alias: str
-    ) -> Tuple[str, str]:
-        """
-        Generate match action code.
-
-        Feature 3b: match from buffer on [fields]
-
-        Joins incoming stream with previously buffered events based on
-        specified correlation fields.
-        """
-        buffer_name = match_action.state_name
-        on_fields = match_action.on_fields
-        matched_var = f"matched{self.to_java_class_name(stream_alias)}Stream"
-        function_class = f"{self.to_java_class_name(buffer_name)}MatchFunction"
-
-        # Generate key selector for matching
-        if len(on_fields) == 1:
-            key_selector = f"event -> event.get{self._to_pascal_case(on_fields[0])}().toString()"
-        else:
-            getters = ' + \":\" + '.join(
-                f"event.get{self._to_pascal_case(f)}().toString()" for f in on_fields
-            )
-            key_selector = f"event -> {getters}"
-
-        # Check if we have a stored stream for this buffer
-        if buffer_name in self._stored_streams:
-            buffered_stream_var, buffered_schema = self._stored_streams[buffer_name]
-            # Build correlation key array outside f-string (backslash not allowed in f-string)
-            quoted_fields = ', '.join('"' + f + '"' for f in on_fields)
-            correlation_key_array = 'new String[]{' + quoted_fields + '}'
-            lines = [
-                f"// Match: join with buffered '{buffer_name}' on [{', '.join(on_fields)}]",
-                f"KeyedStream<{schema_class}, String> keyed{self.to_java_class_name(stream_alias)} = {stream_var}",
-                f"    .keyBy({key_selector});",
-                "",
-                f"KeyedStream<{buffered_schema}, String> keyed{self.to_java_class_name(buffer_name)} = {buffered_stream_var}",
-                f"    .keyBy(event -> event.getCorrelationKey({correlation_key_array}));",
-                "",
-                f"DataStream<MatchedEvent> {matched_var} = keyed{self.to_java_class_name(stream_alias)}",
-                f"    .connect(keyed{self.to_java_class_name(buffer_name)})",
-                f"    .process(new {function_class}())",
-                f"    .name(\"match-{stream_alias}-from-{buffer_name}\");",
-                "",
-            ]
-        else:
-            # Buffer not yet defined - generate placeholder
-            lines = [
-                f"// Match: join with buffered '{buffer_name}' on [{', '.join(on_fields)}]",
-                f"// Note: Buffer '{buffer_name}' must be defined earlier in the pipeline",
-                f"KeyedStream<{schema_class}, String> keyed{self.to_java_class_name(stream_alias)} = {stream_var}",
-                f"    .keyBy({key_selector});",
-                "",
-                f"// Connect with buffered stream and process matches",
-                f"DataStream<MatchedEvent> {matched_var} = keyed{self.to_java_class_name(stream_alias)}",
-                f"    .process(new {function_class}())",
-                f"    .name(\"match-{stream_alias}-from-{buffer_name}\");",
-                "",
-            ]
-
-        return '\n'.join(lines), matched_var
 
     def _generate_watermark_strategy(self, process: ast.ProcessDefinition, schema_class: str) -> str:
         """Generate watermark strategy based on time configuration."""
