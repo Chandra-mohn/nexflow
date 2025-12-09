@@ -1,0 +1,98 @@
+// ============================================================================
+// FILE: approval_rules.rules
+// LAYER: L4 - Rules Definition
+// USE CASE: Simple Transaction Validation
+// ============================================================================
+//
+// SUMMARY:
+// This rules file defines the business logic for transaction approval decisions.
+// It contains two types of rule constructs:
+//
+// DECISION TABLES (declarative, table-driven rules):
+// 1. simple_approval - Main approval logic that evaluates:
+//    - Validation status (is_valid from transform)
+//    - Transaction amount (single transaction limit: $5,000)
+//    - Daily total (cumulative limit: $10,000)
+//    Returns: decision (approved/declined) and reason text
+//
+// 2. merchant_check - Merchant blacklist/watchlist checking:
+//    - Blocks known bad merchants (BLOCKED_001, BLOCKED_002)
+//    - Flags suspicious merchants (SUSPICIOUS_*) for review
+//    - Allows all other merchants
+//
+// PROCEDURAL RULES (imperative, code-like rules):
+// 3. check_transaction_time - Flags transactions during unusual hours
+//    (2 AM - 5 AM) as suspicious for potential fraud review
+//
+// HIT POLICY: first_match means rules are evaluated top-to-bottom and the
+// first matching row determines the output (like a switch statement)
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: simple_approval
+// PURPOSE: Determine if transaction should be approved or declined
+// HIT POLICY: first_match - first matching row wins (priority order)
+// ----------------------------------------------------------------------------
+decision_table simple_approval                   // Declare a decision table named 'simple_approval'
+    hit_policy first_match                       // FIRST_MATCH: evaluate rows in order, stop at first match
+    description "Basic transaction approval logic"  // Human-readable description
+
+    given:                                       // INPUT VARIABLES: what data this table evaluates
+        amount: money                            // Transaction amount to check against limits
+        is_valid: boolean                        // Validation result from transform (true/false)
+        daily_total: money                       // Accumulated daily spend for limit checking
+
+    decide:                                      // DECISION MATRIX: rows evaluated top-to-bottom
+        // Column headers define the conditions and outputs
+        // * means "any value" (wildcard match)
+        // Values in quotes are string literals
+        | priority | is_valid | amount    | daily_total | decision   | reason              |
+        |===================================================================================|
+        | 1        | false    | *         | *           | "declined" | "Validation failed" |  // Row 1: If validation failed, decline regardless of amount
+        | 2        | true     | > 5000    | *           | "declined" | "Amount too high"   |  // Row 2: If valid but amount over $5k, decline
+        | 3        | true     | *         | > 10000     | "declined" | "Daily limit"       |  // Row 3: If valid but daily total over $10k, decline
+        | 4        | true     | <= 5000   | <= 10000    | "approved" | "Within limits"     |  // Row 4: If valid and both limits OK, approve
+        | 5        | *        | *         | *           | "declined" | "Unknown error"     |  // Row 5: Catch-all fallback - decline if nothing else matched
+
+    return:                                      // OUTPUT VARIABLES: what this table produces
+        decision: text                           // The approval decision (approved/declined)
+        reason: text                             // Human-readable explanation of decision
+end                                              // End of simple_approval decision table
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: merchant_check
+// PURPOSE: Check merchant against blacklist and watchlist
+// HIT POLICY: first_match - first matching pattern wins
+// ----------------------------------------------------------------------------
+decision_table merchant_check                    // Declare decision table for merchant screening
+    hit_policy first_match                       // First matching row wins
+    description "Merchant blacklist check"       // Purpose description
+
+    given:                                       // Input variable
+        merchant_id: text                        // Merchant identifier to check
+
+    decide:                                      // Decision matrix
+        // Pattern matching: exact match or wildcard (*)
+        // "SUSPICIOUS_*" matches any merchant ID starting with "SUSPICIOUS_"
+        | merchant_id           | result    |
+        |=====================================|
+        | "BLOCKED_001"         | "blocked" |  // Row 1: Known bad merchant - block
+        | "BLOCKED_002"         | "blocked" |  // Row 2: Another known bad merchant - block
+        | "SUSPICIOUS_*"        | "review"  |  // Row 3: Wildcard match for suspicious merchants - flag for review
+        | *                     | "allowed" |  // Row 4: Catch-all - allow all other merchants
+
+    return:                                      // Output variable
+        result: text                             // Result: blocked, review, or allowed
+end                                              // End of merchant_check decision table
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: check_transaction_time
+// PURPOSE: Flag transactions during unusual hours (2 AM - 5 AM) as suspicious
+// TYPE: Imperative rule with if/then logic (vs declarative table)
+// ----------------------------------------------------------------------------
+rule check_transaction_time:                     // Declare a procedural rule
+    if hour(transaction_time) >= 2 and hour(transaction_time) <= 5 then  // IF time is between 2:00 AM and 5:59 AM
+        flag_suspicious()                        // THEN call flag_suspicious() to mark for review
+    endif                                        // End of if block
+    return                                       // Return from rule (required)
+end                                              // End of procedural rule

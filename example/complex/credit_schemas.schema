@@ -1,0 +1,642 @@
+// ============================================================================
+// FILE: credit_schemas.schema
+// LAYER: L2 - Schema Definition
+// USE CASE: Complex - Real-Time Credit Decisioning Platform
+// ============================================================================
+//
+// SUMMARY:
+// This schema file defines comprehensive data structures for an enterprise
+// credit decisioning platform. It demonstrates ADVANCED patterns not seen
+// in simple/medium examples:
+//
+// ADVANCED PATTERNS DEMONSTRATED:
+//
+// 1. DEEP NESTED OBJECTS (3+ levels):
+//    - credit_application.applicant.address.street
+//    - Multi-level nesting for complex domain models
+//
+// 2. SCHEMA EVOLUTION:
+//    - version 2.0.0 with evolution backward_compatible
+//    - Supports rolling upgrades without breaking consumers
+//
+// 3. SCHEMA-LEVEL CONSTRAINTS:
+//    - Business rules enforced at schema level
+//    - applicant.date_of_birth < date_subtract(now(), 18, years)
+//
+// 4. STATE MACHINE PATTERN:
+//    - application_state schema with states/transitions blocks
+//    - Formal state machine definition with initial/terminal states
+//    - Wildcard transitions (* -> withdrawn)
+//
+// 5. IMMUTABLE SCHEMAS:
+//    - audit_event with "immutable true" for compliance
+//    - Cannot be modified after creation
+//
+// 6. MULTIPLE SCHEMA PATTERNS:
+//    - event_log: Streaming events (most schemas)
+//    - command: Request/action schemas (bureau_request)
+//    - document: Generated documents (adverse_action_notice)
+//    - reference_data: Lookup tables
+//    - state_machine: State tracking (application_state)
+//
+// 7. COMPLEX TYPE COMPOSITIONS:
+//    - list<object {...}> for tradelines, model_scores
+//    - map<string, string> for flexible metadata
+//    - Typed lists within nested objects
+//
+// 8. REGULATORY COMPLIANCE FIELDS:
+//    - FCRA-compliant adverse action notice
+//    - Audit event lineage for SOX compliance
+//    - Data hash for integrity verification
+//
+// SCHEMAS (9 total):
+// - credit_application: Input with deep nesting + constraints
+// - bureau_request: Command pattern for external calls
+// - bureau_response: Complex response with lists of objects
+// - enriched_application: Aggregated multi-source data
+// - ml_score_result: ML model outputs with explanations
+// - credit_decision: Decision with conditional detail blocks
+// - audit_event: Immutable event sourcing schema
+// - adverse_action_notice: Regulatory document schema
+// - application_state: State machine schema
+// ============================================================================
+
+// ============================================================================
+// SCHEMA: credit_application
+// CRITICAL PATTERN: Deep nested objects + schema-level constraints
+// ============================================================================
+schema credit_application
+    pattern event_log
+    version 2.0.0                                // VERSIONING: major version for breaking changes
+    evolution backward_compatible                // EVOLUTION: new fields won't break old consumers
+
+    identity
+        application_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: submitted_at
+        time_semantics: event_time
+        watermark_delay: 30 seconds              // LONGER WATERMARK: credit apps may have delays
+    end
+
+    fields
+        application_id: uuid required
+        application_type: string[values: new_card, credit_increase, product_upgrade, refinance] required
+        channel: string[values: web, mobile, branch, partner_api, prequalified] required
+        submitted_at: timestamp required
+
+        // =====================================================================
+        // CRITICAL: Deep nested object (3 levels: applicant.address.street)
+        // This pattern models complex real-world domain entities
+        // =====================================================================
+        applicant: object {                      // LEVEL 1: applicant container
+            customer_id: string optional         // Null for new customers (important distinction)
+            first_name: string required
+            last_name: string required
+            date_of_birth: date required
+            ssn_hash: string required            // SECURITY: Never store raw SSN, only hash
+
+            address: object {                    // LEVEL 2: nested address
+                street: string required          // LEVEL 3: leaf fields
+                city: string required
+                state: string[length: 2] required
+                zip: string[length: 5] required
+                country: string required default: "US"
+                residence_type: string[values: own, rent, other] required
+                years_at_address: decimal optional
+            } required
+
+            employment: object {                 // LEVEL 2: nested employment
+                status: string[values: employed, self_employed, retired, student, unemployed] required
+                employer_name: string optional
+                annual_income: decimal[precision: 12, scale: 2] required
+                income_source: string[values: salary, business, investments, retirement, other] required
+            } required
+        } required
+
+        requested_product: object {
+            product_code: string required
+            product_name: string required
+            requested_limit: decimal[precision: 10, scale: 2] optional
+            promotional_code: string optional
+        } required
+
+        consents: object {
+            credit_pull_authorized: boolean required
+            terms_accepted: boolean required
+            electronic_delivery: boolean required default: true
+            consent_timestamp: timestamp required
+            ip_address: string required          // COMPLIANCE: Track consent origin
+        } required
+
+        metadata: object {
+            source_system: string required
+            device_fingerprint: string optional  // FRAUD: Device tracking
+        } optional
+    end
+
+    // =========================================================================
+    // CRITICAL: Schema-level constraints
+    // These are business rules enforced at the schema validation layer
+    // Prevents invalid data from entering the system
+    // =========================================================================
+    constraints
+        applicant.date_of_birth < date_subtract(now(), 18, years) as "Applicant must be 18+"
+        applicant.employment.annual_income > 0 as "Income must be positive"
+        consents.credit_pull_authorized == true as "Credit pull consent required"
+        consents.terms_accepted == true as "Terms must be accepted"
+    end
+end
+
+// ============================================================================
+// SCHEMA: bureau_request
+// CRITICAL PATTERN: Command pattern (not event_log)
+// Used for outbound requests to external systems
+// ============================================================================
+schema bureau_request
+    pattern command                              // COMMAND PATTERN: represents an action/request
+
+    identity
+        request_id: uuid required
+    end
+
+    fields
+        request_id: uuid required
+        application_id: uuid required
+        bureau: string[values: experian, transunion, equifax] required
+        request_type: string[values: soft_pull, hard_pull] required  // Soft vs hard credit inquiry
+        requested_at: timestamp required
+        applicant_data: object {
+            first_name: string required
+            last_name: string required
+            ssn_hash: string required
+            date_of_birth: date required
+            address: object {
+                street: string required
+                city: string required
+                state: string required
+                zip: string required
+            } required
+        } required
+    end
+end
+
+// ============================================================================
+// SCHEMA: bureau_response
+// CRITICAL PATTERN: Complex lists of typed objects
+// ============================================================================
+schema bureau_response
+    pattern event_log
+
+    identity
+        response_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: received_at
+    end
+
+    fields
+        response_id: uuid required
+        request_id: uuid required
+        application_id: uuid required
+        bureau: string[values: experian, transunion, equifax] required
+        received_at: timestamp required
+        response_time_ms: integer required       // PERFORMANCE: Track external service latency
+
+        scores: object {
+            fico_score: integer[range: 300..850] optional
+            vantage_score: integer[range: 300..850] optional
+            // =====================================================================
+            // CRITICAL: List of typed objects for score factors
+            // list<object {...}> allows variable-length arrays of complex types
+            // =====================================================================
+            score_factors: list<object {
+                code: string required
+                description: string required
+                impact: string[values: positive, negative, neutral] required
+            }> optional
+        } optional
+
+        credit_summary: object {
+            total_accounts: integer required default: 0
+            total_balance: decimal required default: 0.00
+            utilization_ratio: decimal[precision: 5, scale: 4] optional
+            recent_inquiries_6m: integer required default: 0
+        } optional
+
+        // =====================================================================
+        // CRITICAL: Tradelines as list of complex objects
+        // Real credit reports have variable number of tradelines
+        // =====================================================================
+        tradelines: list<object {
+            account_type: string required
+            creditor_name: string required
+            balance: decimal required
+            credit_limit: decimal optional
+            payment_status: string required
+            open_date: date optional
+        }> optional
+
+        public_records: list<object {
+            record_type: string[values: bankruptcy, foreclosure, tax_lien, judgment, collection] required
+            filed_date: date required
+            amount: decimal optional
+            status: string required
+        }> optional
+
+        fraud_indicators: object {
+            identity_verified: boolean required default: true
+            fraud_alert_present: boolean required default: false
+            ofac_match: boolean required default: false  // COMPLIANCE: OFAC sanctions check
+        } optional
+
+        status: string[values: success, partial, error, timeout] required
+        error_message: string optional
+    end
+end
+
+// ============================================================================
+// SCHEMA: enriched_application
+// Aggregates data from multiple sources into unified view
+// ============================================================================
+schema enriched_application
+    pattern event_log
+
+    identity
+        application_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: enriched_at
+    end
+
+    fields
+        application_id: uuid required
+        application_type: string required
+        channel: string required
+        submitted_at: timestamp required
+        enriched_at: timestamp required
+
+        applicant_name: string required
+        applicant_dob: date required
+        annual_income: decimal required
+        employment_status: string required
+
+        is_existing_customer: boolean required default: false
+        existing_customer_data: object {
+            customer_id: string optional
+            customer_since: date optional
+            relationship_value: decimal optional
+            existing_products: list<string> optional
+            payment_history_score: integer optional
+        } optional
+
+        // Aggregated bureau data from multiple pulls
+        bureau_data: object {
+            bureaus_pulled: list<string> required
+            primary_fico: integer optional
+            average_fico: decimal optional
+            score_variance: decimal optional     // RISK: High variance = data quality concern
+            utilization: decimal required default: 0.00
+            derogatory_count: integer required default: 0
+            all_bureaus_verified: boolean required default: false
+        } required
+
+        compliance: object {
+            kyc_verified: boolean required default: false
+            aml_cleared: boolean required default: false
+            ofac_cleared: boolean required default: false
+        } required
+
+        product_eligibility: object {
+            requested_product_eligible: boolean required
+            eligible_products: list<string> required
+            max_eligible_limit: decimal optional
+        } required
+
+        requested_product_code: string required
+        requested_limit: decimal optional
+    end
+end
+
+// ============================================================================
+// SCHEMA: ml_score_result
+// CRITICAL PATTERN: ML model outputs with explainability
+// ============================================================================
+schema ml_score_result
+    pattern event_log
+
+    identity
+        score_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: scored_at
+    end
+
+    fields
+        score_id: uuid required
+        application_id: uuid required
+        scored_at: timestamp required
+
+        // =====================================================================
+        // CRITICAL: Multiple ML models with feature importance
+        // Supports ensemble scoring with explainability for compliance
+        // =====================================================================
+        model_scores: list<object {
+            model_id: string required
+            model_version: string required       // AUDIT: Track which model version
+            model_type: string[values: approval, pricing, limit, fraud, churn] required
+            raw_score: decimal[precision: 10, scale: 6] required
+            calibrated_probability: decimal[precision: 5, scale: 4] required
+            confidence: decimal[precision: 5, scale: 4] required
+            feature_importance: list<object {    // EXPLAINABILITY: Required for fair lending
+                feature: string required
+                importance: decimal required
+                value: string required
+            }> optional
+        }> required
+
+        // Ensemble aggregations
+        ensemble_approval_score: decimal[precision: 5, scale: 4] required
+        ensemble_risk_score: decimal[precision: 5, scale: 4] required
+
+        recommended_decision: string[values: approve, decline, review] required
+        recommended_limit: decimal optional
+        confidence_level: string[values: high, medium, low] required
+
+        // =====================================================================
+        // CRITICAL: Model explanation for regulatory compliance
+        // FCRA requires disclosure of factors affecting credit decisions
+        // =====================================================================
+        explanation: object {
+            primary_factors: list<string> required    // Top 4 factors (FCRA requirement)
+            adverse_factors: list<string> optional    // Negative factors for decline
+        } required
+    end
+end
+
+// ============================================================================
+// SCHEMA: credit_decision
+// Decision record with conditional detail blocks
+// ============================================================================
+schema credit_decision
+    pattern event_log
+
+    identity
+        decision_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: decided_at
+    end
+
+    fields
+        decision_id: uuid required
+        application_id: uuid required
+        decided_at: timestamp required
+
+        decision: string[values: approved, declined, pending_review, counter_offer, withdrawn] required
+        decision_type: string[values: auto, manual, escalated] required
+        decision_reason_code: string required
+        decision_reason_text: string required
+
+        // Conditional blocks - only one populated based on decision
+        approval_details: object {
+            approved_product: string optional
+            approved_limit: decimal optional
+            approved_apr: decimal optional
+            promotional_apr: decimal optional
+            promotional_period_months: integer optional
+        } optional
+
+        decline_details: object {
+            decline_reasons: list<string> required
+            adverse_action_required: boolean required
+            reapply_eligible_date: date optional
+        } optional
+
+        counter_offer: object {
+            alternative_product: string optional
+            alternative_limit: decimal optional
+            offer_expiry: timestamp optional
+        } optional
+
+        review_details: object {
+            review_queue: string optional
+            assigned_to: string optional
+            escalation_level: integer optional
+        } optional
+
+        scoring_summary: object {
+            final_score: decimal required
+            score_tier: string required
+            risk_rating: string required
+        } required
+
+        compliance: object {
+            model_version_used: string required
+            policy_version_used: string required
+            fair_lending_compliant: boolean required
+        } required
+    end
+end
+
+// ============================================================================
+// SCHEMA: audit_event
+// CRITICAL PATTERN: Immutable event sourcing for compliance
+// ============================================================================
+schema audit_event
+    pattern event_log
+
+    identity
+        event_id: uuid required
+    end
+
+    streaming
+        key_fields: [application_id]
+        time_field: event_time
+        time_semantics: event_time
+    end
+
+    fields
+        event_id: uuid required
+        application_id: uuid required
+        event_time: timestamp required
+        // =====================================================================
+        // CRITICAL: Enumerated event types for complete audit trail
+        // Every state change in the application lifecycle is tracked
+        // =====================================================================
+        event_type: string[values:
+            application_received, validation_completed, bureau_requested,
+            bureau_received, enrichment_completed, ml_scoring_completed,
+            rules_evaluated, decision_made, review_assigned, review_completed,
+            customer_notified, application_funded, application_cancelled,
+            appeal_received, appeal_decided
+        ] required
+
+        event_source: string required
+        correlation_id: string required          // TRACING: Links related events
+
+        previous_state: string optional
+        new_state: string required
+
+        // =====================================================================
+        // CRITICAL: Data integrity for compliance
+        // Hash ensures audit events haven't been tampered with
+        // =====================================================================
+        payload: object {
+            data: string required                // JSON serialized
+            data_hash: string required           // SHA256 for integrity verification
+        } required
+
+        actor: object {
+            actor_type: string[values: system, user, api] required
+            actor_id: string required
+        } required
+
+        // =====================================================================
+        // CRITICAL: Event lineage for causal ordering
+        // Enables reconstruction of exact sequence of events
+        // =====================================================================
+        lineage: object {
+            parent_event_id: uuid optional
+            root_event_id: uuid required
+            sequence_number: integer required
+        } required
+    end
+
+    // =========================================================================
+    // CRITICAL: Immutable schema declaration
+    // Audit events cannot be modified after creation (SOX compliance)
+    // =========================================================================
+    immutable true
+end
+
+// ============================================================================
+// SCHEMA: adverse_action_notice
+// CRITICAL PATTERN: Document schema for regulatory output
+// ============================================================================
+schema adverse_action_notice
+    pattern document                             // DOCUMENT PATTERN: Generated output, not streaming
+
+    identity
+        notice_id: uuid required
+    end
+
+    fields
+        notice_id: uuid required
+        application_id: uuid required
+        decision_id: uuid required
+
+        recipient: object {
+            name: string required
+            address: object {
+                street: string required
+                city: string required
+                state: string required
+                zip: string required
+            } required
+        } required
+
+        notice_date: date required
+        creditor_name: string required
+        action_taken: string required
+        action_date: date required
+
+        // =====================================================================
+        // CRITICAL: FCRA requires max 4 primary reasons
+        // This is a regulatory requirement, not arbitrary limit
+        // =====================================================================
+        primary_reasons: list<string> required   // Max 4 per FCRA regulation
+
+        bureau_used: object {
+            name: string required
+            address: string required
+            phone: string required
+        } required
+
+        score_disclosure: object {
+            score_used: integer required
+            score_range: string required
+            score_factors: list<string> required
+        } optional
+
+        rights_notice: string required           // FCRA boilerplate text
+        delivery_method: string[values: mail, email, both] required
+    end
+end
+
+// ============================================================================
+// SCHEMA: application_state
+// CRITICAL PATTERN: State machine schema with formal transitions
+// ============================================================================
+schema application_state
+    pattern state_machine                        // STATE_MACHINE PATTERN: Formal state tracking
+
+    identity
+        application_id: uuid required
+    end
+
+    fields
+        application_id: uuid required
+        current_state: string required
+        previous_state: string optional
+        state_entered_at: timestamp required
+        state_metadata: map<string, string> optional  // FLEXIBLE: Key-value metadata
+    end
+
+    // =========================================================================
+    // CRITICAL: Formal state definitions
+    // 'initial' marks entry point, 'terminal' marks end states
+    // =========================================================================
+    states
+        received: initial                        // INITIAL: Application enters here
+        validating
+        enriching
+        scoring
+        decisioning
+        pending_review
+        approved
+        declined
+        counter_offered
+        withdrawn
+        expired
+        funded: terminal                         // TERMINAL: Successful completion
+        cancelled: terminal                      // TERMINAL: Unsuccessful completion
+    end
+
+    // =========================================================================
+    // CRITICAL: Formal state transitions
+    // Format: from_state -> to_state: trigger_event
+    // Wildcard (*) means "from any state"
+    // =========================================================================
+    transitions
+        received -> validating: validation_started
+        validating -> enriching: validation_passed
+        validating -> declined: validation_failed
+        enriching -> scoring: enrichment_completed
+        enriching -> declined: enrichment_failed
+        scoring -> decisioning: scoring_completed
+        decisioning -> approved: auto_approved
+        decisioning -> declined: auto_declined
+        decisioning -> pending_review: manual_review_required
+        decisioning -> counter_offered: counter_offer_generated
+        pending_review -> approved: review_approved
+        pending_review -> declined: review_declined
+        approved -> funded: account_opened
+        approved -> expired: offer_expired
+        counter_offered -> approved: counter_accepted
+        counter_offered -> declined: counter_declined
+        counter_offered -> expired: offer_expired
+        * -> withdrawn: customer_withdrew         // WILDCARD: Can withdraw from any state
+        * -> cancelled: system_cancelled          // WILDCARD: System can cancel from any state
+    end
+end

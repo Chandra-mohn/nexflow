@@ -1,0 +1,296 @@
+// ============================================================================
+// FILE: fraud_schemas.schema
+// LAYER: L2 - Schema Definition
+// USE CASE: Medium - Fraud Detection Pipeline
+// ============================================================================
+//
+// SUMMARY:
+// This schema file defines data structures for a fraud detection system that
+// processes credit card transactions through multiple enrichment and scoring
+// stages. It demonstrates medium complexity patterns including:
+//
+// SCHEMAS DEFINED (6 total):
+//
+// 1. raw_transaction - Input schema for incoming transactions with:
+//    - Card and cardholder details
+//    - Merchant information including category
+//    - Location data (country, city, coordinates)
+//    - Channel type (POS, online, ATM, mobile)
+//
+// 2. customer_profile - Reference data for customer enrichment:
+//    - Risk scores and account history
+//    - Spending patterns and typical locations
+//    - Premium status for differentiated treatment
+//
+// 3. enriched_transaction - Transaction after customer data enrichment:
+//    - Original transaction + customer profile data
+//    - Velocity metrics (transactions/amounts per hour/day)
+//    - Location anomaly flags
+//
+// 4. fraud_scored_transaction - After ML and rule-based scoring:
+//    - ML model outputs (score, version, confidence)
+//    - Rule-based risk scores (velocity, amount, location)
+//    - Combined fraud score for decision making
+//
+// 5. fraud_decision - Final routing decision:
+//    - Decision outcome (approved, blocked, review)
+//    - Reason codes and timestamps
+//    - Action flags (alert, callback, block card)
+//
+// 6. fraud_alert - Alert record for suspicious activity:
+//    - Alert type and severity classification
+//    - Recommended actions and auto-block status
+//
+// DATA FLOW:
+// raw_transaction → enrich → enriched_transaction → score → fraud_scored_transaction
+//     → decide → fraud_decision + fraud_alert (if blocked/review)
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// SCHEMA: raw_transaction
+// PURPOSE: Input schema for raw transactions before any processing
+// PATTERN: event_log - streaming events from payment systems
+// ----------------------------------------------------------------------------
+schema raw_transaction                           // Declare schema for raw incoming transactions
+    pattern event_log                            // Event log pattern: append-only, immutable events
+    version 1.0.0                                // Schema version for compatibility tracking
+
+    identity                                     // Primary key definition
+        transaction_id: uuid required            // Unique identifier for this transaction
+    end                                          // End identity block
+
+    streaming                                    // Streaming/Kafka configuration
+        key_fields: [transaction_id]             // Partition key for Kafka
+        time_field: transaction_time             // Event time field for windowing
+        time_semantics: event_time               // Use event time, not processing time
+        watermark_delay: 10 seconds              // 10-second late data allowance (longer than simple case)
+    end                                          // End streaming config
+
+    fields                                       // Field definitions
+        transaction_id: uuid required            // Unique transaction ID
+        card_number: string[length: 16] required // 16-digit card number (PAN)
+        card_holder_id: string required          // Links to customer_profile for enrichment
+        amount: decimal[precision: 12, scale: 2] required  // Transaction amount
+        currency: string[length: 3] required default: "USD" // Currency code
+        merchant_id: string required             // Merchant identifier
+        merchant_name: string optional           // Merchant display name
+        merchant_category: string optional       // MCC code or category (e.g., "electronics", "travel")
+        transaction_time: timestamp required     // When transaction occurred
+        location: object {                       // NESTED OBJECT: transaction location details
+            country: string optional             // Country code
+            city: string optional                // City name
+            latitude: decimal optional           // GPS latitude for distance calculations
+            longitude: decimal optional          // GPS longitude for distance calculations
+        } optional                               // Entire location block is optional
+        channel: string[values: pos, online, atm, mobile] required  // ENUM: how transaction was made
+        card_present: boolean required default: true  // Physical card present (vs card-not-present)
+    end                                          // End fields block
+end                                              // End raw_transaction schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: customer_profile
+// PURPOSE: Reference data for customer enrichment lookup
+// PATTERN: reference_data - slowly changing dimension data
+// ----------------------------------------------------------------------------
+schema customer_profile                          // Declare schema for customer reference data
+    pattern reference_data                       // Reference data pattern: lookup table, cached
+    version 1.0.0                                // Schema version
+
+    identity                                     // Primary key
+        customer_id: string required             // Customer identifier (matches card_holder_id)
+    end                                          // End identity
+
+    fields                                       // Field definitions
+        customer_id: string required             // Primary key field
+        name: string required                    // Customer name
+        email: string optional                   // Email for notifications
+        phone: string optional                   // Phone for callbacks
+        risk_score: integer[range: 0..100] required default: 50  // Internal risk rating (0=low, 100=high)
+        account_age_days: integer required       // Days since account opened (new accounts = higher risk)
+        average_transaction: decimal[precision: 12, scale: 2] optional  // Historical average spend
+        typical_locations: list<string> optional // List of usual transaction locations
+        spending_patterns: object {              // NESTED OBJECT: historical spending behavior
+            daily_average: decimal optional      // Average daily spend
+            weekly_average: decimal optional     // Average weekly spend
+            preferred_categories: list<string> optional  // Usual merchant categories
+        } optional                               // Spending patterns block optional
+        is_premium: boolean required default: false  // Premium customers get different thresholds
+        last_updated: timestamp required         // When profile was last modified
+    end                                          // End fields
+end                                              // End customer_profile schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: enriched_transaction
+// PURPOSE: Transaction after customer profile enrichment and velocity calculation
+// PATTERN: event_log - derived event with additional context
+// ----------------------------------------------------------------------------
+schema enriched_transaction                      // Declare schema for enriched transactions
+    pattern event_log                            // Event log pattern
+    version 1.0.0                                // Schema version
+
+    identity                                     // Primary key
+        transaction_id: uuid required            // Same ID as raw transaction
+    end                                          // End identity
+
+    streaming                                    // Streaming configuration
+        key_fields: [transaction_id]             // Partition key
+        time_field: transaction_time             // Event time field
+        time_semantics: event_time               // Event time semantics
+    end                                          // End streaming
+
+    fields                                       // Field definitions
+        // --- Original transaction fields (passed through) ---
+        transaction_id: uuid required            // Transaction ID
+        card_number: string required             // Card number
+        card_holder_id: string required          // Customer identifier
+        amount: decimal required                 // Transaction amount
+        currency: string required                // Currency code
+        merchant_id: string required             // Merchant ID
+        merchant_name: string optional           // Merchant name
+        merchant_category: string optional       // Merchant category
+        transaction_time: timestamp required     // Transaction timestamp
+        channel: string required                 // Transaction channel
+        card_present: boolean required           // Card present flag
+
+        // --- Enriched customer data (from customer_profile lookup) ---
+        customer_risk_score: integer optional    // Customer's risk score (0-100)
+        customer_account_age: integer optional   // Days since account opened
+        customer_average_transaction: decimal optional  // Historical average spend
+        is_premium_customer: boolean required default: false  // Premium status flag
+
+        // --- Velocity metrics (from windowed aggregation) ---
+        transactions_last_hour: integer required default: 0  // Count of txns in last hour
+        transactions_last_day: integer required default: 0   // Count of txns in last 24 hours
+        amount_last_hour: decimal required default: 0.00     // Sum of amounts in last hour
+        amount_last_day: decimal required default: 0.00      // Sum of amounts in last 24 hours
+
+        // --- Location analysis flags ---
+        is_unusual_location: boolean required default: false  // True if location doesn't match typical
+        distance_from_last: decimal optional     // Distance from previous transaction (km)
+    end                                          // End fields
+end                                              // End enriched_transaction schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: fraud_scored_transaction
+// PURPOSE: Transaction after ML model and rule-based fraud scoring
+// PATTERN: event_log - transaction with risk scores attached
+// ----------------------------------------------------------------------------
+schema fraud_scored_transaction                  // Declare schema for scored transactions
+    pattern event_log                            // Event log pattern
+    version 1.0.0                                // Schema version
+
+    identity                                     // Primary key
+        transaction_id: uuid required            // Transaction ID
+    end                                          // End identity
+
+    streaming                                    // Streaming configuration
+        key_fields: [transaction_id]             // Partition key
+        time_field: transaction_time             // Event time
+    end                                          // End streaming
+
+    fields                                       // Field definitions
+        transaction_id: uuid required            // Transaction ID
+        card_number: string required             // Card number
+        card_holder_id: string required          // Customer ID
+        amount: decimal required                 // Amount
+        currency: string required                // Currency
+        merchant_id: string required             // Merchant ID
+        transaction_time: timestamp required     // Timestamp
+        channel: string required                 // Channel
+
+        // --- Enrichment data carried forward ---
+        customer_risk_score: integer optional    // Customer risk from profile
+        transactions_last_hour: integer required // Velocity: hourly count
+        amount_last_day: decimal required        // Velocity: daily amount
+        is_unusual_location: boolean required    // Location flag
+
+        // --- ML model outputs ---
+        ml_fraud_score: decimal[precision: 5, scale: 4] required  // ML model probability (0.0000-1.0000)
+        ml_model_version: string required        // Version of ML model used (for audit)
+        ml_confidence: decimal[precision: 5, scale: 4] required   // Model confidence in prediction
+
+        // --- Rule-based risk scores (0-100 scale) ---
+        velocity_risk_score: integer required    // Risk score from velocity rules
+        amount_risk_score: integer required      // Risk score from amount rules
+        location_risk_score: integer required    // Risk score from location rules
+
+        // --- Combined final score ---
+        combined_fraud_score: decimal[precision: 5, scale: 4] required  // Weighted combination of all scores
+    end                                          // End fields
+end                                              // End fraud_scored_transaction schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: fraud_decision
+// PURPOSE: Final routing decision after rules evaluation
+// PATTERN: event_log - decision record for audit trail
+// ----------------------------------------------------------------------------
+schema fraud_decision                            // Declare schema for final decisions
+    pattern event_log                            // Event log for audit compliance
+    version 1.0.0                                // Schema version
+
+    identity                                     // Primary key
+        transaction_id: uuid required            // Links to original transaction
+    end                                          // End identity
+
+    streaming                                    // Streaming configuration
+        key_fields: [transaction_id]             // Partition key
+        time_field: decision_time                // Use decision time for this event
+    end                                          // End streaming
+
+    fields                                       // Field definitions
+        transaction_id: uuid required            // Transaction reference
+        card_number: string required             // Card number for reference
+        amount: decimal required                 // Amount for reference
+        merchant_id: string required             // Merchant for reference
+
+        // --- Decision outcome ---
+        decision: string[values: approved, blocked, review] required  // ENUM: final decision
+        decision_reason: string required         // Human-readable reason code
+        decision_time: timestamp required        // When decision was made
+
+        // --- Scores that informed the decision ---
+        combined_fraud_score: decimal required   // Overall fraud score
+        ml_fraud_score: decimal required         // ML component of score
+
+        // --- Action flags for downstream systems ---
+        alert_generated: boolean required default: false    // Was an alert created?
+        requires_callback: boolean required default: false  // Should we call customer?
+        block_card: boolean required default: false         // Should we block the card?
+    end                                          // End fields
+end                                              // End fraud_decision schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: fraud_alert
+// PURPOSE: Alert record for suspicious transactions requiring attention
+// PATTERN: event_log - alerting system output
+// ----------------------------------------------------------------------------
+schema fraud_alert                               // Declare schema for fraud alerts
+    pattern event_log                            // Event log pattern
+    version 1.0.0                                // Schema version
+
+    identity                                     // Primary key
+        alert_id: uuid required                  // Unique alert identifier (different from txn ID)
+    end                                          // End identity
+
+    streaming                                    // Streaming configuration
+        key_fields: [alert_id]                   // Partition by alert ID
+        time_field: alert_time                   // Alert timestamp
+    end                                          // End streaming
+
+    fields                                       // Field definitions
+        alert_id: uuid required                  // Unique alert ID
+        transaction_id: uuid required            // Reference to triggering transaction
+        card_holder_id: string required          // Customer ID for routing
+        card_number_masked: string required      // Masked card (****-****-****-1234)
+        amount: decimal required                 // Transaction amount
+        merchant_name: string optional           // Merchant name for context
+
+        alert_type: string[values: high_risk, velocity_breach, unusual_location, ml_flagged] required  // Why alert was raised
+        severity: string[values: low, medium, high, critical] required  // Priority level
+        alert_message: string required           // Human-readable alert description
+        alert_time: timestamp required           // When alert was created
+
+        recommended_action: string required      // What should be done
+        auto_blocked: boolean required default: false  // Was transaction automatically blocked?
+    end                                          // End fields
+end                                              // End fraud_alert schema

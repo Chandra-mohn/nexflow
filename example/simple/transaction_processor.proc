@@ -1,0 +1,56 @@
+// ============================================================================
+// FILE: transaction_processor.proc
+// LAYER: L1 - Process Orchestration
+// USE CASE: Simple Transaction Validation
+// ============================================================================
+//
+// SUMMARY:
+// This process file defines the end-to-end orchestration of a simple credit
+// card transaction processing pipeline. It connects:
+//
+// DATA FLOW:
+// 1. RECEIVE: Ingest transactions from 'card_transactions' source (e.g., Kafka)
+// 2. TRANSFORM: Apply 'validate_basic' transform to validate each transaction
+// 3. ROUTE: Use 'simple_approval' rules to route to approved or declined
+// 4. EMIT: Output to 'approved_transactions' or 'declined_transactions' sinks
+//
+// KEY FEATURES:
+// - Parallelism hint of 4 for horizontal scaling
+// - Event time processing with 5-second watermark delay
+// - Automatic retry (3 attempts) on transient errors
+// - Dead letter queue for unprocessable transactions
+//
+// This is the simplest possible pipeline: receive → transform → route → emit
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// PROCESS: simple_transaction_processor
+// PURPOSE: Orchestrate the complete transaction validation flow
+// ----------------------------------------------------------------------------
+process simple_transaction_processor             // Declare a process named 'simple_transaction_processor'
+    parallelism hint 4                           // SCALING HINT: suggest 4 parallel instances for processing
+    time by transaction_time                     // EVENT TIME: use transaction_time field for time-based operations
+        watermark delay 5 seconds                // WATERMARK: allow 5 seconds of late-arriving data
+
+    // STEP 1: Ingest transactions from source
+    receive card_transactions                    // RECEIVE: read events from source named 'card_transactions'
+        schema card_transaction                  // SCHEMA: expect data matching 'card_transaction' schema
+
+    // STEP 2: Validate each transaction
+    transform using validate_basic               // TRANSFORM: apply 'validate_basic' transform to each record
+
+    // STEP 3: Route based on approval rules
+    route using simple_approval                  // ROUTE: evaluate 'simple_approval' decision table
+        approved to approved_transactions        // ROUTING: if decision='approved', send to approved_transactions
+        declined to declined_transactions        // ROUTING: if decision='declined', send to declined_transactions
+
+    // STEP 4: Emit to output destinations
+    emit to approved_transactions                // EMIT: write approved transactions to sink
+    emit to declined_transactions                // EMIT: write declined transactions to sink
+
+    // ERROR HANDLING: retry transient failures
+    on error                                     // ERROR HANDLER: define what happens on processing errors
+        retry 3 times                            // RETRY: attempt processing up to 3 times
+        then emit to failed_transactions         // DEAD LETTER: after 3 failures, send to failed_transactions sink
+    end                                          // End of error handler block
+end                                              // End of process definition

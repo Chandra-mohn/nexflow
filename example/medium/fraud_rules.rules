@@ -1,0 +1,288 @@
+// ============================================================================
+// FILE: fraud_rules.rules
+// LAYER: L4 - Rules Definition
+// USE CASE: Medium - Fraud Detection Pipeline
+// ============================================================================
+//
+// SUMMARY:
+// This rules file defines business logic for fraud detection decisions.
+// It demonstrates medium complexity patterns including multi-dimensional
+// decision tables, procedural rules with temporal logic, and alert routing.
+//
+// DECISION TABLES (4 total):
+//
+// 1. fraud_decision - Multi-factor fraud decision matrix:
+//    - Evaluates combined fraud score, ML score, velocity, amount
+//    - Considers premium customer status and channel type
+//    - Routes to approved, blocked, or review
+//    - 11 rules with priority ordering
+//
+// 2. velocity_breach_check - Velocity limit detection:
+//    - Checks hourly/daily transaction counts and amounts
+//    - Different thresholds for premium vs standard customers
+//    - Returns breach type and severity
+//
+// 3. merchant_risk_category - Merchant MCC risk classification:
+//    - High-risk categories: gambling, crypto, adult
+//    - Medium-risk: electronics, travel, fuel
+//    - Returns risk multiplier for score adjustment
+//
+// 4. alert_routing - Route alerts to appropriate teams:
+//    - Maps severity and type to team assignment
+//    - Defines SLA times and escalation paths
+//
+// PROCEDURAL RULES (4 total):
+//
+// 1. check_unusual_time - Flag transactions during odd hours (1-5 AM)
+// 2. check_rapid_succession - Detect transactions within 30/60/120 seconds
+// 3. check_amount_pattern - Detect round amounts and threshold avoidance
+// 4. apply_premium_benefits - Reduce risk scores for premium customers
+//
+// HIT POLICIES:
+// - first_match: Rules evaluated top-to-bottom, first match wins
+// - collect_all: All matching rules fire and results are aggregated
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: fraud_decision
+// PURPOSE: Primary fraud decision based on scores and transaction context
+// HIT POLICY: first_match - first matching row determines outcome
+// INPUTS: Combined score, ML score, velocity, amount, customer type, channel
+// OUTPUTS: decision (approved/blocked/review), reason text
+// ----------------------------------------------------------------------------
+decision_table fraud_decision                    // Declare fraud decision table
+    hit_policy first_match                       // FIRST_MATCH: evaluate in order, stop at first match
+    description "Multi-stage fraud decision based on scores and thresholds"  // Purpose description
+
+    given:                                       // INPUT VARIABLES
+        combined_fraud_score: decimal            // Overall weighted fraud score (0.0-1.0)
+        ml_fraud_score: decimal                  // ML model fraud probability (0.0-1.0)
+        velocity_risk_score: integer             // Velocity-based risk score (0-100)
+        amount: money                            // Transaction amount
+        is_premium_customer: boolean             // Premium customer flag
+        channel: text                            // Transaction channel (online, pos, etc.)
+
+    decide:                                      // DECISION MATRIX
+        // Headers: condition columns | output columns
+        // * = wildcard (any value), > < = comparison operators
+        | priority | combined_fraud_score | ml_fraud_score | velocity_risk_score | amount   | is_premium_customer | channel  | decision   | reason                              |
+        |===============================================================================================================================================================================|
+        | 1        | > 0.90               | *              | *                   | *        | *                   | *        | "blocked"  | "Critical fraud score exceeded"     |  // Row 1: Score > 0.9 = auto-block
+        | 2        | *                    | > 0.95         | *                   | *        | *                   | *        | "blocked"  | "ML model high confidence fraud"    |  // Row 2: ML very confident fraud
+        | 3        | *                    | *              | > 85                | > 1000   | *                   | *        | "blocked"  | "High velocity with large amount"   |  // Row 3: High velocity + big amount
+        | 4        | > 0.75               | *              | *                   | > 5000   | false               | *        | "blocked"  | "High risk large transaction"       |  // Row 4: High risk large txn (non-premium)
+        | 5        | > 0.70               | *              | *                   | *        | *                   | "online" | "review"   | "Online transaction needs review"   |  // Row 5: Online + moderate risk = review
+        | 6        | > 0.60               | *              | > 70                | *        | *                   | *        | "review"   | "Velocity anomaly detected"         |  // Row 6: Moderate risk + velocity issue
+        | 7        | > 0.50               | *              | *                   | > 3000   | *                   | *        | "review"   | "Moderate risk large transaction"   |  // Row 7: Medium risk + large amount
+        | 8        | <= 0.50              | <= 0.60        | <= 50               | *        | true                | *        | "approved" | "Premium customer low risk"         |  // Row 8: Premium + low risk = approve
+        | 9        | <= 0.40              | *              | *                   | <= 1000  | *                   | *        | "approved" | "Low risk small transaction"        |  // Row 9: Low risk + small = approve
+        | 10       | <= 0.50              | *              | *                   | *        | *                   | "pos"    | "approved" | "In-person transaction acceptable"  |  // Row 10: POS + moderate risk = approve
+        | 11       | *                    | *              | *                   | *        | *                   | *        | "review"   | "Default to manual review"          |  // Row 11: Catch-all = review
+
+    return:                                      // OUTPUT VARIABLES
+        decision: text                           // Final decision: approved, blocked, or review
+        reason: text                             // Reason code for audit/display
+end                                              // End fraud_decision table
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: velocity_breach_check
+// PURPOSE: Detect velocity limit breaches (transaction frequency/volume)
+// HIT POLICY: first_match - first breach type matched is returned
+// INPUTS: Hourly/daily counts and amounts, premium status
+// OUTPUTS: breach_type, severity
+// ----------------------------------------------------------------------------
+decision_table velocity_breach_check             // Declare velocity check table
+    hit_policy first_match                       // First matching breach wins
+    description "Check for velocity limit breaches"  // Purpose
+
+    given:                                       // INPUT VARIABLES
+        transactions_last_hour: integer          // Transaction count in last hour
+        transactions_last_day: integer           // Transaction count in last 24 hours
+        amount_last_hour: money                  // Total amount in last hour
+        amount_last_day: money                   // Total amount in last 24 hours
+        is_premium_customer: boolean             // Premium customers get higher limits
+
+    decide:                                      // DECISION MATRIX
+        // Different thresholds for premium (higher) vs standard customers
+        | transactions_last_hour | transactions_last_day | amount_last_hour | amount_last_day | is_premium_customer | breach_type        | severity |
+        |=======================================================================================================================================================|
+        | > 20                   | *                     | *                | *               | *                   | "hourly_count"     | "high"   |  // Row 1: > 20 txns/hour = high severity
+        | > 10                   | *                     | *                | *               | false               | "hourly_count"     | "medium" |  // Row 2: > 10 txns/hour (non-premium)
+        | *                      | > 100                 | *                | *               | *                   | "daily_count"      | "high"   |  // Row 3: > 100 txns/day
+        | *                      | > 50                  | *                | *               | false               | "daily_count"      | "medium" |  // Row 4: > 50 txns/day (non-premium)
+        | *                      | *                     | > 10000          | *               | *                   | "hourly_amount"    | "high"   |  // Row 5: > $10k/hour
+        | *                      | *                     | > 5000           | *               | false               | "hourly_amount"    | "medium" |  // Row 6: > $5k/hour (non-premium)
+        | *                      | *                     | *                | > 50000         | *                   | "daily_amount"     | "high"   |  // Row 7: > $50k/day
+        | *                      | *                     | *                | > 25000         | false               | "daily_amount"     | "medium" |  // Row 8: > $25k/day (non-premium)
+        | *                      | *                     | *                | *               | *                   | "none"             | "none"   |  // Row 9: No breach
+
+    return:                                      // OUTPUT VARIABLES
+        breach_type: text                        // Type of breach detected
+        severity: text                           // Severity level
+end                                              // End velocity_breach_check table
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: merchant_risk_category
+// PURPOSE: Classify merchant risk level based on MCC category
+// HIT POLICY: first_match - return risk for first matching category
+// INPUTS: Merchant category, channel, amount
+// OUTPUTS: risk_level, risk_multiplier (for score adjustment)
+// ----------------------------------------------------------------------------
+decision_table merchant_risk_category            // Declare merchant risk table
+    hit_policy first_match                       // First match wins
+    description "Categorize merchant risk level"  // Purpose
+
+    given:                                       // INPUT VARIABLES
+        merchant_category: text                  // Merchant category code (MCC)
+        channel: text                            // Transaction channel
+        amount: money                            // Transaction amount (affects risk)
+
+    decide:                                      // DECISION MATRIX
+        // High-risk categories get higher multipliers
+        | merchant_category      | channel  | amount   | risk_level | risk_multiplier |
+        |===================================================================================|
+        | "gambling"             | *        | *        | "high"     | 1.5             |  // Gambling: always high risk, 1.5x multiplier
+        | "crypto"               | *        | *        | "high"     | 1.5             |  // Crypto: high risk
+        | "adult"                | *        | *        | "high"     | 1.4             |  // Adult: high risk
+        | "jewelry"              | *        | > 5000   | "high"     | 1.3             |  // Jewelry: high if > $5k
+        | "electronics"          | "online" | > 2000   | "medium"   | 1.2             |  // Electronics online > $2k
+        | "travel"               | "online" | > 3000   | "medium"   | 1.2             |  // Travel online > $3k
+        | "fuel"                 | *        | > 500    | "medium"   | 1.1             |  // Fuel > $500 (unusual)
+        | "grocery"              | *        | *        | "low"      | 0.9             |  // Grocery: low risk, 0.9x
+        | "utilities"            | *        | *        | "low"      | 0.8             |  // Utilities: very low risk
+        | *                      | *        | *        | "normal"   | 1.0             |  // Default: normal risk
+
+    return:                                      // OUTPUT VARIABLES
+        risk_level: text                         // Risk classification
+        risk_multiplier: decimal                 // Multiplier for fraud score adjustment
+end                                              // End merchant_risk_category table
+
+// ----------------------------------------------------------------------------
+// DECISION TABLE: alert_routing
+// PURPOSE: Route fraud alerts to appropriate handling teams
+// HIT POLICY: first_match - determine team and SLA based on priority
+// INPUTS: Severity, alert type, amount, auto-block status
+// OUTPUTS: team, sla_minutes, escalation_path
+// ----------------------------------------------------------------------------
+decision_table alert_routing                     // Declare alert routing table
+    hit_policy first_match                       // First match wins
+    description "Route alerts to appropriate teams"  // Purpose
+
+    given:                                       // INPUT VARIABLES
+        severity: text                           // Alert severity (critical, high, medium, low)
+        alert_type: text                         // Type of alert (ml_flagged, velocity_breach, etc.)
+        amount: money                            // Transaction amount
+        auto_blocked: boolean                    // Was transaction automatically blocked?
+
+    decide:                                      // DECISION MATRIX
+        // Critical alerts get highest priority team, shortest SLA
+        | severity   | alert_type         | amount    | auto_blocked | team              | sla_minutes | escalation_path          |
+        |==========================================================================================================================|
+        | "critical" | *                  | *         | *            | "fraud_priority"  | 5           | "manager -> director"    |  // Critical: 5 min SLA
+        | "high"     | "ml_flagged"       | > 10000   | true         | "fraud_priority"  | 15          | "senior_analyst"         |  // High ML + big + blocked
+        | "high"     | *                  | *         | *            | "fraud_team"      | 30          | "team_lead"              |  // High: 30 min SLA
+        | "medium"   | "velocity_breach"  | *         | *            | "fraud_team"      | 60          | "senior_analyst"         |  // Medium velocity: 1 hour
+        | "medium"   | *                  | *         | *            | "general_review"  | 120         | "fraud_team"             |  // Medium other: 2 hours
+        | "low"      | *                  | *         | *            | "batch_review"    | 480         | "general_review"         |  // Low: 8 hours (batch)
+        | *          | *                  | *         | *            | "batch_review"    | 480         | "general_review"         |  // Default: batch review
+
+    return:                                      // OUTPUT VARIABLES
+        team: text                               // Handling team name
+        sla_minutes: integer                     // SLA in minutes
+        escalation_path: text                    // Who to escalate to
+end                                              // End alert_routing table
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: check_unusual_time
+// PURPOSE: Flag transactions during unusual hours (1 AM - 5 AM)
+// TYPE: Imperative rule with conditional logic
+// ----------------------------------------------------------------------------
+rule check_unusual_time:                         // Declare procedural rule
+    description "Flag transactions during unusual hours"  // Purpose description
+
+    if hour(transaction_time) >= 1 and hour(transaction_time) <= 5 then  // IF between 1 AM and 5 AM
+        set is_unusual_time = true               // Set flag for unusual time
+        add_risk_factor("unusual_hour", 15)      // Add 15 points to risk score
+    endif                                        // End if block
+
+    if day_of_week(transaction_time) in [6, 7] and hour(transaction_time) >= 23 then  // IF weekend late night
+        set is_weekend_late = true               // Set weekend late flag
+        add_risk_factor("weekend_late", 10)      // Add 10 points to risk score
+    endif                                        // End if block
+
+    return                                       // Return from rule
+end                                              // End rule
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: check_rapid_succession
+// PURPOSE: Detect transactions happening in rapid succession
+// TYPE: Imperative rule checking time between transactions
+// ----------------------------------------------------------------------------
+rule check_rapid_succession:                     // Declare procedural rule
+    description "Detect rapid succession transactions"  // Purpose
+
+    let time_since_last = seconds_between(last_transaction_time, transaction_time)  // Calculate seconds since last txn
+
+    if time_since_last < 30 then                 // IF less than 30 seconds since last txn
+        set is_rapid_succession = true           // Set rapid flag
+        add_risk_factor("rapid_30s", 25)         // Add 25 points - very suspicious
+    elseif time_since_last < 60 then             // ELSE IF less than 60 seconds
+        set is_rapid_succession = true           // Set rapid flag
+        add_risk_factor("rapid_60s", 15)         // Add 15 points
+    elseif time_since_last < 120 then            // ELSE IF less than 2 minutes
+        add_risk_factor("rapid_2m", 5)           // Add 5 points - minor concern
+    endif                                        // End if block
+
+    return                                       // Return from rule
+end                                              // End rule
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: check_amount_pattern
+// PURPOSE: Detect suspicious amount patterns (round numbers, threshold avoidance)
+// TYPE: Imperative rule checking amount characteristics
+// ----------------------------------------------------------------------------
+rule check_amount_pattern:                       // Declare procedural rule
+    description "Detect suspicious amount patterns"  // Purpose
+
+    // Check for round amounts (common in testing/fraud)
+    if amount == round(amount) and amount >= 100 then  // IF amount is exactly round and >= $100
+        add_risk_factor("round_amount", 5)       // Add 5 points - slight concern
+    endif                                        // End if
+
+    // Check for just-under threshold amounts (avoiding detection)
+    if amount >= 4900 and amount < 5000 then     // IF amount is $4900-4999 (just under $5k threshold)
+        add_risk_factor("threshold_avoidance", 20)  // Add 20 points - suspicious
+    endif                                        // End if
+
+    // Check for unusual precision (99 cents often test transactions)
+    let cents = (amount * 100) mod 100           // Extract cents portion
+    if cents == 99 or cents == 98 then           // IF ends in .99 or .98
+        add_risk_factor("unusual_precision", 3)  // Add 3 points - minor
+    endif                                        // End if
+
+    return                                       // Return from rule
+end                                              // End rule
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: apply_premium_benefits
+// PURPOSE: Reduce risk scores for premium customers with trusted merchants
+// TYPE: Imperative rule applying customer-level benefits
+// ----------------------------------------------------------------------------
+rule apply_premium_benefits:                     // Declare procedural rule
+    description "Apply premium customer benefits to scoring"  // Purpose
+
+    if is_premium_customer == true then          // IF customer is premium
+        // Reduce overall risk score for premium customers
+        multiply_risk_score(0.85)                // Multiply risk by 0.85 (15% reduction)
+
+        // Higher velocity thresholds
+        set velocity_threshold_multiplier = 1.5  // Allow 50% higher velocity
+
+        // Faster approval for known merchants
+        if merchant_id in customer_trusted_merchants then  // IF merchant is in customer's trusted list
+            multiply_risk_score(0.7)             // Multiply risk by 0.7 (additional 30% reduction)
+        endif                                    // End if
+    endif                                        // End if
+
+    return                                       // Return from rule
+end                                              // End rule

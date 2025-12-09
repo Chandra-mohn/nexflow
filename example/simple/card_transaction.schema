@@ -1,0 +1,118 @@
+// ============================================================================
+// FILE: card_transaction.schema
+// LAYER: L2 - Schema Definition
+// USE CASE: Simple Transaction Validation
+// ============================================================================
+//
+// SUMMARY:
+// This schema file defines the data structures for a basic credit card
+// transaction processing pipeline. It contains three schemas:
+//
+// 1. card_transaction - The raw input schema for incoming card transactions
+//    from payment terminals or online checkout. Contains card details, amount,
+//    merchant info, and timing data needed for validation.
+//
+// 2. validated_transaction - The output of validation processing. Extends the
+//    raw transaction with validation status (is_valid), any validation errors
+//    found, and accumulated daily totals for limit checking.
+//
+// 3. transaction_decision - The final decision record after rules evaluation.
+//    Contains the approve/decline decision, reason code, and timestamp.
+//
+// FLOW: card_transaction → validate → validated_transaction → rules → transaction_decision
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// SCHEMA: card_transaction
+// PURPOSE: Define the structure of raw incoming credit card transactions
+// PATTERN: event_log - optimized for append-only streaming event data
+// ----------------------------------------------------------------------------
+schema card_transaction                          // Declare a new schema named 'card_transaction'
+    pattern event_log                            // Use event_log pattern: immutable, append-only events optimized for streaming
+
+    version 1.0.0                                // Schema version for evolution tracking and compatibility
+
+    identity                                     // Define the unique identifier for this record type
+        transaction_id: uuid required            // Primary key: universally unique identifier, must be present
+    end                                          // End of identity block
+
+    streaming                                    // Configure streaming/real-time processing behavior
+        key_fields: [transaction_id]             // Kafka partition key: ensures same transaction goes to same partition
+        time_field: transaction_time             // The field used for event time semantics in windowing
+        time_semantics: event_time               // Use event time (when event occurred) not processing time
+        watermark_delay: 5 seconds               // Allow 5 seconds of late data before considering window complete
+    end                                          // End of streaming configuration block
+
+    fields                                       // Define all data fields in this schema
+        transaction_id: uuid required            // Unique transaction identifier, cannot be null
+        card_number: string[length: 16] required // 16-digit card number (PAN), must be exactly 16 chars
+        amount: decimal[precision: 12, scale: 2] required  // Transaction amount with 12 digits total, 2 after decimal (max 9,999,999,999.99)
+        currency: string[length: 3] required default: "USD" // ISO 4217 currency code, defaults to US Dollars
+        merchant_id: string required             // Unique identifier for the merchant accepting payment
+        merchant_name: string optional           // Human-readable merchant name, not required
+        transaction_time: timestamp required     // When the transaction occurred, must be present
+        card_expiry_month: integer[range: 1..12] required  // Card expiration month, must be 1-12
+        card_expiry_year: integer[range: 2020..2050] required  // Card expiration year, valid range 2020-2050
+    end                                          // End of fields block
+end                                              // End of card_transaction schema definition
+
+// ----------------------------------------------------------------------------
+// SCHEMA: validated_transaction
+// PURPOSE: Transaction after validation processing with status and errors
+// PATTERN: event_log - derived event with validation results appended
+// ----------------------------------------------------------------------------
+schema validated_transaction                     // Declare schema for post-validation transaction data
+    pattern event_log                            // Same pattern as input for streaming compatibility
+
+    version 1.0.0                                // Schema version
+
+    identity                                     // Unique identifier definition
+        transaction_id: uuid required            // Same primary key as input transaction
+    end                                          // End identity block
+
+    streaming                                    // Streaming configuration
+        key_fields: [transaction_id]             // Partition by transaction ID for ordering guarantees
+        time_field: transaction_time             // Continue using original event time
+    end                                          // End streaming block
+
+    fields                                       // Field definitions
+        transaction_id: uuid required            // Carried forward from input
+        card_number: string required             // Card number (may be masked in some flows)
+        amount: decimal[precision: 12, scale: 2] required  // Original transaction amount
+        currency: string required                // Currency code
+        merchant_id: string required             // Merchant identifier
+        transaction_time: timestamp required     // Original transaction timestamp
+        is_valid: boolean required               // VALIDATION RESULT: true if transaction passed all checks
+        validation_errors: list<string> optional // List of validation error messages if any checks failed
+        daily_total: decimal[precision: 14, scale: 2] optional  // Accumulated spend for this card today (for limit checks)
+    end                                          // End fields block
+end                                              // End validated_transaction schema
+
+// ----------------------------------------------------------------------------
+// SCHEMA: transaction_decision
+// PURPOSE: Final decision record after rules evaluation (approve/decline)
+// PATTERN: event_log - immutable decision audit record
+// ----------------------------------------------------------------------------
+schema transaction_decision                      // Declare schema for final transaction decisions
+    pattern event_log                            // Event log for audit trail compliance
+
+    version 1.0.0                                // Schema version
+
+    identity                                     // Unique identifier
+        transaction_id: uuid required            // Links back to original transaction
+    end                                          // End identity block
+
+    streaming                                    // Streaming configuration
+        key_fields: [transaction_id]             // Partition key
+        time_field: decision_time                // Use decision time for this event's timestamp
+    end                                          // End streaming block
+
+    fields                                       // Field definitions
+        transaction_id: uuid required            // Reference to original transaction
+        card_number: string required             // Card number for reference
+        amount: decimal required                 // Transaction amount
+        decision: string[values: approved, declined] required  // ENUM: only 'approved' or 'declined' allowed
+        reason: string optional                  // Human-readable explanation of decision
+        decision_time: timestamp required        // When the decision was made
+    end                                          // End fields block
+end                                              // End transaction_decision schema

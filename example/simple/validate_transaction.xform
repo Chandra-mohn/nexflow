@@ -1,0 +1,87 @@
+// ============================================================================
+// FILE: validate_transaction.xform
+// LAYER: L3 - Transform Definition
+// USE CASE: Simple Transaction Validation
+// ============================================================================
+//
+// SUMMARY:
+// This transform file defines data transformation logic for credit card
+// transaction validation. It contains two transforms:
+//
+// 1. validate_basic - The main validation transform that:
+//    - Validates input data (amount positive, required fields present)
+//    - Checks card expiration against current date
+//    - Enforces transaction amount limits ($10,000 max)
+//    - Outputs validated transaction with is_valid flag and error list
+//
+// 2. mask_card_number - A utility transform that masks card numbers for
+//    secure logging, showing only last 4 digits (****-****-****-1234)
+//
+// TRANSFORMS ARE PURE: They have no side effects, same input always produces
+// same output, making them testable and parallelizable.
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: validate_basic
+// PURPOSE: Validate incoming transactions and check card expiry/amount limits
+// INPUT: card_transaction (raw transaction)
+// OUTPUT: validated_transaction (with is_valid flag and errors)
+// ----------------------------------------------------------------------------
+transform validate_basic                         // Declare transform named 'validate_basic'
+    version: 1.0.0                               // Transform version for tracking changes
+    description: "Basic transaction validation"  // Human-readable description of purpose
+    pure: true                                   // PURE FUNCTION: no side effects, deterministic output
+
+    input: card_transaction                      // Input schema type this transform accepts
+    output: validated_transaction                // Output schema type this transform produces
+
+    validate_input                               // PRE-CONDITIONS: checks before processing begins
+        require amount > 0 else "Amount must be positive"           // Reject if amount is zero or negative
+        require card_number is not null else "Card number required" // Reject if card number missing
+        require merchant_id is not null else "Merchant ID required" // Reject if merchant ID missing
+    end                                          // End of input validation block
+
+    apply                                        // TRANSFORMATION LOGIC: map input to output fields
+        transaction_id = input.transaction_id    // Pass through: copy transaction ID unchanged
+        card_number = input.card_number          // Pass through: copy card number unchanged
+        amount = input.amount                    // Pass through: copy amount unchanged
+        currency = input.currency                // Pass through: copy currency unchanged
+        merchant_id = input.merchant_id          // Pass through: copy merchant ID unchanged
+        transaction_time = input.transaction_time // Pass through: copy timestamp unchanged
+
+        // Check card expiry - compute if card is expired
+        let current_year = year(now())           // LOCAL VAR: get current year from system time
+        let current_month = month(now())         // LOCAL VAR: get current month from system time
+        let is_expired = input.card_expiry_year < current_year or  // Card expired if year is past
+            (input.card_expiry_year == current_year and input.card_expiry_month < current_month)  // Or same year but month is past
+
+        // Build validation result - combine expiry check and amount limit
+        is_valid = not is_expired and input.amount <= 10000  // Valid only if not expired AND amount under $10k
+        validation_errors = when is_expired then ["Card expired"]  // CONDITIONAL: add error if expired
+                           when input.amount > 10000 then ["Amount exceeds limit"]  // Or if over limit
+                           otherwise []                       // Empty list if no errors
+    end                                          // End of apply block
+
+    on_error                                     // ERROR HANDLER: what to do if transform fails
+        reject with "Validation failed"          // Reject the record with error message
+    end                                          // End of error handler
+end                                              // End of validate_basic transform
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: mask_card_number
+// PURPOSE: Mask card number for secure logging (show only last 4 digits)
+// INPUT: string (full card number)
+// OUTPUT: string (masked card number like ****-****-****-1234)
+// ----------------------------------------------------------------------------
+transform mask_card_number                       // Declare transform for card masking
+    version: 1.0.0                               // Transform version
+    description: "Mask card number for logging"  // Purpose description
+    pure: true                                   // Pure function: no side effects
+
+    input: string                                // Takes a string input (the card number)
+    output: string                               // Returns a string output (masked number)
+
+    apply                                        // Transformation logic
+        result = "****-****-****-" + substring(input, 12, 4)  // Concatenate mask prefix with last 4 digits (chars 12-15)
+    end                                          // End apply block
+end                                              // End of mask_card_number transform

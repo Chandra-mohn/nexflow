@@ -1,6 +1,6 @@
 # Nexflow Toolchain - L1 to L6 Complete Feature Analysis
 
-**Date**: December 8, 2024
+**Date**: December 9, 2024 (Updated)
 **Purpose**: Comprehensive grammar vs code generator coverage analysis for all 6 DSL layers
 **Reference**: COVENANT-Code-Generation-Principles.md
 
@@ -886,9 +886,11 @@ resources:
 - [x] L1 Buffer types (FIFO/LIFO/PRIORITY) ✅ **NEW**
 - [x] L1 Backpressure alerting with Prometheus ✅ **NEW**
 
-### Phase 1.5: L3/L4 Enhancement (Current Priority)
-- [ ] L3 Transform composition (sequential)
-- [ ] L4 Lookup actions
+### Phase 1.5: L3/L4 Enhancement (COMPLETE ✅)
+- [x] L3 Transform composition (sequential, parallel, conditional)
+- [x] L4 Lookup actions with caching and async support
+- [x] L4 Emit actions with Flink OutputTag side outputs
+- [x] L3/L4 Code quality review and mixin refactoring
 
 ### Phase 2: L5 Implementation
 - [ ] YAML parser for `.infra` files
@@ -900,22 +902,22 @@ resources:
 - [ ] Cross-layer dependency graph
 - [ ] Complete zero-code generation
 
-### Phase 4: Advanced Features
+### Phase 4: Advanced Features (Current Priority)
 - [ ] L1 Batch/micro-batch mode
-- [ ] L2 Schema migration
-- [ ] L3 Transform composition (parallel, conditional)
-- [ ] L4 Complex expression conditions
+- [x] L2 Schema migration ✅ (MigrationGeneratorMixin)
+- [x] L3 Transform composition (parallel, conditional) ✅ (ComposeGeneratorMixin)
+- [x] L4 Complex expression conditions ✅ (BooleanExpressionMixin with NOT, IN/NOT IN, IS NULL)
 
 ## Coverage Improvement Targets
 
-| Layer | Current | Target (Phase 1.5) | Target (Phase 2) |
-|-------|---------|-------------------|------------------|
-| L1 | **97%** ✅ | 97% (complete) | 97% |
-| L2 | **90%** ✅ | 90% (complete) | 95% |
-| L3 | 61% | 70% | 80% |
-| L4 | 65% | 75% | 85% |
-| L5 | 0% | 50% | 80% |
-| L6 | 0% | 0% | 60% |
+| Layer | Current | Phase 1.5 Status | Target (Phase 2) |
+|-------|---------|------------------|------------------|
+| L1 | **97%** ✅ | ✅ Complete | 97% |
+| L2 | **100%** ✅ | ✅ Complete | 100% |
+| L3 | **100%** ✅ | ✅ Complete | 100% |
+| L4 | **100%** ✅ | ✅ Complete | 100% |
+| L5 | 0% | Not started | 80% |
+| L6 | 0% | Not started | 60% |
 
 ---
 
@@ -1179,10 +1181,52 @@ The "railroad" metaphor holds: L1 defines the track layout correctly. Train spee
 
 ---
 
+# Code Quality Review (December 9, 2024)
+
+## Generator Refactoring Summary
+
+All generator code underwent systematic code quality review with file splitting for maintainability:
+
+### File Splitting Results
+
+| Generator | Original Files | After Refactoring | New Mixin Files |
+|-----------|---------------|-------------------|-----------------|
+| **L1 Flow** | 4 files | 6 files | `source_projection.py`, `source_correlation.py` |
+| **L3 Transform** | 8 files | 9 files | `pojo_builder.py` |
+| **L4 Rules** | 6 files | 10 files | `condition_boolean.py`, `lookup_cache.py`, `emit_collectors.py`, `pojo_builder.py` |
+
+**Total**: 81 generator files, all under 300-line target (5 exceptions justified as cohesive templates)
+
+### Import Pattern Standardization
+
+All mixin files now use the `TYPE_CHECKING` pattern for deferred type annotations:
+
+```python
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.ast import transform_ast as ast
+
+class MyMixin:
+    def method(self, param: 'ast.SomeType') -> str:
+        # Runtime import when needed for isinstance checks
+        from backend.ast import transform_ast as ast
+        if isinstance(obj, ast.SomeClass):
+            ...
+```
+
+### Test Results
+
+- **61 unit tests passing** across parsers, validators, and generators
+- **All generator imports verified** (FlowGenerator, SchemaGenerator, TransformGenerator, RulesGenerator)
+- **Mixin composition validated** - methods correctly inherited through mixin chain
+
+---
+
 *Document generated December 8, 2024*
-*Updated: Phase 3 Production Features + L2/L3 Enhancements*
-*L1 at 97% coverage, L2 at 100% coverage, L3 at 84% coverage*
-*New L3 mixins: ComposeGeneratorMixin (sequential/parallel/conditional composition)*
-*Enhanced: ErrorGeneratorMixin (side outputs), ValidationGeneratorMixin (structured messages)*
+*Updated: December 9, 2024 - Code quality review, Phase 1.5 completion, coverage table corrections*
+*L1 at 97% coverage, L2/L3/L4 at 100% coverage*
+*All generator mixins refactored with TYPE_CHECKING pattern*
+*61 unit tests passing, mixin composition verified*
 *Reference: grammar/*.g4, backend/generators/*_generator.py*
 *Nexflow Toolchain v0.4.0*

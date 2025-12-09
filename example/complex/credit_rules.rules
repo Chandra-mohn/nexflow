@@ -1,0 +1,566 @@
+// ============================================================================
+// FILE: credit_rules.rules
+// LAYER: L4 - Rules Definition
+// USE CASE: Complex - Credit Decisioning Platform
+// ============================================================================
+//
+// SUMMARY:
+// This rules file defines business logic for credit decisioning. It demonstrates
+// advanced L4 patterns including multi-dimensional decision tables, tiered
+// approval logic, regulatory compliance rules, and fraud detection.
+//
+// DECISION TABLES (6 total):
+//
+// 1. credit_policy_decision - Multi-factor credit decision matrix:
+//    - 13 rules with priority ordering
+//    - Multiple input conditions (FICO, DTI, income, derogs, etc.)
+//    - Auto-approve tiers for different risk profiles
+//    - Catch-all default to review
+//
+// 2. credit_limit_calculation - Tiered limit calculation:
+//    - Post-calculate block for derived values
+//    - Percentage-of-income with caps
+//    - Limit factor multipliers
+//
+// 3. apr_pricing - Risk-based pricing:
+//    - Base APR and promotional rates
+//    - Promotional period months
+//    - Existing customer benefits
+//
+// 4. counter_offer_eligibility - Alternative product matching:
+//    - Maps decline reasons to counter offers
+//    - Reduced limit and APR increase calculations
+//
+// 5. review_queue_routing - Workflow routing:
+//    - SLA-based queue assignment
+//    - Priority and escalation configuration
+//
+// 6. fraud_indicators - Fraud detection (collect_all):
+//    - hit_policy: collect_all (all matching rules fire)
+//    - aggregate block for score calculation
+//    - Multiple velocity and pattern checks
+//
+// PROCEDURAL RULES (5 total):
+//
+// 1. validate_income_stated - Income verification with bureau comparison
+// 2. check_existing_exposure - Total credit exposure limits
+// 3. apply_regulatory_overrides - SCRA, state APR caps, ability to repay
+// 4. generate_adverse_action_reasons - FCRA-compliant reason codes
+// 5. determine_manual_review_actions - Dynamic action assignment
+//
+// CRITICAL PATTERNS DEMONSTRATED:
+// 1. Multi-Dimensional Decision Matrix (lines 46-82)
+// 2. Post-Calculate Block (lines 120-137)
+// 3. collect_all Hit Policy (lines 230-264)
+// 4. Aggregate Block for Score Summation (lines 259-262)
+// 5. Regulatory Compliance Rules (lines 333-363)
+// ============================================================================
+
+// ============================================================================
+// CRITICAL PATTERN: Multi-Dimensional Decision Table
+// PURPOSE: Primary credit policy with priority-ordered rules
+// HIT POLICY: first_match - evaluate top-to-bottom, stop at first match
+// ============================================================================
+decision_table credit_policy_decision                // DECISION TABLE: Main credit policy
+    hit_policy first_match                           // FIRST_MATCH: Priority order, first match wins
+    description "Primary credit policy decision based on scores and risk factors"
+    version: 2.0.0                                   // VERSION: For compatibility tracking
+
+    given:                                           // INPUT VARIABLES
+        fico_score: integer                          // FICO score (300-850)
+        ensemble_approval_score: decimal             // ML ensemble approval probability
+        ensemble_risk_score: decimal                 // ML ensemble risk score
+        debt_to_income: decimal                      // DTI ratio (0.0-1.0)
+        annual_income: money                         // Annual income
+        derogatory_count: integer                    // Number of derogatory accounts
+        public_record_count: integer                 // Number of public records
+        is_existing_customer: boolean                // Existing customer flag
+        channel: text                                // Application channel
+        all_compliance_passed: boolean               // Compliance check result
+
+    // =========================================================================
+    // DECISION MATRIX: Multi-dimensional rule evaluation
+    // STRUCTURE: condition columns | output columns
+    // * = wildcard (any value), > < >= <= = comparison operators
+    // =========================================================================
+    decide:                                          // DECISION MATRIX
+        | priority | all_compliance_passed | fico_score | ensemble_approval_score | ensemble_risk_score | debt_to_income | annual_income | derogatory_count | public_record_count | is_existing_customer | decision    | reason_code | disposition          |
+        |==================================================================================================================================================================================================================================================================================|
+        // KNOCKOUT RULES (Priority 1-6): Auto-decline conditions
+        | 1        | false                 | *          | *                       | *                   | *              | *             | *                | *                   | *                    | "declined"  | "CP001"     | "Compliance failure" |  // Row 1: Compliance failure = auto-decline
+        | 2        | *                     | < 500      | *                       | *                   | *              | *             | *                | *                   | *                    | "declined"  | "SC001"     | "Score below minimum"|  // Row 2: FICO < 500 = auto-decline
+        | 3        | *                     | *          | *                       | > 0.85              | *              | *             | *                | *                   | *                    | "declined"  | "RS001"     | "High risk score"    |  // Row 3: High ML risk = auto-decline
+        | 4        | *                     | *          | *                       | *                   | > 0.50         | *             | *                | *                   | *                    | "declined"  | "DT001"     | "DTI exceeds limit"  |  // Row 4: DTI > 50% = auto-decline
+        | 5        | *                     | *          | *                       | *                   | *              | *             | > 3              | *                   | *                    | "declined"  | "DR001"     | "Excessive derogs"   |  // Row 5: >3 derogatories = auto-decline
+        | 6        | *                     | *          | *                       | *                   | *              | *             | *                | > 1                 | *                    | "declined"  | "PR001"     | "Public records"     |  // Row 6: >1 public records = auto-decline
+        // AUTO-APPROVE TIERS (Priority 10-12): Low-risk auto-approval
+        | 10       | true                  | >= 750     | >= 0.80                 | <= 0.20             | <= 0.35        | >= 50000      | 0                | 0                   | *                    | "approved"  | "AA001"     | "Auto-approve tier 1"|  // Row 10: Best tier - prime applicants
+        | 11       | true                  | >= 700     | >= 0.70                 | <= 0.30             | <= 0.40        | >= 40000      | <= 1             | 0                   | true                 | "approved"  | "AA002"     | "Auto-approve tier 2"|  // Row 11: Good tier - existing customers
+        | 12       | true                  | >= 680     | >= 0.65                 | <= 0.35             | <= 0.43        | >= 35000      | <= 1             | 0                   | true                 | "approved"  | "AA003"     | "Auto-approve exist" |  // Row 12: Near-prime existing customers
+        // MANUAL REVIEW TIERS (Priority 20-22): Human review required
+        | 20       | true                  | >= 620     | >= 0.50                 | <= 0.50             | <= 0.45        | >= 25000      | <= 2             | 0                   | *                    | "review"    | "MR001"     | "Near threshold"     |  // Row 20: Near approval threshold
+        | 21       | true                  | >= 580     | *                       | *                   | *              | >= 30000      | *                | *                   | true                 | "review"    | "MR002"     | "Existing customer"  |  // Row 21: Existing customer deserves review
+        | 22       | true                  | *          | >= 0.40                 | <= 0.60             | *              | *             | *                | *                   | *                    | "review"    | "MR003"     | "Model uncertainty"  |  // Row 22: ML model uncertain
+        // FALLBACK RULES (Priority 30+)
+        | 30       | *                     | < 580      | < 0.40                  | > 0.60              | *              | *             | *                | *                   | *                    | "declined"  | "AD001"     | "Below thresholds"   |  // Row 30: Clearly below all thresholds
+        | 99       | *                     | *          | *                       | *                   | *              | *             | *                | *                   | *                    | "review"    | "MR099"     | "Default to review"  |  // Row 99: CATCH-ALL - default to review
+
+    return:                                          // OUTPUT VARIABLES
+        decision: text                               // Final decision: approved, declined, review
+        reason_code: text                            // Reason code for tracking
+        disposition: text                            // Human-readable disposition
+end                                                  // End credit_policy_decision
+
+// ============================================================================
+// CRITICAL PATTERN: Decision Table with Post-Calculate Block
+// PURPOSE: Calculate approved credit limit with derived computations
+// ============================================================================
+decision_table credit_limit_calculation              // DECISION TABLE: Limit calculation
+    hit_policy first_match                           // FIRST_MATCH: Tiered limit assignment
+    description "Calculate approved credit limit based on risk profile"
+
+    given:                                           // INPUT VARIABLES
+        fico_score: integer                          // FICO score
+        annual_income: money                         // Annual income
+        debt_to_income: decimal                      // DTI ratio
+        utilization: decimal                         // Credit utilization
+        existing_total_limit: money                  // Existing credit limits
+        is_existing_customer: boolean                // Existing customer flag
+        internal_risk_rating: text                   // Internal risk rating
+        requested_limit: money                       // Requested limit amount
+
+    // TIERED LIMIT MATRIX: Higher tiers get better terms
+    decide:
+        | fico_score | annual_income | debt_to_income | utilization | existing_total_limit | is_existing_customer | internal_risk_rating | base_limit_pct | max_limit   | limit_factor |
+        |===========================================================================================================================================================================================================================|
+        | >= 800     | >= 150000     | <= 0.20        | <= 0.10     | *                    | *                    | *                    | 0.50           | 100000      | 1.25         |  // Tier 1: Best - 50% income, $100k cap, 1.25x factor
+        | >= 800     | >= 100000     | <= 0.25        | <= 0.20     | *                    | *                    | *                    | 0.45           | 75000       | 1.20         |  // Tier 2: Excellent
+        | >= 750     | >= 100000     | <= 0.30        | <= 0.30     | *                    | true                 | "low"                | 0.40           | 50000       | 1.15         |  // Tier 3: Very good + existing + low risk
+        | >= 750     | >= 75000      | <= 0.35        | <= 0.40     | *                    | *                    | *                    | 0.35           | 40000       | 1.10         |  // Tier 4: Very good
+        | >= 700     | >= 75000      | <= 0.35        | <= 0.50     | *                    | true                 | *                    | 0.30           | 30000       | 1.05         |  // Tier 5: Good + existing
+        | >= 700     | >= 50000      | <= 0.40        | <= 0.50     | *                    | *                    | *                    | 0.25           | 25000       | 1.00         |  // Tier 6: Good
+        | >= 680     | >= 50000      | <= 0.43        | <= 0.60     | *                    | true                 | *                    | 0.22           | 20000       | 1.00         |  // Tier 7: Near-prime + existing
+        | >= 680     | >= 40000      | <= 0.43        | <= 0.70     | *                    | *                    | *                    | 0.20           | 15000       | 0.95         |  // Tier 8: Near-prime
+        | >= 650     | >= 35000      | <= 0.45        | *           | *                    | true                 | *                    | 0.18           | 10000       | 0.90         |  // Tier 9: Sub-prime + existing
+        | >= 650     | >= 30000      | <= 0.45        | *           | *                    | *                    | *                    | 0.15           | 7500        | 0.85         |  // Tier 10: Sub-prime
+        | >= 620     | >= 25000      | *              | *           | *                    | *                    | *                    | 0.12           | 5000        | 0.80         |  // Tier 11: Minimum qualifying
+        | >= 580     | >= 20000      | *              | *           | *                    | true                 | *                    | 0.10           | 3000        | 0.75         |  // Tier 12: Deep sub-prime + existing
+        | *          | *             | *              | *           | *                    | *                    | *                    | 0.08           | 2000        | 0.70         |  // Tier 13: CATCH-ALL - minimum tier
+
+    return:                                          // INTERMEDIATE OUTPUTS
+        base_limit_pct: decimal                      // Percentage of income for base limit
+        max_limit: money                             // Maximum cap for this tier
+        limit_factor: decimal                        // Multiplier for limit adjustment
+
+    // =========================================================================
+    // CRITICAL PATTERN: Post-Calculate Block
+    // PURPOSE: Derive final values from decision table outputs
+    // =========================================================================
+    post_calculate:                                  // POST_CALCULATE: Derived computations
+        // Calculate base limit as percentage of income
+        let base_limit = annual_income * base_limit_pct  // Base = income × percentage
+
+        // Apply limit factor (reward/penalty multiplier)
+        let adjusted_limit = base_limit * limit_factor   // Adjusted = base × factor
+
+        // Apply maximum cap for risk control
+        let capped_limit = min(adjusted_limit, max_limit)  // MIN: Don't exceed tier cap
+
+        // Round to nearest $500 for clean amounts
+        approved_limit = round(capped_limit / 500) * 500   // ROUND: Clean number
+
+        // Don't exceed requested amount if specified
+        approved_limit = when requested_limit is not null and requested_limit < approved_limit
+                        then requested_limit             // Honor lower request
+                        otherwise approved_limit         // Otherwise use calculated
+end                                                  // End credit_limit_calculation
+
+decision_table apr_pricing
+    hit_policy first_match
+    description "Determine APR based on risk profile"
+
+    given:
+        fico_score: integer
+        ensemble_risk_score: decimal
+        debt_to_income: decimal
+        product_type: text
+        is_existing_customer: boolean
+        promotional_eligible: boolean
+
+    decide:
+        | fico_score | ensemble_risk_score | debt_to_income | product_type     | is_existing_customer | promotional_eligible | base_apr | promo_apr | promo_months |
+        |=============================================================================================================================================================|
+        | >= 800     | <= 0.15             | <= 0.25        | *                | *                    | true                 | 12.99    | 0.00      | 15           |
+        | >= 800     | <= 0.15             | <= 0.25        | *                | *                    | false                | 12.99    | null      | 0            |
+        | >= 750     | <= 0.25             | <= 0.30        | *                | true                 | true                 | 14.99    | 0.00      | 12           |
+        | >= 750     | <= 0.25             | <= 0.30        | *                | *                    | *                    | 14.99    | null      | 0            |
+        | >= 700     | <= 0.35             | <= 0.35        | "premium"        | *                    | true                 | 16.99    | 4.99      | 12           |
+        | >= 700     | <= 0.35             | <= 0.35        | *                | *                    | *                    | 17.99    | null      | 0            |
+        | >= 680     | <= 0.45             | <= 0.40        | *                | true                 | *                    | 19.99    | null      | 0            |
+        | >= 680     | <= 0.45             | <= 0.40        | *                | *                    | *                    | 20.99    | null      | 0            |
+        | >= 650     | <= 0.55             | <= 0.43        | *                | *                    | *                    | 22.99    | null      | 0            |
+        | >= 620     | <= 0.65             | *              | *                | *                    | *                    | 24.99    | null      | 0            |
+        | >= 580     | *                   | *              | *                | true                 | *                    | 26.99    | null      | 0            |
+        | *          | *                   | *              | *                | *                    | *                    | 29.99    | null      | 0            |
+
+    return:
+        base_apr: decimal
+        promo_apr: decimal
+        promo_months: integer
+end
+
+decision_table counter_offer_eligibility
+    hit_policy first_match
+    description "Determine if applicant qualifies for counter offer"
+
+    given:
+        original_decision: text
+        fico_score: integer
+        annual_income: money
+        decline_reason_code: text
+        ensemble_approval_score: decimal
+
+    decide:
+        | original_decision | fico_score   | annual_income | decline_reason_code | ensemble_approval_score | offer_type        | limit_reduction | apr_increase |
+        |=========================================================================================================================================================|
+        | "declined"        | >= 650       | >= 40000      | "DT001"             | >= 0.35                 | "reduced_limit"   | 0.50            | 0.02         |
+        | "declined"        | >= 620       | >= 35000      | "SC001"             | >= 0.30                 | "secured_card"    | null            | 0.05         |
+        | "declined"        | >= 600       | >= 30000      | "DR001"             | >= 0.25                 | "secured_card"    | null            | 0.05         |
+        | "declined"        | >= 580       | >= 25000      | *                   | >= 0.20                 | "starter_card"    | null            | 0.08         |
+        | *                 | *            | *             | *                   | *                       | "none"            | null            | null         |
+
+    return:
+        offer_type: text
+        limit_reduction: decimal
+        apr_increase: decimal
+end
+
+decision_table review_queue_routing
+    hit_policy first_match
+    description "Route pending reviews to appropriate queue"
+
+    given:
+        review_reason_code: text
+        requested_limit: money
+        annual_income: money
+        is_existing_customer: boolean
+        fico_score: integer
+        ensemble_risk_score: decimal
+
+    decide:
+        | review_reason_code | requested_limit | annual_income | is_existing_customer | fico_score | ensemble_risk_score | queue              | priority | sla_hours | escalation_after_hours |
+        |================================================================================================================================================================================================================|
+        | "MR001"            | > 50000         | *             | *                    | *          | *                   | "senior_underwrite"| "high"   | 4         | 8                      |
+        | "MR001"            | *               | >= 100000     | *                    | *          | *                   | "senior_underwrite"| "medium" | 8         | 16                     |
+        | "MR001"            | *               | *             | true                 | >= 700     | *                   | "retention_team"   | "high"   | 4         | 8                      |
+        | "MR001"            | *               | *             | *                    | *          | *                   | "standard_review"  | "medium" | 24        | 48                     |
+        | "MR002"            | *               | *             | true                 | *          | *                   | "retention_team"   | "medium" | 8         | 24                     |
+        | "MR003"            | *               | *             | *                    | *          | > 0.55              | "risk_review"      | "high"   | 4         | 8                      |
+        | "MR003"            | *               | *             | *                    | *          | *                   | "standard_review"  | "medium" | 24        | 48                     |
+        | "MR099"            | *               | *             | *                    | *          | *                   | "standard_review"  | "low"    | 48        | 72                     |
+        | *                  | *               | *             | *                    | *          | *                   | "standard_review"  | "low"    | 48        | 72                     |
+
+    return:
+        queue: text
+        priority: text
+        sla_hours: integer
+        escalation_after_hours: integer
+end
+
+// ============================================================================
+// CRITICAL PATTERN: collect_all Hit Policy with Aggregate Block
+// PURPOSE: Collect ALL matching fraud indicators (not just first match)
+// PATTERN: Multiple rules can fire, results aggregated
+// ============================================================================
+decision_table fraud_indicators                      // DECISION TABLE: Fraud detection
+    hit_policy collect_all                           // COLLECT_ALL: All matching rules fire (not first_match!)
+    description "Collect all fraud indicators for risk assessment"
+
+    given:                                           // INPUT VARIABLES
+        application_velocity_24h: integer            // Applications in last 24 hours
+        ssn_applications_30d: integer                // Applications with same SSN in 30 days
+        address_applications_30d: integer            // Applications from same address in 30 days
+        device_applications_7d: integer              // Applications from same device in 7 days
+        ip_risk_score: decimal                       // IP risk score (0.0-1.0)
+        identity_mismatch_count: integer             // Number of identity data mismatches
+        bureau_fraud_alert: boolean                  // Bureau has fraud alert on file
+
+    // COLLECT_ALL MATRIX: Each matching row adds to results
+    // Unlike first_match, ALL rows can match and contribute
+    decide:
+        | application_velocity_24h | ssn_applications_30d | address_applications_30d | device_applications_7d | ip_risk_score | identity_mismatch_count | bureau_fraud_alert | indicator           | severity   | score_impact |
+        |=====================================================================================================================================================================================================================================================|
+        | > 3                      | *                    | *                        | *                      | *             | *                       | *                  | "velocity_24h"      | "high"     | 30           |  // High velocity: +30 points
+        | *                        | > 2                  | *                        | *                      | *             | *                       | *                  | "ssn_velocity"      | "critical" | 50           |  // SSN reuse: +50 points (critical)
+        | *                        | *                    | > 5                      | *                      | *             | *                       | *                  | "address_velocity"  | "medium"   | 20           |  // Address velocity: +20 points
+        | *                        | *                    | *                        | > 3                    | *             | *                       | *                  | "device_velocity"   | "high"     | 35           |  // Device velocity: +35 points
+        | *                        | *                    | *                        | *                      | > 0.7         | *                       | *                  | "high_risk_ip"      | "medium"   | 25           |  // High risk IP: +25 points
+        | *                        | *                    | *                        | *                      | *             | > 2                     | *                  | "identity_mismatch" | "high"     | 40           |  // Identity mismatch: +40 points
+        | *                        | *                    | *                        | *                      | *             | *                       | true               | "bureau_alert"      | "critical" | 60           |  // Bureau alert: +60 points (critical)
+
+    return:                                          // PER-MATCH OUTPUTS (one per matched row)
+        indicator: text                              // Indicator name
+        severity: text                               // Severity level
+        score_impact: integer                        // Points to add to fraud score
+
+    // =========================================================================
+    // CRITICAL PATTERN: Aggregate Block for collect_all Results
+    // PURPOSE: Combine results from all matched rows
+    // =========================================================================
+    aggregate:                                       // AGGREGATE: Combine matched results
+        total_fraud_score = sum(score_impact)        // SUM: Total of all score_impacts
+        highest_severity = max(severity)             // MAX: Highest severity among matches
+        fraud_indicators = collect(indicator)        // COLLECT: List of all indicator names
+end                                                  // End fraud_indicators
+
+// ============================================================================
+// PROCEDURAL RULE: Income Validation
+// PURPOSE: Verify stated income against bureau data and reasonableness
+// ============================================================================
+rule validate_income_stated:                         // RULE: Income validation
+    description "Validate stated income against bureau data and reasonableness checks"
+
+    let stated_income = annual_income                // LET: Local variable assignment
+    let bureau_income_estimate = bureau_data.estimated_income
+
+    // Check against bureau estimate if available
+    if bureau_income_estimate is not null then       // IF: Conditional check
+        let variance = abs(stated_income - bureau_income_estimate) / bureau_income_estimate  // MATH: Calculate variance
+
+        if variance > 0.50 then                      // NESTED IF: High variance
+            add_flag("income_variance_high")         // ADD_FLAG: Mark for downstream
+            add_review_reason("Income variance exceeds 50% of bureau estimate")  // ADD_REVIEW_REASON: Explain why
+        elseif variance > 0.25 then                  // ELSEIF: Moderate variance
+            add_flag("income_variance_moderate")
+        endif                                        // ENDIF: End nested if
+    endif                                            // ENDIF: End outer if
+
+    // Reasonableness checks by occupation
+    let occupation_median = lookup_occupation_median(applicant.employment.occupation)  // LOOKUP: External data
+    if occupation_median is not null then
+        if stated_income > occupation_median * 3 then  // 3x median = suspicious
+            add_flag("income_above_occupation_norm")
+            add_review_reason("Income significantly above occupation median")
+        endif
+    endif
+
+    // Employment duration check
+    if applicant.employment.years_employed < 1 and stated_income > 100000 then  // AND: Combined condition
+        add_flag("high_income_new_employment")        // High income + new job = suspicious
+    endif
+
+    return                                           // RETURN: End rule execution
+end                                                  // End rule
+
+// ============================================================================
+// PROCEDURAL RULE: Existing Customer Exposure Check
+// PURPOSE: Limit total credit exposure for existing customers
+// ============================================================================
+rule check_existing_exposure:                        // RULE: Exposure check
+    description "Calculate total exposure for existing customers"
+
+    if is_existing_customer == true then             // IF: Only for existing customers
+        // Calculate current exposure
+        let existing_limits = sum(existing_customer_data.existing_products, p -> p.credit_limit)  // SUM with lambda
+        let existing_balances = sum(existing_customer_data.existing_products, p -> p.balance)
+        let requested_additional = requested_limit
+
+        let total_proposed_exposure = existing_limits + requested_additional
+        let max_exposure_allowed = annual_income * 0.75  // Policy: Max 75% of income
+
+        if total_proposed_exposure > max_exposure_allowed then
+            add_flag("exposure_limit_breach")
+            set max_additional_limit = max_exposure_allowed - existing_limits  // SET: Modify variable
+
+            if max_additional_limit < 1000 then      // Not enough room for minimum limit
+                set decision_override = "declined"   // OVERRIDE: Force decline
+                set override_reason = "Total exposure exceeds policy maximum"
+            else
+                set limit_cap = max_additional_limit  // CAP: Limit the approval
+                add_condition("limit_capped_exposure")
+            endif
+        endif
+
+        // Check payment history
+        if existing_customer_data.payment_history_score < 600 then
+            add_flag("poor_internal_payment_history")
+            add_review_reason("Internal payment history below threshold")
+        endif
+    endif
+
+    return
+end                                                  // End rule
+
+// ============================================================================
+// CRITICAL PATTERN: Regulatory Override Rule
+// PURPOSE: Apply mandatory regulatory rules that OVERRIDE all other decisions
+// REGULATIONS: SCRA (military), State APR caps, Ability to Repay (ATR)
+// ============================================================================
+rule apply_regulatory_overrides:                     // RULE: Regulatory compliance
+    description "Apply mandatory regulatory rules that override all other decisions"
+
+    // =========================================================================
+    // SCRA (Servicemembers Civil Relief Act) Check
+    // REQUIREMENT: Active military cannot be charged >36% APR
+    // =========================================================================
+    if applicant.is_military_active == true then     // SCRA protection check
+        set max_apr = 36.0                           // SCRA CAP: Maximum 36% APR
+        add_flag("scra_protected")                   // Flag for audit trail
+    endif
+
+    // =========================================================================
+    // State-Specific APR Caps
+    // REQUIREMENT: Some states have usury laws capping interest rates
+    // =========================================================================
+    let state_apr_cap = lookup_state_apr_cap(applicant.address.state)  // LOOKUP: State regulation
+    if state_apr_cap is not null and calculated_apr > state_apr_cap then
+        set calculated_apr = state_apr_cap           // ENFORCE: State cap
+        add_flag("state_apr_capped")
+    endif
+
+    // =========================================================================
+    // Ability to Repay (ATR) Check
+    // REQUIREMENT: Consumer must be able to repay without undue burden
+    // LIMIT: Monthly payment cannot exceed 15% of monthly income
+    // =========================================================================
+    let monthly_payment_estimate = calculate_monthly_payment(approved_limit, calculated_apr)  // FUNCTION: Calculate payment
+    let monthly_income = annual_income / 12
+    let payment_to_income = monthly_payment_estimate / monthly_income
+
+    if payment_to_income > 0.15 then                 // ATR breach: >15% of income
+        // Reduce limit to meet ability to repay requirement
+        let max_payment = monthly_income * 0.15      // Calculate affordable payment
+        let adjusted_limit = calculate_limit_for_payment(max_payment, calculated_apr)  // Reverse calculate limit
+        set approved_limit = min(approved_limit, adjusted_limit)  // ENFORCE: Lower limit
+        add_flag("atr_adjusted")                     // Flag for audit trail
+    endif
+
+    return
+end                                                  // End rule
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: generate_adverse_action_reasons
+// CRITICAL PATTERN: FCRA Compliance - Adverse Action Reason Codes
+// PURPOSE: Maps internal decline reasons to legally-required consumer-facing codes
+// REGULATORY: Fair Credit Reporting Act (FCRA) requires disclosure of reasons
+// ----------------------------------------------------------------------------
+rule generate_adverse_action_reasons:
+    description "Generate FCRA-compliant adverse action reason codes"
+
+    if decision == "declined" then
+        let reasons = []                                 // ACCUMULATOR: Build reason list dynamically
+
+        // CRITICAL PATTERN: REASON CODE MAPPING
+        // Internal codes → FCRA-compliant consumer codes
+        // Each mapping ensures legal compliance while maintaining audit trail
+
+        // Map internal decline reasons to FCRA codes
+        if decline_reason_code == "SC001" then
+            append(reasons, {code: "01", text: "Credit score does not meet minimum requirements"})  // APPEND: Add to list
+        endif
+
+        if decline_reason_code == "DT001" then
+            append(reasons, {code: "02", text: "Debt-to-income ratio is too high"})
+        endif
+
+        if decline_reason_code == "DR001" then
+            append(reasons, {code: "03", text: "Derogatory items on credit report"})
+        endif
+
+        if decline_reason_code == "PR001" then
+            append(reasons, {code: "04", text: "Public records found on credit report"})
+        endif
+
+        if decline_reason_code == "RS001" then
+            append(reasons, {code: "05", text: "Risk assessment indicates elevated risk"})
+        endif
+
+        if decline_reason_code == "CP001" then
+            append(reasons, {code: "06", text: "Unable to verify identity or other application information"})
+        endif
+
+        // CRITICAL PATTERN: BUREAU DATA ENRICHMENT
+        // Additional reasons derived from credit report data
+        // These supplement the primary decline reason with contributing factors
+        if bureau_data.utilization > 0.50 then
+            append(reasons, {code: "07", text: "High credit utilization"})
+        endif
+
+        if bureau_data.recent_inquiries > 4 then
+            append(reasons, {code: "08", text: "Too many recent credit inquiries"})
+        endif
+
+        // CRITICAL PATTERN: FCRA REASON LIMIT
+        // FCRA requires disclosure of UP TO 4 principal reasons
+        // TAKE function limits list to first 4 most relevant reasons
+        set adverse_action_reasons = take(reasons, 4)    // TAKE: Limit to 4 reasons per FCRA requirement
+    endif
+
+    return
+end
+
+// ----------------------------------------------------------------------------
+// PROCEDURAL RULE: determine_manual_review_actions
+// CRITICAL PATTERN: Dynamic Review Action Assignment
+// PURPOSE: Generates context-specific review tasks based on flagged conditions
+// WORKFLOW: Flags from prior rules → Required reviewer actions
+// ----------------------------------------------------------------------------
+rule determine_manual_review_actions:
+    description "Set up required actions for manual review queue"
+
+    if decision == "review" then
+        let required_actions = []                        // ACCUMULATOR: Build action list
+
+        // CRITICAL PATTERN: FLAG-DRIVEN WORKFLOW GENERATION
+        // Each flag from prior rules triggers specific reviewer actions
+        // This creates a self-documenting review queue with clear tasks
+
+        // HAS_FLAG: Check for flag set by prior rule evaluation
+        if has_flag("income_variance_high") then         // FLAG CHECK: Income inconsistency detected
+            append(required_actions, {
+                action: "verify_income",
+                description: "Request income documentation (pay stubs, tax returns)",
+                required: true                           // REQUIRED: Blocking action
+            })
+        endif
+
+        if has_flag("identity_mismatch") then            // FLAG CHECK: ID verification issue
+            append(required_actions, {
+                action: "verify_identity",
+                description: "Request additional identity verification",
+                required: true
+            })
+        endif
+
+        if has_flag("address_velocity") then             // FLAG CHECK: Frequent address changes
+            append(required_actions, {
+                action: "verify_address",
+                description: "Verify address with utility bill or bank statement",
+                required: true
+            })
+        endif
+
+        if has_flag("poor_internal_payment_history") then  // FLAG CHECK: Internal data concern
+            append(required_actions, {
+                action: "review_payment_history",
+                description: "Review internal payment history and determine if issues resolved",
+                required: true
+            })
+        endif
+
+        // CRITICAL PATTERN: SCORE-DRIVEN OPTIONAL ACTION
+        // Borderline scores (0.50-0.60) trigger optional enhanced assessment
+        if ensemble_risk_score > 0.50 and ensemble_risk_score <= 0.60 then
+            append(required_actions, {
+                action: "risk_assessment",
+                description: "Perform enhanced risk assessment",
+                required: false                          // OPTIONAL: Non-blocking action
+            })
+        endif
+
+        set review_actions = required_actions            // SET: Assign accumulated actions
+        set review_action_count = length(required_actions)  // LENGTH: Count for workflow routing
+    endif
+
+    return
+end

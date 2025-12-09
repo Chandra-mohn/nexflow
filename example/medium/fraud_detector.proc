@@ -1,0 +1,257 @@
+// ============================================================================
+// FILE: fraud_detector.proc
+// LAYER: L1 - Process Orchestration
+// USE CASE: Medium - Fraud Detection Pipeline
+// ============================================================================
+//
+// SUMMARY:
+// This process file orchestrates a multi-stage fraud detection pipeline.
+// It demonstrates medium complexity patterns including:
+//
+// MAIN PROCESS (fraud_detector):
+// - Multi-source enrichment (customer profile + windowed velocity)
+// - Tumbling windows for hourly/daily velocity calculation
+// - ML model integration for fraud scoring
+// - Multiple rule evaluations (velocity, merchant, timing, amount)
+// - Multi-way routing (approved, blocked, review)
+// - Alert generation with team routing
+// - Comprehensive metrics collection
+//
+// SUPPORTING PROCESSES:
+// - customer_profile_updater: Maintains customer profiles in MongoDB
+// - alert_aggregator: Aggregates alerts by customer for escalation
+//
+// KEY FEATURES:
+// - Parallelism hint of 8 for high-throughput processing
+// - Tumbling windows for velocity computation (1 hour, 24 hours)
+// - Branch construct for conditional processing paths
+// - Circuit breakers for external service calls
+// - Dead letter queue for failed records
+//
+// DATA FLOW:
+// Kafka → Enrich(customer) → Window(velocity) → Score(ML+rules) →
+// Route(decision) → Emit(approved/blocked/review) + Alert(if needed)
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// PROCESS: fraud_detector
+// PURPOSE: Main fraud detection pipeline orchestrating all processing stages
+// ----------------------------------------------------------------------------
+process fraud_detector                           // Declare main process
+    parallelism hint 8                           // SCALING: suggest 8 parallel instances
+    time by transaction_time                     // EVENT TIME: use transaction timestamp for windowing
+        watermark delay 10 seconds               // WATERMARK: 10 seconds late data tolerance
+
+    // =========================================================================
+    // STAGE 1: Ingest raw transactions from Kafka
+    // =========================================================================
+    receive raw_transactions                     // RECEIVE: read from source
+        schema raw_transaction                   // SCHEMA: expect raw_transaction schema
+        from kafka "transactions-topic"          // SOURCE: Kafka topic name
+            group "fraud-detector-group"         // CONSUMER GROUP: for offset management
+            offset latest                        // OFFSET: start from latest (not beginning)
+
+    // =========================================================================
+    // STAGE 2: Enrich with customer profile
+    // =========================================================================
+    transform using enrich_with_customer         // TRANSFORM: apply enrichment transform
+        lookup customer_profile                  // LOOKUP: join with customer_profile
+            from mongodb "customers"             // SOURCE: MongoDB collection
+            key card_holder_id                   // KEY: lookup by card_holder_id
+            cache ttl 5 minutes                  // CACHE: cache profiles for 5 min
+
+    // =========================================================================
+    // STAGE 3: Calculate velocity using tumbling windows
+    // =========================================================================
+
+    // Hourly velocity window
+    window tumbling 1 hour                       // WINDOW: 1-hour tumbling (non-overlapping) window
+        key by card_holder_id                    // KEY: separate window per customer
+        aggregate                                // AGGREGATIONS to compute
+            count() as hourly_count              // COUNT: number of transactions
+            sum(amount) as hourly_amount         // SUM: total amount
+        end                                      // End aggregations
+        state velocity_hourly                    // STATE: store in 'velocity_hourly' state store
+
+    // Daily velocity window
+    window tumbling 24 hours                     // WINDOW: 24-hour tumbling window
+        key by card_holder_id                    // KEY: per customer
+        aggregate                                // AGGREGATIONS
+            count() as daily_count               // COUNT: daily transaction count
+            sum(amount) as daily_amount          // SUM: daily total amount
+        end                                      // End aggregations
+        state velocity_daily                     // STATE: store in 'velocity_daily'
+
+    // Apply velocity metrics to transaction
+    transform using calculate_velocity_metrics   // TRANSFORM: populate velocity fields
+        state velocity_hourly, velocity_daily    // STATE: read from both state stores
+
+    // =========================================================================
+    // STAGE 4: Apply fraud scoring (ML + rules)
+    // =========================================================================
+    transform using apply_fraud_scoring          // TRANSFORM: ML model + rule-based scoring
+
+    // =========================================================================
+    // STAGE 5: Evaluate rules
+    // =========================================================================
+
+    // Check for velocity breaches
+    evaluate using velocity_breach_check         // EVALUATE: run decision table
+        when breach_type != "none"               // CONDITIONAL: if breach detected
+            add_flag "velocity_breach"           // Add flag for downstream processing
+            add_metadata "breach_severity" = severity  // Store severity in metadata
+        end                                      // End conditional block
+
+    // Categorize merchant risk
+    evaluate using merchant_risk_category        // EVALUATE: merchant risk table
+        add_metadata "merchant_risk" = risk_level  // Store risk level
+        adjust_score by risk_multiplier          // Adjust fraud score by multiplier
+
+    // Apply procedural rules
+    evaluate using check_unusual_time            // EVALUATE: unusual time rule
+    evaluate using check_rapid_succession        // EVALUATE: rapid succession rule
+    evaluate using check_amount_pattern          // EVALUATE: amount pattern rule
+    evaluate using apply_premium_benefits        // EVALUATE: premium benefits rule
+
+    // =========================================================================
+    // STAGE 6: Make fraud decision
+    // =========================================================================
+    route using fraud_decision                   // ROUTE: evaluate fraud_decision table
+        approved to approved_transactions        // ROUTING: decision='approved' → approved sink
+        blocked to blocked_transactions          // ROUTING: decision='blocked' → blocked sink
+        review to review_queue                   // ROUTING: decision='review' → review sink
+
+    // =========================================================================
+    // STAGE 7: Handle approved transactions
+    // =========================================================================
+    emit to approved_transactions                // EMIT: write to approved sink
+        schema fraud_decision                    // SCHEMA: output fraud_decision schema
+        to kafka "approved-transactions"         // DESTINATION: Kafka topic
+
+    // =========================================================================
+    // STAGE 8: Handle blocked transactions - generate alerts
+    // =========================================================================
+    branch blocked_transactions                  // BRANCH: conditional processing for blocked
+        transform using create_fraud_alert       // TRANSFORM: generate alert record
+
+        // Route alerts to appropriate teams
+        route using alert_routing                // ROUTE: team assignment
+            fraud_priority to priority_alerts    // High priority alerts
+            fraud_team to standard_alerts        // Standard fraud team
+            general_review to batch_alerts       // General review queue
+            batch_review to batch_alerts         // Batch processing
+
+        // Emit to different alert queues
+        emit to priority_alerts                  // EMIT: high priority
+            schema fraud_alert                   // SCHEMA: alert schema
+            to kafka "priority-alerts"           // DESTINATION: priority topic
+
+        emit to standard_alerts                  // EMIT: standard alerts
+            schema fraud_alert                   // SCHEMA: alert schema
+            to kafka "fraud-alerts"              // DESTINATION: fraud-alerts topic
+
+        emit to batch_alerts                     // EMIT: batch alerts
+            schema fraud_alert                   // SCHEMA: alert schema
+            to kafka "batch-alerts"              // DESTINATION: batch topic
+    end                                          // End branch block
+
+    // Also emit the decision record
+    emit to blocked_transactions                 // EMIT: blocked decision record
+        schema fraud_decision                    // SCHEMA: decision schema
+        to kafka "blocked-transactions"          // DESTINATION: blocked topic
+
+    // =========================================================================
+    // STAGE 9: Handle review queue
+    // =========================================================================
+    emit to review_queue                         // EMIT: transactions needing review
+        schema fraud_decision                    // SCHEMA: decision schema
+        to kafka "review-queue"                  // DESTINATION: review topic
+
+    // =========================================================================
+    // METRICS: Operational monitoring
+    // =========================================================================
+    metrics                                      // METRICS: define counters and gauges
+        counter transactions_processed           // COUNT: total processed
+        counter transactions_blocked             // COUNT: blocked transactions
+        counter transactions_approved            // COUNT: approved transactions
+        counter transactions_review              // COUNT: sent to review
+        histogram fraud_score_distribution       // HISTOGRAM: fraud score distribution
+        gauge active_velocity_windows            // GAUGE: active window count
+    end                                          // End metrics block
+
+    // =========================================================================
+    // ERROR HANDLING
+    // =========================================================================
+    on error                                     // ERROR HANDLER: define error behavior
+        retry 3 times                            // RETRY: attempt up to 3 times
+            delay 1 second                       // DELAY: 1 second between retries
+            backoff exponential                  // BACKOFF: exponential delay increase
+        then                                     // AFTER RETRIES EXHAUSTED
+            log_error("Transaction processing failed")  // LOG: error message
+            emit to dead_letter_queue            // DLQ: send to dead letter queue
+    end                                          // End error handler
+end                                              // End fraud_detector process
+
+// ============================================================================
+// SUPPORTING PROCESS: customer_profile_updater
+// PURPOSE: Maintain customer profiles from update events
+// ============================================================================
+process customer_profile_updater                 // Declare profile updater process
+    parallelism hint 2                           // SCALING: 2 instances sufficient
+    time by processing_time                      // TIME: use processing time (not event time)
+
+    receive profile_updates                      // RECEIVE: profile update events
+        schema customer_profile                  // SCHEMA: customer_profile schema
+        from kafka "customer-updates"            // SOURCE: Kafka topic
+
+    transform using validate_profile             // TRANSFORM: validate profile data
+
+    emit to customer_profiles                    // EMIT: write to profile store
+        schema customer_profile                  // SCHEMA: profile schema
+        to mongodb "customers"                   // DESTINATION: MongoDB
+            upsert by customer_id                // UPSERT: insert or update by key
+
+    on error                                     // ERROR HANDLER
+        retry 5 times                            // RETRY: 5 attempts for profiles
+        then emit to profile_errors              // DLQ: profile error queue
+    end                                          // End error handler
+end                                              // End customer_profile_updater
+
+// ============================================================================
+// SUPPORTING PROCESS: alert_aggregator
+// PURPOSE: Aggregate alerts by customer for escalation decisions
+// ============================================================================
+process alert_aggregator                         // Declare alert aggregator process
+    parallelism hint 2                           // SCALING: 2 instances
+    time by alert_time                           // TIME: use alert timestamp
+        watermark delay 30 seconds               // WATERMARK: 30 seconds late tolerance
+
+    receive alerts                               // RECEIVE: alerts from multiple topics
+        schema fraud_alert                       // SCHEMA: alert schema
+        from kafka "fraud-alerts", "priority-alerts"  // SOURCE: multiple topics
+
+    // Aggregate alerts by customer over 1 hour window
+    window tumbling 1 hour                       // WINDOW: 1 hour tumbling
+        key by card_holder_id                    // KEY: per customer
+        aggregate                                // AGGREGATIONS
+            count() as alert_count               // COUNT: alerts per customer
+            collect(alert_type) as alert_types   // COLLECT: list of alert types
+            max(severity) as max_severity        // MAX: highest severity seen
+        end                                      // End aggregations
+
+    // Escalate if multiple alerts
+    route when alert_count > 3                   // ROUTE: if > 3 alerts in window
+        to escalation_queue                      // → escalation queue
+    otherwise                                    // ELSE
+        to standard_processing                   // → standard processing
+
+    emit to escalation_queue                     // EMIT: escalation records
+        to kafka "escalation-queue"              // DESTINATION: escalation topic
+
+    emit to standard_processing                  // EMIT: standard processing
+        to kafka "processed-alerts"              // DESTINATION: processed topic
+
+    on error                                     // ERROR HANDLER
+        emit to alert_errors                     // DLQ: alert error queue
+    end                                          // End error handler
+end                                              // End alert_aggregator

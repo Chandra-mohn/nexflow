@@ -1,0 +1,675 @@
+// ============================================================================
+// FILE: credit_transforms.xform
+// LAYER: L3 - Transform Definition
+// USE CASE: Complex - Credit Decisioning Platform
+// ============================================================================
+//
+// SUMMARY:
+// This transform file defines data transformation logic for credit decisioning.
+// It demonstrates advanced L3 patterns including:
+//
+// TRANSFORMS DEFINED (7 total):
+//
+// 1. validate_application - Comprehensive validation with standardization
+//    - Extensive validate_input block with multiple checks
+//    - Data standardization (trim, upper, normalize_phone)
+//    - Idempotent property for safe retries
+//
+// 2. prepare_bureau_request - Parameterized transform for bureau calls
+//    - params block for transform arguments
+//    - Structured output for external API call
+//
+// 3. aggregate_bureau_responses - Complex list processing
+//    - Input type list<bureau_response> for multiple inputs
+//    - Higher-order functions (map, filter, find, coalesce)
+//    - Optional chaining with ?. operator
+//    - Statistical functions (stddev, sum, max)
+//
+// 4. enrich_application - Multi-lookup enrichment
+//    - Multiple lookups in single transform
+//    - Conditional data population (when/otherwise)
+//    - Error handling with partial emit
+//
+// 5. engineer_ml_features - ML feature engineering
+//    - Bucketing/discretization logic
+//    - Derived feature calculation
+//    - Binary flag generation
+//
+// 6. normalize_model_scores - Ensemble model aggregation
+//    - Map over list of model results
+//    - Weighted averaging
+//    - Explanation generation
+//
+// 7. create_audit_event - Immutable audit event creation
+//    - Hash generation for integrity
+//    - Event lineage tracking
+//    - Actor information capture
+//
+// 8. generate_adverse_action_notice - Regulatory compliance
+//    - FCRA-compliant reason code mapping
+//    - Score disclosure formatting
+//
+// CRITICAL PATTERNS DEMONSTRATED:
+// 1. Parameterized Transforms (lines 79-110)
+// 2. List Processing with Higher-Order Functions (lines 112-192)
+// 3. Multi-Lookup Enrichment (lines 194-275)
+// 4. Feature Engineering Patterns (lines 277-352)
+// 5. Model Score Normalization (lines 354-413)
+// ============================================================================
+
+transform validate_application                       // TRANSFORM: Comprehensive validation
+    version: 2.0.0                                   // VERSION: Schema version for compatibility
+    description: "Comprehensive application validation with fraud detection"
+    pure: true                                       // PURE: Deterministic (same input → same output)
+    idempotent: true                                 // IDEMPOTENT: Safe to retry
+
+    input: credit_application                        // INPUT: Credit application schema
+    output: credit_application                       // OUTPUT: Same schema (validated + standardized)
+
+    // =========================================================================
+    // CRITICAL PATTERN: Extensive Validate Input Block
+    // PURPOSE: Comprehensive validation with custom error messages
+    // =========================================================================
+    validate_input                                   // VALIDATE_INPUT: Pre-condition checks
+        // Identity validation - required fields
+        require application_id is not null else "Application ID required"
+        require applicant.first_name is not null else "First name required"
+        require applicant.last_name is not null else "Last name required"
+        require applicant.ssn_hash is not null else "SSN required"
+        require applicant.date_of_birth is not null else "Date of birth required"
+
+        // Age validation - business rules
+        require age_in_years(applicant.date_of_birth) >= 18 else "Applicant must be 18+"  // FUNCTION: age_in_years()
+        require age_in_years(applicant.date_of_birth) <= 120 else "Invalid date of birth"
+
+        // Income validation - range checks
+        require applicant.employment.annual_income > 0 else "Income must be positive"
+        require applicant.employment.annual_income < 100000000 else "Income exceeds maximum"
+
+        // Consent validation - regulatory requirements
+        require consents.credit_pull_authorized == true else "Credit pull consent required"
+        require consents.terms_accepted == true else "Terms acceptance required"
+        require consents.consent_timestamp is not null else "Consent timestamp required"
+
+        // Address validation - pattern matching
+        require applicant.address.zip matches "^[0-9]{5}$" else "Invalid ZIP code"  // MATCHES: Regex validation
+        require applicant.address.state matches "^[A-Z]{2}$" else "Invalid state code"
+
+        // Product validation
+        require requested_product.product_code is not null else "Product code required"
+    end                                              // End validate_input
+
+    // =========================================================================
+    // CRITICAL PATTERN: Data Standardization in Apply Block
+    // PURPOSE: Normalize data format for consistent downstream processing
+    // =========================================================================
+    apply                                            // APPLY: Transformation logic
+        // Pass through with standardization
+        application_id = input.application_id
+        application_type = input.application_type
+        channel = input.channel
+        submitted_at = input.submitted_at
+
+        // NESTED OBJECT with standardization functions
+        applicant = {
+            customer_id: input.applicant.customer_id,
+            first_name: upper(trim(input.applicant.first_name)),  // UPPER + TRIM: Standardize name
+            last_name: upper(trim(input.applicant.last_name)),
+            date_of_birth: input.applicant.date_of_birth,
+            ssn_hash: input.applicant.ssn_hash,
+            email: lower(trim(input.applicant.email)),            // LOWER: Email lowercase
+            phone: normalize_phone(input.applicant.phone),        // NORMALIZE_PHONE: Standard format
+            address: {                                            // NESTED OBJECT: Address
+                street: upper(trim(input.applicant.address.street)),
+                city: upper(trim(input.applicant.address.city)),
+                state: upper(input.applicant.address.state),
+                zip: input.applicant.address.zip,
+                country: coalesce(input.applicant.address.country, "US"),  // COALESCE: Default to US
+                residence_type: input.applicant.address.residence_type,
+                years_at_address: input.applicant.address.years_at_address
+            },
+            employment: input.applicant.employment
+        }
+
+        requested_product = input.requested_product
+        consents = input.consents
+        metadata = input.metadata
+    end                                              // End apply
+
+    on_error                                         // ERROR: Reject invalid records
+        reject with code "VALIDATION_ERROR"          // REJECT: Don't proceed with invalid data
+    end
+end                                                  // End validate_application
+
+// ============================================================================
+// CRITICAL PATTERN: Parameterized Transform
+// PURPOSE: Reusable transform with configurable parameters
+// ============================================================================
+transform prepare_bureau_request                     // TRANSFORM: Prepare bureau API request
+    version: 1.0.0
+    description: "Prepare credit bureau request from application"
+    pure: true                                       // PURE: Deterministic
+
+    input: credit_application                        // INPUT: Application data
+    params:                                          // PARAMS: Transform parameters
+        bureau: string required                      // REQUIRED PARAM: Bureau name
+        request_type: string required default: "hard_pull"  // PARAM WITH DEFAULT
+    output: bureau_request                           // OUTPUT: Bureau request schema
+
+    apply                                            // APPLY: Build request
+        request_id = generate_uuid()                 // GENERATE_UUID: Unique request ID
+        application_id = input.application_id
+        bureau = params.bureau                       // USE PARAM: Bureau from params
+        request_type = params.request_type           // USE PARAM: Request type from params
+        requested_at = now()                         // NOW: Current timestamp
+
+        applicant_data = {                           // NESTED: Applicant data for bureau
+            first_name: input.applicant.first_name,
+            last_name: input.applicant.last_name,
+            ssn_hash: input.applicant.ssn_hash,
+            date_of_birth: input.applicant.date_of_birth,
+            address: {
+                street: input.applicant.address.street,
+                city: input.applicant.address.city,
+                state: input.applicant.address.state,
+                zip: input.applicant.address.zip
+            }
+        }
+    end                                              // End apply
+end                                                  // End prepare_bureau_request
+
+// ============================================================================
+// CRITICAL PATTERN: List Input Processing with Higher-Order Functions
+// PURPOSE: Aggregate multiple bureau responses into unified view
+// ============================================================================
+transform aggregate_bureau_responses                 // TRANSFORM: Aggregate bureau data
+    version: 1.0.0
+    description: "Aggregate and normalize data from multiple bureau responses"
+    pure: true                                       // PURE: Deterministic
+
+    input: list<bureau_response>                     // INPUT TYPE: List of bureau responses (not single)
+    output: object                                   // OUTPUT: Generic object (flexible schema)
+
+    validate_input                                   // VALIDATE: At least one response required
+        require length(input) >= 1 else "At least one bureau response required"
+    end
+
+    apply                                            // APPLY: Complex aggregation logic
+        // HIGHER-ORDER: Filter successful responses
+        let successful_responses = filter(input, r -> r.status == "success")  // FILTER: Lambda expression
+        let bureaus_pulled = map(successful_responses, r -> r.bureau)         // MAP: Extract bureau names
+
+        // HIGHER-ORDER: Find specific bureau responses
+        let experian = find(successful_responses, r -> r.bureau == "experian")    // FIND: First match
+        let transunion = find(successful_responses, r -> r.bureau == "transunion")
+        let equifax = find(successful_responses, r -> r.bureau == "equifax")
+
+        // OPTIONAL CHAINING: Safe navigation with ?. operator
+        primary_fico = coalesce(                     // COALESCE: First non-null value
+            experian?.scores?.fico_score,            // ?. OPTIONAL CHAINING: Safe navigation
+            transunion?.scores?.fico_score,
+            equifax?.scores?.fico_score
+        )
+
+        secondary_fico = when primary_fico == experian?.scores?.fico_score  // WHEN/OTHERWISE: Conditional
+                         then coalesce(transunion?.scores?.fico_score, equifax?.scores?.fico_score)
+                         otherwise experian?.scores?.fico_score
+
+        // FILTER + ARITHMETIC: Calculate average across non-null values
+        let all_ficos = filter(
+            [experian?.scores?.fico_score, transunion?.scores?.fico_score, equifax?.scores?.fico_score],
+            f -> f is not null                       // FILTER: Only non-null scores
+        )
+        average_fico = when length(all_ficos) > 0
+                       then sum(all_ficos) / length(all_ficos)  // ARITHMETIC: Average calculation
+                       otherwise null
+
+        score_variance = when length(all_ficos) > 1
+                        then stddev(all_ficos)       // STDDEV: Statistical function
+                        otherwise 0
+
+        // NESTED HIGHER-ORDER: Map with nested filter and count
+        total_tradelines = max(map(successful_responses, r -> coalesce(r.credit_summary?.total_accounts, 0)))
+        open_revolving = sum(map(successful_responses, r ->
+            count(filter(r.tradelines, t -> t.account_type == "revolving" and t.account_status == "open"))
+        )) / length(successful_responses)            // NESTED: map → filter → count
+        open_installment = sum(map(successful_responses, r ->
+            count(filter(r.tradelines, t -> t.account_type == "installment" and t.account_status == "open"))
+        )) / length(successful_responses)
+
+        // Balances and utilization - worst case aggregation
+        total_balance = max(map(successful_responses, r -> coalesce(r.credit_summary?.total_balance, 0)))
+        total_available_credit = max(map(successful_responses, r -> coalesce(r.credit_summary?.total_credit_limit, 0)))
+        utilization = when total_available_credit > 0
+                     then total_balance / total_available_credit
+                     otherwise 0
+
+        // Risk indicators - MAX aggregation for conservative risk assessment
+        derogatory_count = max(map(successful_responses, r -> coalesce(r.credit_summary?.delinquent_accounts, 0)))
+        collections_count = max(map(successful_responses, r ->
+            count(filter(r.public_records, pr -> pr.record_type == "collection"))
+        ))
+        public_record_count = max(map(successful_responses, r -> length(coalesce(r.public_records, []))))
+        recent_inquiries = max(map(successful_responses, r -> coalesce(r.credit_summary?.recent_inquiries_6m, 0)))
+
+        // ALL/ANY: Boolean aggregation across all bureaus
+        all_bureaus_verified = all(map(successful_responses, r -> coalesce(r.fraud_indicators?.identity_verified, false)))  // ALL: All must be true
+        fraud_alert_any_bureau = any(map(successful_responses, r -> coalesce(r.fraud_indicators?.fraud_alert_present, false)))  // ANY: At least one true
+
+        bureaus_pulled = bureaus_pulled
+        pull_timestamp = now()
+    end                                              // End apply
+
+    on_error                                         // ERROR: Handle aggregation failures
+        log_error("Bureau aggregation failed")
+        reject with code "BUREAU_AGGREGATION_ERROR"
+    end
+end                                                  // End aggregate_bureau_responses
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: enrich_application
+// CRITICAL PATTERN: Multi-Source Enrichment Pipeline
+// PURPOSE: Combines data from 4 external sources into unified enriched record
+// IMPURE: Performs external lookups (customer DB, bureau, compliance, product)
+// ----------------------------------------------------------------------------
+transform enrich_application
+    version: 2.0.0
+    description: "Enrich application with all external data sources"
+    pure: false                                          // IMPURE: External lookups
+    idempotent: true                                     // IDEMPOTENT: Safe to retry
+
+    input: credit_application
+    // CRITICAL PATTERN: MULTI-LOOKUP DECLARATION
+    // Declares ALL external data sources upfront for dependency tracking
+    lookups:
+        customer_data: customer_database                 // LOOKUP 1: Internal customer data
+        bureau_data: bureau_aggregated                   // LOOKUP 2: Aggregated bureau data
+        compliance_data: compliance_service              // LOOKUP 3: KYC/AML service
+        product_catalog: product_database                // LOOKUP 4: Product eligibility
+    output: enriched_application
+
+    apply
+        // Pass-through fields with enrichment timestamp
+        application_id = input.application_id
+        application_type = input.application_type
+        channel = input.channel
+        submitted_at = input.submitted_at
+        enriched_at = now()                              // NOW(): Enrichment timestamp
+
+        // Applicant summary (denormalized for downstream)
+        applicant_name = concat(input.applicant.first_name, " ", input.applicant.last_name)  // CONCAT: String join
+        applicant_dob = input.applicant.date_of_birth
+        annual_income = input.applicant.employment.annual_income
+        employment_status = input.applicant.employment.status
+        residence_type = input.applicant.address.residence_type
+
+        // CRITICAL PATTERN: EXISTING CUSTOMER LOOKUP
+        // Relationship-aware decisioning for cross-sell/upsell
+        let customer = lookup(customer_data, input.applicant.customer_id)  // LOOKUP: External data fetch
+        is_existing_customer = customer is not null      // NULL CHECK: Existence test
+
+        // CONDITIONAL OBJECT CONSTRUCTION
+        // Only populate relationship data if customer exists
+        existing_customer_data = when is_existing_customer then {
+            customer_id: customer.customer_id,
+            customer_since: customer.account_open_date,
+            relationship_value: customer.total_relationship_value,
+            existing_products: customer.active_products,
+            payment_history_score: customer.internal_payment_score,
+            internal_risk_rating: customer.risk_rating
+        } otherwise null                                 // NULL: No relationship data for new customers
+
+        // Bureau data (pre-aggregated by aggregate_bureau_responses)
+        bureau_data = lookups.bureau_data
+
+        // CRITICAL PATTERN: COMPLIANCE ENRICHMENT
+        // Regulatory checks (KYC, AML, OFAC, PEP) with safe defaults
+        let compliance = lookup(compliance_data, input.applicant.ssn_hash)
+        compliance = {
+            kyc_verified: coalesce(compliance?.kyc_status, false),      // COALESCE: Default to false
+            aml_cleared: coalesce(compliance?.aml_status, false),
+            ofac_cleared: coalesce(compliance?.ofac_status, false),     // OFAC: Sanctions screening
+            pep_check_cleared: coalesce(compliance?.pep_status, false), // PEP: Politically exposed
+            adverse_media_cleared: coalesce(compliance?.adverse_media_status, false)
+        }
+
+        // CRITICAL PATTERN: PRODUCT ELIGIBILITY CALCULATION
+        // Dynamic product matching based on credit profile
+        let product = lookup(product_catalog, input.requested_product.product_code)
+        let eligible_products = filter_eligible_products(product_catalog, {  // CUSTOM FUNCTION: Product filtering
+            fico: bureau_data.primary_fico,
+            income: annual_income,
+            existing_customer: is_existing_customer
+        })
+
+        product_eligibility = {
+            requested_product_eligible: product is not null and
+                                        bureau_data.primary_fico >= product.min_fico and
+                                        annual_income >= product.min_income,
+            eligible_products: map(eligible_products, p -> p.product_code),  // MAP: Extract codes
+            ineligible_reasons: when not product_eligibility.requested_product_eligible then
+                                get_ineligibility_reasons(product, bureau_data.primary_fico, annual_income)
+                                otherwise [],
+            max_eligible_limit: calculate_max_limit(bureau_data.primary_fico, annual_income, product)
+        }
+
+        requested_product_code = input.requested_product.product_code
+        requested_limit = input.requested_product.requested_limit
+    end
+
+    // CRITICAL PATTERN: PARTIAL DATA EMISSION
+    // Emit whatever data was enriched even on failure (graceful degradation)
+    on_error
+        log_error("Application enrichment failed")
+        emit with partial data                           // EMIT PARTIAL: Continue with available data
+    end
+end
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: engineer_ml_features
+// CRITICAL PATTERN: ML Feature Engineering Pipeline
+// PURPOSE: Transforms raw enriched data into ML-ready feature vectors
+// PURE: No side effects, deterministic output for same input
+// ----------------------------------------------------------------------------
+transform engineer_ml_features
+    version: 1.0.0
+    description: "Feature engineering for ML model input"
+    pure: true                                           // PURE: Deterministic, no side effects
+
+    input: enriched_application
+    output: object                                       // OUTPUT: Generic object for flexibility
+
+    apply
+        // CRITICAL PATTERN: BUCKETING FOR CATEGORICAL FEATURES
+        // Continuous values → discrete buckets for model stability
+
+        // Identity features with age bucketing
+        applicant_age = age_in_years(input.applicant_dob)  // AGE_IN_YEARS: Date → integer
+        applicant_age_bucket = when applicant_age < 25 then "18-24"  // BUCKET: Age segments
+                              when applicant_age < 35 then "25-34"
+                              when applicant_age < 45 then "35-44"
+                              when applicant_age < 55 then "45-54"
+                              when applicant_age < 65 then "55-64"
+                              otherwise "65+"
+
+        // CRITICAL PATTERN: NUMERIC TRANSFORMATION
+        // Log transform for skewed income distribution
+        income_log = log(input.annual_income + 1)        // LOG: Normalize skewed distribution (+1 to handle 0)
+        income_bucket = when input.annual_income < 30000 then "under_30k"
+                       when input.annual_income < 50000 then "30k_50k"
+                       when input.annual_income < 75000 then "50k_75k"
+                       when input.annual_income < 100000 then "75k_100k"
+                       when input.annual_income < 150000 then "100k_150k"
+                       otherwise "150k_plus"
+
+        // CRITICAL PATTERN: NORMALIZATION
+        // Scale FICO to 0-1 range for neural network input
+        fico_normalized = (input.bureau_data.primary_fico - 300) / 550  // NORMALIZE: (x - min) / range
+        fico_bucket = when input.bureau_data.primary_fico < 580 then "poor"
+                     when input.bureau_data.primary_fico < 670 then "fair"
+                     when input.bureau_data.primary_fico < 740 then "good"
+                     when input.bureau_data.primary_fico < 800 then "very_good"
+                     otherwise "excellent"
+
+        // Utilization features (already 0-1 range)
+        utilization_bucket = when input.bureau_data.utilization < 0.1 then "under_10"
+                            when input.bureau_data.utilization < 0.3 then "10_30"
+                            when input.bureau_data.utilization < 0.5 then "30_50"
+                            when input.bureau_data.utilization < 0.7 then "50_70"
+                            when input.bureau_data.utilization < 0.9 then "70_90"
+                            otherwise "over_90"
+
+        // CRITICAL PATTERN: DERIVED FEATURE CALCULATION
+        // Compute DTI from raw balance and income
+        estimated_monthly_debt = input.bureau_data.total_balance * 0.02  // DERIVED: Estimate min payment (2%)
+        monthly_income = input.annual_income / 12
+        debt_to_income = estimated_monthly_debt / monthly_income  // DTI: Key underwriting ratio
+        dti_bucket = when debt_to_income < 0.2 then "under_20"
+                    when debt_to_income < 0.35 then "20_35"
+                    when debt_to_income < 0.43 then "35_43"  // 43% = QM threshold
+                    otherwise "over_43"
+
+        // CRITICAL PATTERN: BINARY ENCODING
+        // Convert boolean/existence checks to 0/1 for model input
+        existing_customer_flag = when input.is_existing_customer then 1 otherwise 0  // BINARY: Boolean → 0/1
+        relationship_tenure_months = when input.existing_customer_data is not null
+                                    then months_between(input.existing_customer_data.customer_since, now())
+                                    otherwise 0
+
+        // Risk indicator binary features
+        has_derogatory = when input.bureau_data.derogatory_count > 0 then 1 otherwise 0
+        has_collections = when input.bureau_data.collections_count > 0 then 1 otherwise 0
+        has_public_records = when input.bureau_data.public_record_count > 0 then 1 otherwise 0
+        recent_inquiry_flag = when input.bureau_data.recent_inquiries > 2 then 1 otherwise 0
+
+        // CRITICAL PATTERN: ONE-HOT ENCODING
+        // Channel → separate binary columns for ML models
+        channel_web = when input.channel == "web" then 1 otherwise 0  // ONE-HOT: web channel
+        channel_mobile = when input.channel == "mobile" then 1 otherwise 0
+        channel_branch = when input.channel == "branch" then 1 otherwise 0
+        channel_partner = when input.channel == "partner_api" then 1 otherwise 0
+
+        // Compliance aggregate feature
+        all_compliance_passed = input.compliance.kyc_verified and
+                               input.compliance.aml_cleared and
+                               input.compliance.ofac_cleared
+    end
+end
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: normalize_model_scores
+// CRITICAL PATTERN: ML Ensemble Aggregation
+// PURPOSE: Calibrates and combines multiple ML model outputs into ensemble scores
+// PURE: Deterministic score computation
+// ----------------------------------------------------------------------------
+transform normalize_model_scores
+    version: 1.0.0
+    description: "Normalize and calibrate ML model outputs"
+    pure: true                                           // PURE: Deterministic computation
+
+    input: list<object>                                  // INPUT: List of raw model outputs
+    params:
+        calibration_config: object required              // PARAMS: Model calibration configuration
+    output: ml_score_result
+
+    apply
+        score_id = generate_uuid()                       // UUID: Unique score identifier
+        application_id = input[0].application_id
+        scored_at = now()
+
+        // CRITICAL PATTERN: MODEL OUTPUT CALIBRATION
+        // Transform raw model scores to calibrated probabilities
+        model_scores = map(input, m -> {                 // MAP: Process each model output
+            model_id: m.model_id,
+            model_version: m.model_version,
+            model_type: m.model_type,
+            raw_score: m.raw_score,
+            calibrated_probability: calibrate_score(m.raw_score, params.calibration_config[m.model_id]),  // CALIBRATE: Raw → probability
+            confidence: m.confidence,
+            feature_importance: m.feature_importance
+        })
+
+        // CRITICAL PATTERN: ENSEMBLE SCORE CALCULATION
+        // Filter models by type and compute weighted averages
+        let approval_models = filter(model_scores, m -> m.model_type == "approval")  // FILTER: Approval models only
+        let risk_models = filter(model_scores, m -> m.model_type in ["approval", "fraud"])  // IN: Multiple type match
+        let profit_models = filter(model_scores, m -> m.model_type in ["pricing", "churn"])
+
+        // WEIGHTED_AVERAGE: Combine model scores with configured weights
+        ensemble_approval_score = weighted_average(approval_models, "calibrated_probability", params.calibration_config.approval_weights)
+        ensemble_risk_score = weighted_average(risk_models, "calibrated_probability", params.calibration_config.risk_weights)
+        ensemble_profitability_score = weighted_average(profit_models, "calibrated_probability", params.calibration_config.profit_weights)
+
+        // CRITICAL PATTERN: SCORE-BASED RECOMMENDATION
+        // Convert ensemble scores to discrete decision recommendation
+        recommended_decision = when ensemble_approval_score >= 0.7 and ensemble_risk_score <= 0.3 then "approve"
+                              when ensemble_approval_score <= 0.3 or ensemble_risk_score >= 0.7 then "decline"
+                              otherwise "review"                                    // DEFAULT: Human review
+
+        recommended_limit = calculate_recommended_limit(ensemble_approval_score, ensemble_risk_score, params.calibration_config)
+        recommended_apr = calculate_recommended_apr(ensemble_risk_score, ensemble_profitability_score, params.calibration_config)
+
+        // CRITICAL PATTERN: CONFIDENCE AGGREGATION
+        // Overall confidence = minimum confidence across all models
+        confidence_level = when min(map(model_scores, m -> m.confidence)) >= 0.8 then "high"  // MIN + MAP: Aggregate confidence
+                          when min(map(model_scores, m -> m.confidence)) >= 0.5 then "medium"
+                          otherwise "low"
+
+        // CRITICAL PATTERN: MODEL EXPLAINABILITY
+        // Extract and rank feature importance across all models
+        let all_important_features = flatten(map(model_scores, m -> coalesce(m.feature_importance, [])))  // FLATTEN: Combine lists
+        let sorted_features = sort(all_important_features, f -> f.importance, desc)  // SORT: Rank by importance
+
+        explanation = {
+            primary_factors: map(take(sorted_features, 4), f -> f.feature),  // TAKE: Top 4 factors
+            secondary_factors: map(take(drop(sorted_features, 4), 4), f -> f.feature),  // DROP + TAKE: Next 4
+            adverse_factors: when recommended_decision == "decline"
+                            then map(filter(sorted_features, f -> f.importance < 0), f -> f.feature)  // NEGATIVE: Adverse factors
+                            otherwise []
+        }
+    end
+end
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: create_audit_event
+// CRITICAL PATTERN: Immutable Audit Trail Event Sourcing
+// PURPOSE: Creates tamper-evident audit events for regulatory compliance
+// COMPLIANCE: SOX, FCRA, CCPA audit trail requirements
+// ----------------------------------------------------------------------------
+transform create_audit_event
+    version: 1.0.0
+    description: "Create immutable audit event for compliance"
+    pure: true                                           // PURE: Deterministic event creation
+    idempotent: true                                     // IDEMPOTENT: Same input → same event
+
+    input: object
+    // CRITICAL PATTERN: PARAMETERIZED EVENT METADATA
+    // External caller provides event context, transform builds structure
+    params:
+        event_type: string required                      // PARAM: Event classification
+        actor_type: string required default: "system"   // PARAM: user/system/api
+        actor_id: string required                        // PARAM: Who triggered event
+        parent_event_id: uuid optional                   // PARAM: Causal parent (optional)
+        root_event_id: uuid required                     // PARAM: Root of event chain
+        sequence_number: integer required                // PARAM: Ordering within chain
+    output: audit_event
+
+    apply
+        // CRITICAL PATTERN: EVENT SOURCING STRUCTURE
+        // Immutable event with full context for reconstruction
+        event_id = generate_uuid()                       // UUID: Unique event identifier
+        application_id = input.application_id
+        event_time = now()                               // NOW: Event creation timestamp
+        event_type = params.event_type
+
+        event_source = "credit-decisioning-system"       // SOURCE: System origin
+        event_version = "1.0.0"                          // VERSION: Schema version for evolution
+        correlation_id = input.application_id            // CORRELATION: Links related events
+
+        // CRITICAL PATTERN: STATE TRANSITION CAPTURE
+        // Records before/after for complete audit trail
+        previous_state = input.previous_state
+        new_state = input.new_state
+
+        // CRITICAL PATTERN: PAYLOAD WITH INTEGRITY HASH
+        // SHA256 hash ensures tamper detection
+        payload = {
+            data: to_json(input),                        // TO_JSON: Serialize payload
+            data_hash: sha256(to_json(input))           // SHA256: Integrity verification
+        }
+
+        // Actor identification for accountability
+        actor = {
+            actor_type: params.actor_type,
+            actor_id: params.actor_id,
+            actor_name: when params.actor_type == "user" then lookup_user_name(params.actor_id) otherwise null
+        }
+
+        // CRITICAL PATTERN: EVENT LINEAGE
+        // Enables event chain reconstruction and causality tracking
+        lineage = {
+            parent_event_id: params.parent_event_id,     // PARENT: Immediate cause
+            root_event_id: params.root_event_id,         // ROOT: Original triggering event
+            sequence_number: params.sequence_number      // SEQUENCE: Order in chain
+        }
+    end
+end
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: generate_adverse_action_notice
+// CRITICAL PATTERN: FCRA Regulatory Compliance Document Generation
+// PURPOSE: Generates legally-required adverse action notice for declined applications
+// REGULATORY: Fair Credit Reporting Act (FCRA) Section 615(a)
+// REQUIREMENT: Must disclose reasons, bureau info, and consumer rights
+// ----------------------------------------------------------------------------
+transform generate_adverse_action_notice
+    version: 1.0.0
+    description: "Generate FCRA-compliant adverse action notice"
+    pure: true                                           // PURE: Deterministic document generation
+
+    input: credit_decision
+    lookup: credit_application                           // LOOKUP: Retrieve original application
+    output: adverse_action_notice
+
+    // CRITICAL PATTERN: PRE-CONDITION VALIDATION
+    // Adverse action notices ONLY for declined applications
+    validate_input
+        require input.decision == "declined" else "Adverse action only for declines"  // REQUIRE: Guard clause
+    end
+
+    apply
+        notice_id = generate_uuid()                      // UUID: Unique notice identifier
+        application_id = input.application_id
+        decision_id = input.decision_id
+
+        // Retrieve original application for contact info
+        let application = lookup(credit_application, input.application_id)
+
+        // CRITICAL PATTERN: RECIPIENT INFORMATION
+        // FCRA requires notice be sent to applicant
+        recipient = {
+            name: concat(application.applicant.first_name, " ", application.applicant.last_name),
+            address: {
+                street: application.applicant.address.street,
+                city: application.applicant.address.city,
+                state: application.applicant.address.state,
+                zip: application.applicant.address.zip
+            }
+        }
+
+        notice_date = today()                            // TODAY: Notice generation date
+        creditor_name = "Example Financial Services"     // CREDITOR: Institution name (required)
+        creditor_address = "123 Finance Street, New York, NY 10001"
+
+        action_taken = "Credit application denied"       // ACTION: Clear description required
+        action_date = date(input.decided_at)             // DATE: When adverse action occurred
+
+        // CRITICAL PATTERN: FCRA REASON CODE MAPPING
+        // Must disclose up to 4 principal reasons for adverse action
+        primary_reasons = take(map_to_fcra_reasons(input.decline_details.decline_reasons), 4)  // TAKE: Max 4 reasons
+        secondary_reasons = drop(map_to_fcra_reasons(input.decline_details.decline_reasons), 4)  // DROP: Additional reasons
+
+        // CRITICAL PATTERN: BUREAU DISCLOSURE
+        // FCRA requires disclosure of CRA that provided report
+        bureau_used = {
+            name: "Experian",
+            address: "P.O. Box 9701, Allen, TX 75013",   // CRA: Contact for dispute
+            phone: "1-888-397-3742"                      // PHONE: Consumer can request free report
+        }
+
+        // CRITICAL PATTERN: SCORE DISCLOSURE
+        // Risk-based pricing requires score disclosure
+        score_disclosure = {
+            score_used: input.scoring_summary.final_score,
+            score_range: "300-850",                      // RANGE: Required context for score
+            score_factors: input.scoring_summary.score_factors  // FACTORS: Key reasons affecting score
+        }
+
+        // FCRA consumer rights notice (standardized text)
+        rights_notice = get_fcra_rights_notice()         // RIGHTS: Legally-required disclosure
+
+        // Delivery preference from original application consent
+        delivery_method = when application.consents.electronic_delivery then "email" otherwise "mail"
+        delivered_at = null                              // NULL: Set when actually delivered
+    end
+end

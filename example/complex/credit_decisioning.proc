@@ -1,0 +1,769 @@
+// ============================================================================
+// FILE: credit_decisioning.proc
+// LAYER: L1 - Process Orchestration
+// USE CASE: Complex - Real-Time Credit Decisioning Platform
+// ============================================================================
+//
+// SUMMARY:
+// This process file orchestrates a complete credit application lifecycle from
+// ingestion through decisioning. It demonstrates advanced L1 patterns including:
+//
+// MAIN PROCESS (credit_decisioning_pipeline):
+// - STATE MACHINE: Tracks application through lifecycle states
+// - FAN-OUT PARALLELISM: Concurrent bureau pulls and enrichment
+// - FAN-IN AGGREGATION: Merge results with partial timeout handling
+// - CIRCUIT BREAKERS: Protect against external service failures
+// - ML ENSEMBLE: Multiple models scored in parallel
+// - MULTI-BRANCH ROUTING: Approve/decline/review with sub-flows
+// - EVENT SOURCING: Full audit trail via emit_audit_event
+//
+// SUPPORTING PROCESSES:
+// - manual_review_handler: Processes human review decisions
+// - audit_event_processor: Maintains immutable audit log
+// - sla_monitor: Tracks SLA compliance for pending reviews
+//
+// CRITICAL PATTERNS DEMONSTRATED:
+// 1. State Machine Integration (lines 35-38)
+// 2. Parallel Fan-Out/Fan-In (lines 91-152)
+// 3. Circuit Breaker (lines 102-105, 118-121)
+// 4. ML Ensemble Scoring (lines 187-215)
+// 5. Multi-Branch Decision Routing (lines 259-408)
+// 6. Scheduled Actions (lines 405-408)
+// 7. Retry with Exponential Backoff (lines 419-428)
+// ============================================================================
+
+process credit_decisioning_pipeline                  // PROCESS: Main credit decisioning orchestration
+    parallelism hint 16                              // SCALING: 16 parallel instances for high throughput
+    time by submitted_at                             // EVENT TIME: Use application submission time
+        watermark delay 30 seconds                   // WATERMARK: 30-second late data tolerance
+
+    // =========================================================================
+    // CRITICAL PATTERN: State Machine Integration
+    // PURPOSE: Track application through well-defined lifecycle states
+    // STATES: received → validating → enriching → scoring → decisioning →
+    //         approved|declined|pending_review|counter_offered|cancelled
+    // =========================================================================
+    state_machine application_lifecycle              // STATE_MACHINE: Declare state machine for lifecycle tracking
+        schema application_state                     // SCHEMA: Use application_state schema for state data
+        persistence rocksdb                          // PERSISTENCE: Store state in RocksDB for durability
+        checkpoint every 100 events or 30 seconds   // CHECKPOINT: Save state every 100 events OR 30 seconds
+
+    // =========================================================================
+    // Stage 1: Application Ingestion
+    // =========================================================================
+
+    receive applications                             // RECEIVE: Ingest applications from Kafka
+        schema credit_application                    // SCHEMA: Expect credit_application schema
+        from kafka "credit-applications"             // SOURCE: Kafka topic name
+            group "credit-decisioning"               // CONSUMER GROUP: For offset management
+            offset latest                            // OFFSET: Start from latest (production mode)
+            isolation read_committed                 // ISOLATION: Only read committed transactions (exactly-once)
+
+    // EVENT SOURCING: Record every state change for audit trail
+    emit_audit_event "application_received"          // AUDIT: Log application receipt event
+        actor system "ingestion-service"             // ACTOR: System-initiated event
+
+    // STATE TRANSITION: Move application to first state
+    transition to "received"                         // TRANSITION: Update state machine to "received"
+
+    // =========================================================================
+    // Stage 2: Validation
+    // =========================================================================
+
+    transition to "validating"                       // TRANSITION: Move to validation state
+
+    // TRANSFORM WITH BRANCHING: Success/failure paths with audit trail
+    transform using validate_application             // TRANSFORM: Apply validation transform
+        on_success                                   // ON_SUCCESS: If validation passes
+            emit_audit_event "validation_completed"  // AUDIT: Log successful validation
+            continue                                 // CONTINUE: Proceed to next stage
+        on_failure                                   // ON_FAILURE: If validation fails
+            transition to "declined"                 // TRANSITION: Move to declined state
+            emit_audit_event "validation_failed"     // AUDIT: Log validation failure
+            emit to declined_applications            // EMIT: Send to declined queue
+                reason "Validation failed: ${error.message}"  // Interpolate error message
+            terminate                                // TERMINATE: Stop processing this record
+
+    // DEDUPLICATION: Prevent duplicate applications within time window
+    deduplicate by applicant.ssn_hash                // DEDUPLICATE: Key by SSN hash
+        window 30 days                               // WINDOW: Check for duplicates in last 30 days
+        on_duplicate                                 // ON_DUPLICATE: If duplicate found
+            transition to "declined"                 // TRANSITION: Move to declined state
+            emit to declined_applications            // EMIT: Send to declined queue
+                reason "Duplicate application within 30 days"
+            terminate                                // TERMINATE: Stop processing duplicate
+
+    // =========================================================================
+    // CRITICAL PATTERN: Parallel Fan-Out with Circuit Breakers
+    // PURPOSE: Execute multiple enrichment calls concurrently with resilience
+    // PATTERN: Fan-out → concurrent execution → fan-in aggregation
+    // =========================================================================
+
+    transition to "enriching"                        // TRANSITION: Move to enrichment state
+
+    // =========================================================================
+    // PARALLEL FAN-OUT: Execute multiple enrichment sources concurrently
+    // - timeout: Overall timeout for all parallel branches
+    // - require_all: false means can proceed with partial results
+    // - min_required: At least 2 branches must succeed
+    // =========================================================================
+    parallel enrichment_fanout                       // PARALLEL: Start parallel execution block
+        timeout 30 seconds                           // TIMEOUT: 30 seconds for entire fan-out
+        require_all false                            // REQUIRE_ALL: Proceed even if some fail
+        min_required 2                               // MIN_REQUIRED: At least 2 must succeed
+
+        // ---------------------------------------------------------------------
+        // BRANCH 1: Experian Bureau Pull with Circuit Breaker
+        // ---------------------------------------------------------------------
+        branch experian_pull                         // BRANCH: First parallel branch
+            transform using prepare_bureau_request   // TRANSFORM: Prepare bureau request
+                params: { bureau: "experian", request_type: "hard_pull" }
+
+            // CRITICAL PATTERN: Circuit Breaker for External Service
+            call external experian_api               // CALL EXTERNAL: Make API call
+                endpoint "${config.experian.endpoint}" // ENDPOINT: Config-driven URL
+                timeout 10 seconds                   // TIMEOUT: Individual call timeout
+                circuit_breaker                      // CIRCUIT_BREAKER: Protect against failures
+                    failure_threshold 5              // Opens circuit after 5 failures
+                    reset_timeout 60 seconds         // Try again after 60 seconds
+
+            emit_audit_event "bureau_requested"      // AUDIT: Log bureau request
+                payload: { bureau: "experian" }      // PAYLOAD: Include bureau name
+        end                                          // End experian_pull branch
+
+        // ---------------------------------------------------------------------
+        // BRANCH 2: TransUnion Bureau Pull with Circuit Breaker
+        // ---------------------------------------------------------------------
+        branch transunion_pull                       // BRANCH: Second parallel branch
+            transform using prepare_bureau_request   // TRANSFORM: Prepare bureau request
+                params: { bureau: "transunion", request_type: "hard_pull" }
+
+            call external transunion_api             // CALL EXTERNAL: Make API call
+                endpoint "${config.transunion.endpoint}" // ENDPOINT: Config-driven URL
+                timeout 10 seconds                   // TIMEOUT: Individual call timeout
+                circuit_breaker                      // CIRCUIT_BREAKER: Same pattern as Experian
+                    failure_threshold 5              // Opens after 5 failures
+                    reset_timeout 60 seconds         // Reset after 60 seconds
+
+            emit_audit_event "bureau_requested"      // AUDIT: Log bureau request
+                payload: { bureau: "transunion" }
+        end                                          // End transunion_pull branch
+
+        // ---------------------------------------------------------------------
+        // BRANCH 3: Existing Customer Lookup (with caching)
+        // ---------------------------------------------------------------------
+        branch customer_lookup                       // BRANCH: Third parallel branch
+            lookup customer_database                 // LOOKUP: Query customer database
+                key applicant.customer_id            // KEY: Customer ID from application
+                cache ttl 5 minutes                  // CACHE: Cache results for 5 minutes
+        end                                          // End customer_lookup branch
+
+        // ---------------------------------------------------------------------
+        // BRANCH 4: Compliance Checks (KYC/AML) with Retry
+        // ---------------------------------------------------------------------
+        branch compliance_check                      // BRANCH: Fourth parallel branch
+            call external compliance_service         // CALL EXTERNAL: Compliance API
+                endpoint "${config.compliance.endpoint}"
+                timeout 15 seconds                   // TIMEOUT: Longer timeout for compliance
+                retry 2 times                        // RETRY: Retry up to 2 times on failure
+
+            emit_audit_event "compliance_check_completed" // AUDIT: Log completion
+        end                                          // End compliance_check branch
+    end                                              // End parallel block
+
+    // =========================================================================
+    // CRITICAL PATTERN: Fan-In Aggregation with Partial Timeout Handling
+    // PURPOSE: Merge results from parallel branches, handle partial data
+    // =========================================================================
+    aggregate enrichment_results                     // AGGREGATE: Fan-in results from branches
+        from experian_pull, transunion_pull, customer_lookup, compliance_check  // FROM: All branches
+        timeout 35 seconds                           // TIMEOUT: Allow extra time beyond parallel timeout
+        on_partial_timeout                           // ON_PARTIAL_TIMEOUT: Handle missing results
+            log_warning "Enrichment timeout - proceeding with partial data"
+            add_flag "partial_enrichment"            // FLAG: Mark record as partially enriched
+
+    transform using aggregate_bureau_responses       // TRANSFORM: Combine bureau responses
+        input: [experian_pull.result, transunion_pull.result]  // INPUT: Both bureau results
+
+    transform using enrich_application               // TRANSFORM: Final enrichment
+        lookups:                                     // LOOKUPS: Multiple data sources
+            customer_data: customer_lookup.result    // From customer lookup branch
+            bureau_data: enrichment_results.bureau_aggregated  // Aggregated bureau data
+            compliance_data: compliance_check.result // From compliance branch
+
+    emit_audit_event "enrichment_completed"          // AUDIT: Log enrichment completion
+
+    // CONDITIONAL ROUTING: Check compliance before proceeding
+    route when not compliance.all_compliance_passed  // ROUTE: If compliance failed
+        to compliance_declined                       // Route to decline flow
+    otherwise                                        // OTHERWISE: If compliance passed
+        continue                                     // Continue to next stage
+
+    branch compliance_declined                       // BRANCH: Handle compliance failures
+        transition to "declined"                     // TRANSITION: Final declined state
+        emit_audit_event "compliance_failed"         // AUDIT: Log compliance failure
+        emit to declined_applications                // EMIT: Send to declined queue
+            reason "Compliance check failed"
+        terminate                                    // TERMINATE: Stop processing
+    end                                              // End compliance_declined branch
+
+    // =========================================================================
+    // CRITICAL PATTERN: ML Ensemble Scoring
+    // PURPOSE: Run multiple ML models in parallel, combine scores
+    // MODELS: approval, risk, fraud, pricing - each specialized
+    // =========================================================================
+
+    transition to "scoring"                          // TRANSITION: Move to scoring state
+
+    // Feature engineering - prepare input for all models
+    transform using engineer_ml_features             // TRANSFORM: Generate ML features from enriched data
+
+    // =========================================================================
+    // PARALLEL ML SCORING: Execute multiple models concurrently
+    // - require_all: true means ALL models must succeed (critical for decision)
+    // - Each model provides specialized assessment
+    // =========================================================================
+    parallel ml_scoring                              // PARALLEL: Execute models concurrently
+        timeout 10 seconds                           // TIMEOUT: 10 seconds for all models
+        require_all true                             // REQUIRE_ALL: All must succeed (no partial)
+
+        branch approval_model                        // BRANCH: Approval probability model
+            call ml_service "approval_model_v3"      // CALL ML: Invoke approval model v3
+                features: ml_features                // FEATURES: Engineered features
+                timeout 5 seconds                    // TIMEOUT: 5 seconds per model
+        end
+
+        branch risk_model                            // BRANCH: Risk assessment model
+            call ml_service "risk_model_v2"          // CALL ML: Invoke risk model v2
+                features: ml_features
+                timeout 5 seconds
+        end
+
+        branch fraud_model                           // BRANCH: Fraud detection model
+            call ml_service "fraud_model_v4"         // CALL ML: Invoke fraud model v4
+                features: ml_features
+                timeout 5 seconds
+        end
+
+        branch pricing_model                         // BRANCH: Pricing optimization model
+            call ml_service "pricing_model_v2"       // CALL ML: Invoke pricing model v2
+                features: ml_features
+                timeout 5 seconds
+        end
+    end                                              // End parallel ML scoring
+
+    // Normalize and calibrate scores from all models
+    transform using normalize_model_scores           // TRANSFORM: Calibrate and combine scores
+        input: [approval_model.result, risk_model.result, fraud_model.result, pricing_model.result]
+        params:
+            calibration_config: lookup(calibration_configs, "production_v3")  // PARAMS: Use production calibration
+
+    emit_audit_event "ml_scoring_completed"          // AUDIT: Log ML scoring completion
+
+    // =========================================================================
+    // Stage 5: Rules Evaluation
+    // PURPOSE: Apply business rules and regulatory checks
+    // =========================================================================
+
+    transition to "decisioning"                      // TRANSITION: Move to decisioning state
+
+    // FRAUD CHECK: Early exit if critical fraud detected
+    evaluate using fraud_indicators                  // EVALUATE: Check fraud indicators (collect_all policy)
+        on_critical_fraud                            // ON_CRITICAL: If critical fraud found
+            transition to "declined"                 // TRANSITION: Final declined state
+            emit_audit_event "fraud_detected"        // AUDIT: Log fraud detection
+            emit to fraud_queue                      // EMIT: Send to fraud investigation queue
+            emit to declined_applications            // EMIT: Also send to declined queue
+                reason "Fraud indicators detected"
+            terminate                                // TERMINATE: Stop processing immediately
+
+    // RULE CHAIN: Apply business rules in sequence
+    evaluate using validate_income_stated            // EVALUATE: Check stated income reasonableness
+    evaluate using check_existing_exposure           // EVALUATE: Check total credit exposure
+    evaluate using apply_regulatory_overrides        // EVALUATE: Apply SCRA, state caps, ATR rules
+
+    // MAIN DECISION: Apply credit policy decision table
+    evaluate using credit_policy_decision            // EVALUATE: Main credit policy (first_match)
+        output decision_result                       // OUTPUT: Capture decision result
+
+    emit_audit_event "rules_evaluated"               // AUDIT: Log rules evaluation completion
+
+    // =========================================================================
+    // CRITICAL PATTERN: Multi-Branch Decision Routing
+    // PURPOSE: Route to different processing flows based on decision
+    // FLOWS: auto_approval_flow, auto_decline_flow, manual_review_flow
+    // =========================================================================
+
+    route using decision_result.decision             // ROUTE: Based on decision from rules
+        "approved" to auto_approval_flow             // Route approved → auto approval flow
+        "declined" to auto_decline_flow              // Route declined → auto decline flow
+        "review" to manual_review_flow               // Route review → manual review flow
+
+    // -------------------------------------------------------------------------
+    // BRANCH: Auto-Approval Flow
+    // PURPOSE: Process automatically approved applications
+    // -------------------------------------------------------------------------
+    branch auto_approval_flow                        // BRANCH: Handle auto-approved applications
+        // Calculate final credit terms
+        evaluate using credit_limit_calculation      // EVALUATE: Determine approved limit
+        evaluate using apr_pricing                   // EVALUATE: Determine APR and promo terms
+
+        transition to "approved"                     // TRANSITION: Final approved state
+
+        // INLINE TRANSFORM: Create decision record with computed fields
+        transform create_decision                    // TRANSFORM: Build decision record
+            decision = "approved"                    // Set decision type
+            decision_type = "auto"                   // Mark as automated decision
+            approval_details = {                     // NESTED OBJECT: Approval details
+                approved_product: requested_product_code,
+                approved_limit: approved_limit,      // From credit_limit_calculation
+                approved_apr: base_apr,              // From apr_pricing
+                promotional_apr: promo_apr,          // Promotional rate
+                promotional_period_months: promo_months,
+                effective_date: today() + 1 day      // DATE ARITHMETIC: Effective tomorrow
+            }
+
+        emit_audit_event "decision_made"             // AUDIT: Log final decision
+            payload: { decision: "approved", type: "auto" }
+
+        emit to approved_applications                // EMIT: Send to approved topic
+            schema credit_decision                   // SCHEMA: Output schema
+            to kafka "approved-applications"         // DESTINATION: Kafka topic
+
+        // DOWNSTREAM TRIGGER: Account creation system
+        emit to account_creation_queue               // EMIT: Trigger account creation
+            to kafka "account-creation"
+
+        // CUSTOMER NOTIFICATION: Send approval notification
+        emit to customer_notifications               // EMIT: Trigger notification
+            template "approval_notification"         // TEMPLATE: Email/mail template
+            channel: applicant.consents.electronic_delivery ? "email" : "mail"  // CONDITIONAL: Channel based on consent
+    end                                              // End auto_approval_flow branch
+
+    // -------------------------------------------------------------------------
+    // BRANCH: Auto-Decline Flow with Counter Offer Sub-Routing
+    // PURPOSE: Handle declines, check for counter offer eligibility
+    // -------------------------------------------------------------------------
+    branch auto_decline_flow                         // BRANCH: Handle auto-declined applications
+        transition to "declined"                     // TRANSITION: Initial decline state
+
+        // Generate FCRA-compliant adverse action reasons
+        evaluate using generate_adverse_action_reasons  // EVALUATE: Map decline to FCRA codes
+
+        // NESTED ROUTING: Check if counter offer is possible
+        evaluate using counter_offer_eligibility     // EVALUATE: Counter offer decision table
+            output counter_result                    // OUTPUT: Capture counter offer result
+
+        // SUB-ROUTING: Counter offer or final decline
+        route when counter_result.offer_type != "none"  // ROUTE: If counter offer eligible
+            to counter_offer_flow                    // Route to counter offer
+        otherwise                                    // OTHERWISE: No counter offer
+            to final_decline_flow                    // Route to final decline
+    end                                              // End auto_decline_flow branch
+
+    // -------------------------------------------------------------------------
+    // SUB-BRANCH: Counter Offer Flow
+    // PURPOSE: Generate alternative product offer for declined applicants
+    // -------------------------------------------------------------------------
+    branch counter_offer_flow                        // BRANCH: Generate counter offer
+        transition to "counter_offered"              // TRANSITION: Counter offered state
+
+        transform create_counter_offer               // TRANSFORM: Build counter offer record
+            decision = "counter_offer"
+            counter_offer = {                        // NESTED OBJECT: Counter offer details
+                alternative_product: counter_result.offer_type,
+                alternative_limit: calculate_counter_limit(),  // FUNCTION: Calculate reduced limit
+                alternative_apr: base_apr + counter_result.apr_increase,  // Higher APR
+                offer_expiry: now() + 14 days        // DATE ARITHMETIC: 14 day expiry
+            }
+
+        emit_audit_event "counter_offer_generated"   // AUDIT: Log counter offer generation
+
+        emit to counter_offers                       // EMIT: Send to counter offers topic
+            schema credit_decision
+            to kafka "counter-offers"
+
+        emit to customer_notifications               // EMIT: Notify customer of counter offer
+            template "counter_offer_notification"
+    end                                              // End counter_offer_flow branch
+
+    // -------------------------------------------------------------------------
+    // SUB-BRANCH: Final Decline Flow
+    // PURPOSE: Process final declines with adverse action notice
+    // -------------------------------------------------------------------------
+    branch final_decline_flow                        // BRANCH: Process final decline
+        transform create_decline_decision            // TRANSFORM: Build decline record
+            decision = "declined"
+            decision_type = "auto"
+            decline_details = {                      // NESTED OBJECT: Decline details
+                decline_reasons: adverse_action_reasons,  // FCRA reasons from earlier evaluate
+                adverse_action_required: true,       // REGULATORY: Adverse action required
+                reapply_eligible_date: today() + 90 days  // DATE ARITHMETIC: 90 day wait
+            }
+
+        emit_audit_event "decision_made"             // AUDIT: Log final decision
+            payload: { decision: "declined", type: "auto" }
+
+        // REGULATORY COMPLIANCE: Generate adverse action notice
+        transform using generate_adverse_action_notice  // TRANSFORM: Create FCRA-compliant notice
+        emit to adverse_action_queue                 // EMIT: Queue adverse action for delivery
+            schema adverse_action_notice             // SCHEMA: Adverse action notice schema
+            to kafka "adverse-action-notices"
+
+        emit to declined_applications                // EMIT: Send to declined topic
+            schema credit_decision
+            to kafka "declined-applications"
+    end                                              // End final_decline_flow branch
+
+    // -------------------------------------------------------------------------
+    // BRANCH: Manual Review Flow with SLA Scheduling
+    // PURPOSE: Queue applications for human review with SLA tracking
+    // -------------------------------------------------------------------------
+    branch manual_review_flow                        // BRANCH: Handle manual review routing
+        transition to "pending_review"               // TRANSITION: Pending review state
+
+        // Determine appropriate review queue and SLA
+        evaluate using review_queue_routing          // EVALUATE: Queue routing decision table
+            output routing_result                    // OUTPUT: Capture routing result
+
+        evaluate using determine_manual_review_actions  // EVALUATE: Required review actions
+
+        transform create_review_decision             // TRANSFORM: Build review record
+            decision = "pending_review"
+            decision_type = "manual"
+            review_details = {                       // NESTED OBJECT: Review configuration
+                review_queue: routing_result.queue,  // Assigned queue
+                assigned_to: null,                   // Not yet assigned to reviewer
+                review_reason: review_reason_code,   // Why review is needed
+                escalation_level: 0,                 // Initial escalation level
+                sla_deadline: now() + routing_result.sla_hours hours,  // TIME ARITHMETIC: SLA deadline
+                required_actions: review_actions     // Actions reviewer must complete
+            }
+
+        emit_audit_event "review_assigned"           // AUDIT: Log review assignment
+            payload: { queue: routing_result.queue, priority: routing_result.priority }
+
+        // DYNAMIC TOPIC: Route to queue-specific Kafka topic
+        emit to review_queue                         // EMIT: Send to review queue
+            schema credit_decision
+            to kafka "review-queue-${routing_result.queue}"  // INTERPOLATION: Dynamic topic name
+            headers:                                 // HEADERS: Kafka message headers
+                priority: routing_result.priority    // Priority for queue ordering
+                sla_hours: routing_result.sla_hours  // SLA for monitoring
+
+        // =========================================================================
+        // CRITICAL PATTERN: Scheduled Actions for SLA Monitoring
+        // PURPOSE: Automatically check for SLA breach after deadline
+        // =========================================================================
+        schedule sla_check                           // SCHEDULE: Delayed action
+            after routing_result.sla_hours hours     // AFTER: Delay by SLA hours
+            action check_sla_breach                  // ACTION: Run SLA breach check
+    end                                              // End manual_review_flow branch
+
+    // =========================================================================
+    // CRITICAL PATTERN: Error Handling with Exponential Backoff
+    // PURPOSE: Resilient error handling with retry and dead letter queue
+    // =========================================================================
+
+    on error                                         // ON ERROR: Global error handler
+        log_error "Processing error: ${error.message}"  // LOG: Error message with interpolation
+        emit_audit_event "processing_error"          // AUDIT: Log error for compliance
+            payload: { error: error.message, stack: error.stack }  // Include stack trace
+
+        // RETRY WITH BACKOFF: Exponential delay between retries
+        retry 3 times                                // RETRY: Up to 3 attempts
+            delay 1 second                           // DELAY: Initial delay 1 second
+            backoff exponential                      // BACKOFF: Double delay each retry (1s, 2s, 4s)
+            max_delay 30 seconds                     // MAX_DELAY: Cap at 30 seconds
+
+        then                                         // THEN: After retries exhausted
+            transition to "cancelled"                // TRANSITION: Final cancelled state
+            emit to dead_letter_queue                // DLQ: Send to dead letter queue
+                preserve_state true                  // PRESERVE: Keep state machine data
+                include_error_context true           // CONTEXT: Include error details
+    end                                              // End error handler
+
+    // =========================================================================
+    // Metrics: Operational Monitoring
+    // PURPOSE: Track processing metrics for observability
+    // =========================================================================
+
+    metrics                                          // METRICS: Define operational metrics
+        // COUNTERS: Running totals
+        counter applications_received                // COUNT: Total received
+        counter applications_approved                // COUNT: Total approved
+        counter applications_declined                // COUNT: Total declined
+        counter applications_review                  // COUNT: Sent to review
+        counter applications_counter_offered         // COUNT: Counter offers made
+
+        // HISTOGRAMS: Distribution tracking
+        histogram processing_time_ms                 // HISTOGRAM: End-to-end processing time
+        histogram bureau_response_time_ms            // HISTOGRAM: Bureau API latency
+        histogram ml_scoring_time_ms                 // HISTOGRAM: ML scoring latency
+
+        // GAUGES: Current values
+        gauge pending_reviews                        // GAUGE: Currently pending reviews
+        gauge sla_breaches                           // GAUGE: Active SLA breaches
+
+        // RATES: Calculated rates over time windows
+        rate approval_rate window 1 hour             // RATE: Approvals per hour
+        rate decline_rate window 1 hour              // RATE: Declines per hour
+    end                                              // End metrics block
+end                                                  // End credit_decisioning_pipeline process
+
+// ============================================================================
+// SUPPORTING PROCESS: Manual Review Handler
+// PURPOSE: Process human review decisions from UI
+// CRITICAL PATTERNS:
+// - State store lookup for application context
+// - Multi-way routing based on review decision
+// - Actor-based audit events (user vs system)
+// ============================================================================
+
+process manual_review_handler                        // PROCESS: Handle manual review decisions
+    parallelism hint 4                               // SCALING: 4 instances for review volume
+    time by processing_time                          // TIME: Use processing time (not event time)
+
+    receive review_decisions                         // RECEIVE: Review decisions from UI
+        schema object                                // SCHEMA: Generic object (UI-driven)
+        from kafka "review-decisions"                // SOURCE: Review decisions topic
+
+    // CRITICAL PATTERN: State Store Lookup
+    // PURPOSE: Load application state to continue processing
+    lookup application_state                         // LOOKUP: Retrieve application state
+        key application_id                           // KEY: Application ID from review decision
+        from state_store "application_lifecycle"     // FROM: State machine's state store
+
+    validate_input                                   // VALIDATE: Ensure valid review context
+        require current_state == "pending_review" else "Application not in review state"
+        require reviewer_id is not null else "Reviewer ID required"
+        require review_decision in ["approve", "decline", "escalate", "request_info"] else "Invalid decision"
+
+    // MULTI-WAY ROUTING: Route based on reviewer's decision
+    route using review_decision                      // ROUTE: By review decision type
+        "approve" to review_approve_flow             // Approve → approval processing
+        "decline" to review_decline_flow             // Decline → decline processing
+        "escalate" to review_escalate_flow           // Escalate → escalation handling
+        "request_info" to request_info_flow          // Request info → info request flow
+
+    branch review_approve_flow                       // BRANCH: Manual approval path
+        transition to "approved"                     // TRANSITION: Final approved state
+
+        evaluate using credit_limit_calculation      // EVALUATE: Calculate limit
+        evaluate using apr_pricing                   // EVALUATE: Calculate APR
+
+        // MANUAL OVERRIDE: Allow reviewer to override calculated values
+        let final_limit = coalesce(override_limit, approved_limit)  // Use override if provided
+        let final_apr = coalesce(override_apr, base_apr)            // Use override if provided
+
+        transform create_decision                    // TRANSFORM: Build decision record
+            decision = "approved"
+            decision_type = "manual"                 // Mark as manual decision
+            approval_details = {
+                approved_product: requested_product_code,
+                approved_limit: final_limit,         // Final (possibly overridden) limit
+                approved_apr: final_apr,             // Final (possibly overridden) APR
+                reviewer_notes: review_notes         // Include reviewer notes
+            }
+
+        // CRITICAL PATTERN: User Actor Audit Event
+        // PURPOSE: Track WHO made the decision (vs system events)
+        emit_audit_event "review_completed"          // AUDIT: Log review completion
+            actor user reviewer_id                   // ACTOR: User (not system) - tracks reviewer
+            payload: { decision: "approved", reviewer_notes: review_notes }
+
+        emit to approved_applications                // EMIT: Send to approved queue
+        emit to account_creation_queue               // EMIT: Trigger account creation
+        emit to customer_notifications               // EMIT: Notify customer
+            template "approval_notification"
+    end                                              // End review_approve_flow
+
+    branch review_decline_flow                       // BRANCH: Manual decline path
+        transition to "declined"                     // TRANSITION: Final declined state
+
+        evaluate using generate_adverse_action_reasons  // EVALUATE: Generate FCRA reasons
+
+        transform create_decline_decision            // TRANSFORM: Build decline record
+            decision = "declined"
+            decision_type = "manual"                 // Mark as manual decision
+            decline_details = {
+                decline_reasons: coalesce(manual_decline_reasons, adverse_action_reasons),  // Manual reasons override auto
+                adverse_action_required: true,
+                reviewer_notes: review_notes         // Include reviewer notes
+            }
+
+        emit_audit_event "review_completed"          // AUDIT: Log review completion
+            actor user reviewer_id                   // ACTOR: User - tracks reviewer
+            payload: { decision: "declined", reviewer_notes: review_notes }
+
+        transform using generate_adverse_action_notice  // TRANSFORM: Create adverse action
+        emit to adverse_action_queue                 // EMIT: Queue for delivery
+        emit to declined_applications                // EMIT: Send to declined queue
+    end                                              // End review_decline_flow
+
+    branch review_escalate_flow                      // BRANCH: Escalation path
+        // UPDATE STATE: Increment escalation level
+        set review_details.escalation_level = review_details.escalation_level + 1
+        set review_details.assigned_to = null        // Unassign for re-routing
+        set review_details.escalation_reason = escalation_reason
+
+        emit_audit_event "review_escalated"          // AUDIT: Log escalation
+            actor user reviewer_id                   // ACTOR: User who escalated
+            payload: { level: review_details.escalation_level, reason: escalation_reason }
+
+        emit to review_queue                         // EMIT: Re-queue for escalation
+            to kafka "review-queue-escalated"        // TOPIC: Escalated queue
+            headers:
+                priority: "high"                     // PRIORITY: Escalations are high priority
+                escalation_level: review_details.escalation_level
+    end                                              // End review_escalate_flow
+
+    branch request_info_flow                         // BRANCH: Request more information
+        emit_audit_event "info_requested"            // AUDIT: Log info request
+            actor user reviewer_id                   // ACTOR: User who requested info
+            payload: { requested_documents: requested_documents }
+
+        emit to customer_notifications               // EMIT: Notify customer
+            template "info_request_notification"     // TEMPLATE: Info request template
+            payload: { requested_documents: requested_documents, deadline: now() + 7 days }
+
+        // CRITICAL PATTERN: Scheduled Reminder with Repeat
+        schedule reminder                            // SCHEDULE: Set up reminder
+            after 3 days                             // AFTER: 3 days from now
+            action send_reminder                     // ACTION: Send reminder
+            repeat until document_received or deadline_passed  // REPEAT: Until condition met
+    end                                              // End request_info_flow
+
+    on error                                         // ERROR HANDLER: Simple error handling
+        log_error "Review processing error"
+        emit to review_errors                        // EMIT: Send to error queue
+    end
+end                                                  // End manual_review_handler process
+
+// ============================================================================
+// SUPPORTING PROCESS: Audit Event Processor
+// PURPOSE: Maintain immutable audit log for compliance
+// CRITICAL PATTERNS:
+// - Hash validation for event integrity
+// - Immutable storage (compaction none, retention infinite)
+// - Multi-sink output (Kafka + Elasticsearch)
+// - Indefinite retry (audit events cannot be lost)
+// ============================================================================
+
+process audit_event_processor                        // PROCESS: Process audit events
+    parallelism hint 8                               // SCALING: 8 instances for audit volume
+    time by event_time                               // EVENT TIME: Use event timestamp
+        watermark delay 5 seconds                    // WATERMARK: 5 second late tolerance
+
+    receive audit_events                             // RECEIVE: Audit events
+        schema audit_event                           // SCHEMA: Audit event schema
+        from kafka "audit-events"                    // SOURCE: Audit events topic
+            group "audit-processor"                  // CONSUMER GROUP: For offset management
+
+    // CRITICAL PATTERN: Hash Validation for Integrity
+    validate_input                                   // VALIDATE: Check event integrity
+        require sha256(payload.data) == payload.data_hash else "Event integrity check failed"
+
+    // CRITICAL PATTERN: Immutable Storage Configuration
+    emit to audit_store                              // EMIT: To immutable audit log
+        schema audit_event
+        to kafka "audit-log"                         // DESTINATION: Audit log topic
+            compaction none                          // COMPACTION: Disabled (keep all events)
+            retention infinite                       // RETENTION: Never delete (compliance requirement)
+
+    // MULTI-SINK: Also store to searchable index
+    emit to audit_index                              // EMIT: To Elasticsearch
+        to elasticsearch "audit-events"              // DESTINATION: Elasticsearch cluster
+            index "credit-audit-${date_format(event_time, 'yyyy-MM')}"  // DYNAMIC INDEX: Monthly partitioning
+
+    // WINDOWED ANALYSIS: Real-time compliance monitoring
+    window tumbling 1 hour                           // WINDOW: 1 hour tumbling
+        key by application_id                        // KEY: Per application
+        aggregate                                    // AGGREGATIONS
+            count() as event_count                   // COUNT: Events per application
+            collect(event_type) as event_types       // COLLECT: List of event types
+            first(event_time) as first_event         // FIRST: Earliest event
+            last(event_time) as last_event           // LAST: Latest event
+        end                                          // End aggregations
+
+    // ALERTING: Detect unusual patterns
+    route when event_count > 50 or contains(event_types, "processing_error")
+        to compliance_alerts                         // Route unusual patterns to alerts
+
+    emit to compliance_alerts                        // EMIT: Alert records
+        to kafka "compliance-alerts"
+
+    // CRITICAL PATTERN: Indefinite Retry for Audit Events
+    // PURPOSE: Audit events MUST NOT be lost - retry forever if necessary
+    on error                                         // ERROR HANDLER
+        retry indefinitely                           // RETRY: Never give up
+            delay 1 second                           // DELAY: Start with 1 second
+            backoff exponential                      // BACKOFF: Exponential increase
+            max_delay 60 seconds                     // MAX: Cap at 60 seconds
+    end                                              // End error handler
+end                                                  // End audit_event_processor
+
+// ============================================================================
+// SUPPORTING PROCESS: SLA Monitor
+// PURPOSE: Track SLA compliance for pending reviews
+// CRITICAL PATTERNS:
+// - Scheduler-triggered processing (not event-driven)
+// - State store scan with filter
+// - Foreach iteration over state
+// - Auto-escalation logic
+// ============================================================================
+
+process sla_monitor                                  // PROCESS: SLA monitoring
+    parallelism hint 2                               // SCALING: 2 instances (low volume)
+    time by processing_time                          // TIME: Processing time (scheduled job)
+        watermark delay 1 minute                     // WATERMARK: 1 minute tolerance
+
+    // CRITICAL PATTERN: Scheduler-Triggered Receive
+    // PURPOSE: Run on schedule rather than event stream
+    receive sla_checks                               // RECEIVE: Scheduled triggers
+        from scheduler "sla-check-scheduler"         // SOURCE: Scheduler (not Kafka)
+
+    // CRITICAL PATTERN: State Store Scan with Filter
+    // PURPOSE: Load all pending reviews from state machine
+    lookup pending_reviews                           // LOOKUP: Scan state store
+        from state_store "application_lifecycle"     // FROM: State machine's store
+        filter current_state == "pending_review"     // FILTER: Only pending reviews
+
+    // CRITICAL PATTERN: Foreach Iteration
+    // PURPOSE: Process each pending review individually
+    foreach review in pending_reviews                // FOREACH: Iterate over results
+        let time_in_queue = minutes_between(review.state_entered_at, now())  // Calculate wait time
+        let sla_minutes = review.review_details.sla_hours * 60  // Convert SLA to minutes
+
+        if time_in_queue > sla_minutes then          // IF: SLA breached
+            // SLA BREACH HANDLING
+            emit_audit_event "sla_breached"          // AUDIT: Log breach
+                payload: { application_id: review.application_id, minutes_over: time_in_queue - sla_minutes }
+
+            emit to sla_breach_alerts                // EMIT: Alert on breach
+                to kafka "sla-breaches"
+                payload: {
+                    application_id: review.application_id,
+                    queue: review.review_details.review_queue,
+                    sla_hours: review.review_details.sla_hours,
+                    actual_hours: time_in_queue / 60,
+                    assigned_to: review.review_details.assigned_to
+                }
+
+            // CONFIG-DRIVEN AUTO-ESCALATION
+            if config.auto_escalate_on_breach == true then  // IF: Auto-escalate enabled
+                emit to escalation_queue             // EMIT: Trigger escalation
+                    payload: { application_id: review.application_id, reason: "SLA breach auto-escalation" }
+            endif
+        elseif time_in_queue > sla_minutes * 0.8 then  // ELSEIF: Approaching SLA (80%)
+            // WARNING: Approaching SLA deadline
+            emit to sla_warning_alerts               // EMIT: Warning alert
+                to kafka "sla-warnings"
+        endif
+    end                                              // End foreach
+
+    metrics                                          // METRICS: SLA tracking
+        gauge sla_breaches_total                     // GAUGE: Total active breaches
+        histogram time_to_sla_breach_minutes         // HISTOGRAM: Time distribution
+    end                                              // End metrics
+end                                                  // End sla_monitor process

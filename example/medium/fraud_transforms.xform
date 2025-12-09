@@ -1,0 +1,313 @@
+// ============================================================================
+// FILE: fraud_transforms.xform
+// LAYER: L3 - Transform Definition
+// USE CASE: Medium - Fraud Detection Pipeline
+// ============================================================================
+//
+// SUMMARY:
+// This transform file defines data transformation logic for a fraud detection
+// pipeline. It demonstrates medium complexity patterns including external
+// lookups, stateful processing, ML model integration, and alert generation.
+//
+// TRANSFORMS DEFINED (5 total):
+//
+// 1. enrich_with_customer - Enriches raw transactions with customer profile:
+//    - Performs lookup against customer_profile reference data
+//    - Adds risk scores, account age, and premium status
+//    - Handles missing profiles with default values
+//    - NOT PURE: uses external lookup
+//
+// 2. calculate_velocity_metrics - Computes transaction velocity:
+//    - Reads from windowed state (hourly/daily aggregates)
+//    - Populates transactions_last_hour, amount_last_day, etc.
+//    - Uses keyed state by card_holder_id
+//
+// 3. apply_fraud_scoring - ML model and rule-based scoring:
+//    - Calls external ML model for fraud probability
+//    - Computes rule-based scores for velocity, amount, location
+//    - Combines into weighted final score
+//
+// 4. create_fraud_alert - Generates alerts for blocked/review transactions:
+//    - Determines alert type and severity from decision
+//    - Creates masked card number for security
+//    - Generates recommended actions
+//
+// 5. mask_card_number - Utility to mask card numbers:
+//    - Simple string transformation for logging
+//
+// STATEFUL OPERATIONS: Several transforms use state or external lookups,
+// making them non-pure but necessary for enrichment workflows.
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: enrich_with_customer
+// PURPOSE: Join transaction with customer profile data for enrichment
+// INPUT: raw_transaction
+// OUTPUT: enriched_transaction
+// IMPURE: Uses external lookup (customer_profile)
+// ----------------------------------------------------------------------------
+transform enrich_with_customer                   // Declare enrichment transform
+    version: 1.0.0                               // Transform version
+    description: "Enrich transaction with customer profile data"  // Purpose
+    pure: false                                  // NOT PURE: performs external lookup
+
+    input: raw_transaction                       // Input schema type
+    lookup: customer_profile                     // LOOKUP: reference data source to join against
+    output: enriched_transaction                 // Output schema type
+
+    validate_input                               // Pre-conditions before processing
+        require transaction_id is not null else "Transaction ID required"  // Must have txn ID
+        require card_holder_id is not null else "Card holder ID required"  // Must have customer ID for lookup
+        require amount > 0 else "Amount must be positive"  // Basic validation
+    end                                          // End validation block
+
+    apply                                        // Transformation logic
+        // --- Pass through original transaction fields ---
+        transaction_id = input.transaction_id    // Copy transaction ID
+        card_number = input.card_number          // Copy card number
+        card_holder_id = input.card_holder_id    // Copy customer ID
+        amount = input.amount                    // Copy amount
+        currency = input.currency                // Copy currency
+        merchant_id = input.merchant_id          // Copy merchant ID
+        merchant_name = input.merchant_name      // Copy merchant name
+        merchant_category = input.merchant_category  // Copy merchant category
+        transaction_time = input.transaction_time    // Copy timestamp
+        channel = input.channel                  // Copy channel
+        card_present = input.card_present        // Copy card present flag
+
+        // --- Perform customer profile lookup ---
+        let profile = lookup(customer_profile, input.card_holder_id)  // LOOKUP: fetch customer data by ID
+
+        // --- Enrich with customer data (with fallback defaults) ---
+        customer_risk_score = when profile is not null then profile.risk_score  // Use profile risk if found
+                             otherwise 75        // DEFAULT: assume higher risk (75) if no profile
+        customer_account_age = when profile is not null then profile.account_age_days  // Account age if found
+                              otherwise 0        // DEFAULT: 0 days (new account = higher risk)
+        customer_average_transaction = when profile is not null then profile.average_transaction  // Avg txn if found
+                                       otherwise null  // No default for average
+        is_premium_customer = when profile is not null then profile.is_premium  // Premium flag if found
+                             otherwise false     // DEFAULT: not premium
+
+        // --- Initialize velocity metrics (populated later by window aggregation) ---
+        transactions_last_hour = 0               // PLACEHOLDER: will be filled by calculate_velocity_metrics
+        transactions_last_day = 0                // PLACEHOLDER: will be filled by calculate_velocity_metrics
+        amount_last_hour = 0.00                  // PLACEHOLDER: will be filled
+        amount_last_day = 0.00                   // PLACEHOLDER: will be filled
+
+        // --- Location analysis placeholders ---
+        is_unusual_location = false              // PLACEHOLDER: for location analysis
+        distance_from_last = null                // PLACEHOLDER: distance calculation
+    end                                          // End apply block
+
+    on_error                                     // Error handling
+        log_error("Customer enrichment failed")  // Log the error for debugging
+        emit with defaults                       // Emit record with default values rather than failing
+    end                                          // End error block
+end                                              // End enrich_with_customer transform
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: calculate_velocity_metrics
+// PURPOSE: Read windowed aggregates to populate velocity metrics
+// INPUT: enriched_transaction
+// OUTPUT: enriched_transaction (same schema, updated fields)
+// STATEFUL: Reads from window state stores
+// ----------------------------------------------------------------------------
+transform calculate_velocity_metrics             // Declare velocity calculation transform
+    version: 1.0.0                               // Transform version
+    description: "Calculate transaction velocity from windowed aggregates"  // Purpose
+    pure: true                                   // PURE: same input always produces same output (state is input)
+
+    input: enriched_transaction                  // Input schema
+    state: velocity_state                        // STATE: windowed aggregation state store
+    output: enriched_transaction                 // Output schema (same as input, enriched)
+
+    apply                                        // Transformation logic
+        // --- Pass through all existing fields unchanged ---
+        transaction_id = input.transaction_id    // Transaction ID
+        card_number = input.card_number          // Card number
+        card_holder_id = input.card_holder_id    // Customer ID
+        amount = input.amount                    // Amount
+        currency = input.currency                // Currency
+        merchant_id = input.merchant_id          // Merchant ID
+        merchant_name = input.merchant_name      // Merchant name
+        merchant_category = input.merchant_category  // Merchant category
+        transaction_time = input.transaction_time    // Timestamp
+        channel = input.channel                  // Channel
+        card_present = input.card_present        // Card present
+        customer_risk_score = input.customer_risk_score  // Customer risk
+        customer_account_age = input.customer_account_age  // Account age
+        customer_average_transaction = input.customer_average_transaction  // Avg txn
+        is_premium_customer = input.is_premium_customer  // Premium flag
+
+        // --- Read velocity from windowed state stores ---
+        let hourly = state.get_window("hourly", input.card_holder_id)  // Get hourly window for this customer
+        let daily = state.get_window("daily", input.card_holder_id)    // Get daily window for this customer
+
+        // --- Populate velocity metrics from state ---
+        transactions_last_hour = hourly.count    // Count of txns in hourly window
+        transactions_last_day = daily.count      // Count of txns in daily window
+        amount_last_hour = hourly.sum_amount     // Sum of amounts in hourly window
+        amount_last_day = daily.sum_amount       // Sum of amounts in daily window
+
+        // --- Pass through location flags ---
+        is_unusual_location = input.is_unusual_location  // Location flag
+        distance_from_last = input.distance_from_last    // Distance
+    end                                          // End apply block
+end                                              // End calculate_velocity_metrics transform
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: apply_fraud_scoring
+// PURPOSE: Apply ML model and rule-based scoring to compute fraud score
+// INPUT: enriched_transaction
+// OUTPUT: fraud_scored_transaction
+// PURE: Deterministic scoring logic
+// ----------------------------------------------------------------------------
+transform apply_fraud_scoring                    // Declare fraud scoring transform
+    version: 1.0.0                               // Transform version
+    description: "Apply ML model and rule-based fraud scoring"  // Purpose
+    pure: true                                   // PURE: deterministic output
+
+    input: enriched_transaction                  // Input schema
+    output: fraud_scored_transaction             // Output schema (with scores)
+
+    validate_input                               // Pre-conditions
+        require transaction_id is not null else "Transaction ID required"  // Must have ID
+        require amount > 0 else "Amount must be positive"  // Must have positive amount
+    end                                          // End validation
+
+    apply                                        // Transformation logic
+        // --- Pass through core fields ---
+        transaction_id = input.transaction_id    // Transaction ID
+        card_number = input.card_number          // Card number
+        card_holder_id = input.card_holder_id    // Customer ID
+        amount = input.amount                    // Amount
+        currency = input.currency                // Currency
+        merchant_id = input.merchant_id          // Merchant ID
+        transaction_time = input.transaction_time    // Timestamp
+        channel = input.channel                  // Channel
+
+        // --- Pass through enrichment data ---
+        customer_risk_score = input.customer_risk_score  // Customer risk
+        transactions_last_hour = input.transactions_last_hour  // Hourly velocity
+        amount_last_day = input.amount_last_day  // Daily amount
+        is_unusual_location = input.is_unusual_location  // Location flag
+
+        // --- ML MODEL SCORING ---
+        ml_fraud_score = call_model("fraud_detector_v2", {  // CALL ML MODEL with features
+            amount: input.amount,                // Feature: transaction amount
+            channel: input.channel,              // Feature: transaction channel
+            customer_risk: input.customer_risk_score,  // Feature: customer risk score
+            velocity_hour: input.transactions_last_hour,  // Feature: hourly velocity
+            velocity_day: input.transactions_last_day,    // Feature: daily velocity
+            unusual_location: input.is_unusual_location   // Feature: location flag
+        })                                       // Returns probability 0.0-1.0
+        ml_model_version = "fraud_detector_v2.1.0"  // Record model version for audit
+        ml_confidence = 0.92                     // Model confidence (placeholder)
+
+        // --- RULE-BASED VELOCITY SCORING ---
+        velocity_risk_score = when input.transactions_last_hour > 10 then 90  // Very high velocity: score 90
+                             when input.transactions_last_hour > 5 then 70    // High velocity: score 70
+                             when input.transactions_last_hour > 3 then 50    // Medium velocity: score 50
+                             otherwise 20        // Normal velocity: score 20
+
+        // --- RULE-BASED AMOUNT SCORING ---
+        amount_risk_score = when input.amount > 5000 then 80   // Very large amount: score 80
+                           when input.amount > 2000 then 60    // Large amount: score 60
+                           when input.amount > 1000 then 40    // Medium amount: score 40
+                           otherwise 20          // Normal amount: score 20
+
+        // --- RULE-BASED LOCATION SCORING ---
+        location_risk_score = when input.is_unusual_location then 70  // Unusual location: score 70
+                             otherwise 10        // Normal location: score 10
+
+        // --- COMBINE SCORES WITH WEIGHTS ---
+        let ml_weight = 0.5                      // ML model gets 50% weight
+        let velocity_weight = 0.2                // Velocity rules get 20% weight
+        let amount_weight = 0.15                 // Amount rules get 15% weight
+        let location_weight = 0.15               // Location rules get 15% weight
+
+        combined_fraud_score = (ml_fraud_score * ml_weight) +  // ML contribution
+                               (velocity_risk_score / 100.0 * velocity_weight) +  // Velocity contribution (normalized)
+                               (amount_risk_score / 100.0 * amount_weight) +      // Amount contribution (normalized)
+                               (location_risk_score / 100.0 * location_weight)    // Location contribution (normalized)
+    end                                          // End apply block
+
+    on_error                                     // Error handling
+        log_error("Fraud scoring failed")        // Log error
+        reject with "Scoring error"              // Reject record
+    end                                          // End error block
+end                                              // End apply_fraud_scoring transform
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: create_fraud_alert
+// PURPOSE: Generate fraud alert from blocked or review transactions
+// INPUT: fraud_decision
+// OUTPUT: fraud_alert
+// PURE: Deterministic alert generation
+// ----------------------------------------------------------------------------
+transform create_fraud_alert                     // Declare alert generation transform
+    version: 1.0.0                               // Transform version
+    description: "Generate fraud alert from blocked/review transactions"  // Purpose
+    pure: true                                   // PURE: deterministic output
+
+    input: fraud_decision                        // Input: the decision record
+    output: fraud_alert                          // Output: the alert record
+
+    validate_input                               // Pre-conditions
+        require decision in ["blocked", "review"] else "Only create alerts for blocked/review"  // Only for flagged txns
+    end                                          // End validation
+
+    apply                                        // Transformation logic
+        alert_id = generate_uuid()               // Generate unique alert ID
+        transaction_id = input.transaction_id    // Reference to original transaction
+        card_holder_id = extract_holder_id(input.card_number)  // Extract customer ID from card
+        card_number_masked = mask_card(input.card_number)  // Mask card for security
+        amount = input.amount                    // Transaction amount
+        merchant_name = lookup_merchant_name(input.merchant_id)  // Look up merchant name
+
+        // --- Determine alert type from decision reason ---
+        alert_type = when contains(input.decision_reason, "ML") then "ml_flagged"  // ML model flagged
+                    when contains(input.decision_reason, "velocity") then "velocity_breach"  // Velocity rules
+                    when contains(input.decision_reason, "location") then "unusual_location"  // Location rules
+                    otherwise "high_risk"        // Generic high risk
+
+        // --- Map combined score to severity level ---
+        severity = when input.combined_fraud_score > 0.9 then "critical"  // Score > 0.9: critical
+                  when input.combined_fraud_score > 0.7 then "high"       // Score > 0.7: high
+                  when input.combined_fraud_score > 0.5 then "medium"     // Score > 0.5: medium
+                  otherwise "low"                // Otherwise: low
+
+        // --- Build alert message ---
+        alert_message = format("Suspicious transaction of {0} {1} at {2}. Reason: {3}",  // Format message
+                              input.currency, input.amount, merchant_name, input.decision_reason)
+        alert_time = now()                       // Current timestamp
+
+        // --- Determine recommended action based on severity ---
+        recommended_action = when severity == "critical" then "Block card and contact customer immediately"
+                            when severity == "high" then "Contact customer for verification"
+                            when severity == "medium" then "Monitor for additional suspicious activity"
+                            otherwise "Log for review"
+
+        auto_blocked = input.decision == "blocked"  // Flag if transaction was auto-blocked
+    end                                          // End apply block
+end                                              // End create_fraud_alert transform
+
+// ----------------------------------------------------------------------------
+// TRANSFORM: mask_card_number
+// PURPOSE: Mask card number for secure logging (show only last 4 digits)
+// INPUT: string (full card number)
+// OUTPUT: string (masked: ****-****-****-1234)
+// PURE: Simple string transformation
+// ----------------------------------------------------------------------------
+transform mask_card_number                       // Declare masking transform
+    version: 1.0.0                               // Transform version
+    description: "Mask card number for secure logging"  // Purpose
+    pure: true                                   // PURE: no side effects
+
+    input: string                                // Input: full card number string
+    output: string                               // Output: masked card number string
+
+    apply                                        // Transformation logic
+        result = "****-****-****-" + substring(input, 12, 4)  // Mask first 12, show last 4
+    end                                          // End apply block
+end                                              // End mask_card_number transform
