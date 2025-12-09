@@ -276,3 +276,72 @@ class BaseGenerator(ABC):
                 sections.append('\n'.join(f"import {imp};" for imp in group))
 
         return '\n\n'.join(sections) + '\n' if sections else ''
+
+    # =========================================================================
+    # Duration and Size Conversion Utilities
+    # =========================================================================
+
+    def duration_to_ms(self, duration) -> int:
+        """Convert a duration object to milliseconds.
+
+        Args:
+            duration: Duration object with 'value' and 'unit' attributes
+
+        Returns:
+            Duration in milliseconds
+        """
+        if duration is None:
+            return 0
+
+        multipliers = {
+            'ms': 1,
+            's': 1000,
+            'm': 60000,
+            'h': 3600000,
+            'd': 86400000
+        }
+        unit = getattr(duration, 'unit', 'ms')
+        value = getattr(duration, 'value', 0)
+        return value * multipliers.get(unit, 1)
+
+    def size_to_bytes(self, size) -> int:
+        """Convert a size object to bytes.
+
+        Args:
+            size: Size object with 'value' and 'unit' attributes
+
+        Returns:
+            Size in bytes
+        """
+        if size is None:
+            return 0
+
+        multipliers = {
+            'B': 1,
+            'KB': 1024,
+            'MB': 1024 * 1024,
+            'GB': 1024 * 1024 * 1024
+        }
+        unit = getattr(size, 'unit', 'B')
+        value = getattr(size, 'value', 0)
+        return value * multipliers.get(unit, 1)
+
+    def to_java_constant(self, name: str) -> str:
+        """Convert a name to Java constant style (UPPER_SNAKE_CASE).
+
+        Args:
+            name: Name to convert
+
+        Returns:
+            Valid Java constant name in UPPER_SNAKE_CASE
+        """
+        if not name:
+            return "UNKNOWN"
+
+        result = name.upper()
+        # Replace hyphens and spaces with underscores
+        result = result.replace('-', '_').replace(' ', '_')
+        # Ensure it's a valid Java identifier
+        if result and result[0].isdigit():
+            result = '_' + result
+        return result

@@ -25,12 +25,24 @@ from backend.generators.voltage import VoltageProfilesConfig
 from backend.generators.schema.pojo_generator import PojoGeneratorMixin
 from backend.generators.schema.builder_generator import BuilderGeneratorMixin
 from backend.generators.schema.pii_helper_generator import PiiHelperGeneratorMixin
+from backend.generators.schema.streaming_generator import StreamingGeneratorMixin
+from backend.generators.schema.migration_generator import MigrationGeneratorMixin
+from backend.generators.schema.statemachine_generator import StateMachineGeneratorMixin
+from backend.generators.schema.parameters_generator import ParametersGeneratorMixin
+from backend.generators.schema.entries_generator import EntriesGeneratorMixin
+from backend.generators.schema.rule_generator import RuleGeneratorMixin
 
 
 class SchemaGenerator(
     PojoGeneratorMixin,
     BuilderGeneratorMixin,
     PiiHelperGeneratorMixin,
+    StreamingGeneratorMixin,
+    MigrationGeneratorMixin,
+    StateMachineGeneratorMixin,
+    ParametersGeneratorMixin,
+    EntriesGeneratorMixin,
+    RuleGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -71,6 +83,36 @@ class SchemaGenerator(
         if self._has_pii_fields(schema):
             voltage_content = self.generate_pii_helper(schema, class_name, package)
             self.result.add_file(java_src_path / f"{class_name}PiiHelper.java", voltage_content, "java")
+
+        # Generate Migration helper if schema has migration or version block
+        if schema.migration or schema.version:
+            migration_content = self._generate_migration_class(schema, class_name, package)
+            if migration_content:
+                self.result.add_file(java_src_path / f"{class_name}Migration.java", migration_content, "java")
+
+        # Generate State Machine helper if schema has state_machine block
+        if schema.state_machine:
+            statemachine_content = self._generate_state_machine_class(schema, class_name, package)
+            if statemachine_content:
+                self.result.add_file(java_src_path / f"{class_name}StateMachine.java", statemachine_content, "java")
+
+        # Generate Parameters helper if schema has parameters block (operational_parameters pattern)
+        if schema.parameters:
+            parameters_content = self._generate_parameters_class(schema, class_name, package)
+            if parameters_content:
+                self.result.add_file(java_src_path / f"{class_name}Parameters.java", parameters_content, "java")
+
+        # Generate Entries helper if schema has entries block (reference_data pattern)
+        if schema.entries:
+            entries_content = self._generate_entries_class(schema, class_name, package)
+            if entries_content:
+                self.result.add_file(java_src_path / f"{class_name}Entries.java", entries_content, "java")
+
+        # Generate Rules helper if schema has rules block (business_logic pattern)
+        if schema.rules:
+            rules_content = self._generate_rules_class(schema, class_name, package)
+            if rules_content:
+                self.result.add_file(java_src_path / f"{class_name}Rules.java", rules_content, "java")
 
     # =========================================================================
     # Field Utilities (shared by mixins)

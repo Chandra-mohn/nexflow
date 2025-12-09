@@ -2,7 +2,7 @@
 POJO Generator Module
 
 Generates Java POJO classes from Schema AST definitions.
-Handles field declarations, getters/setters, and toString().
+Handles field declarations, getters/setters, toString(), and streaming metadata.
 """
 
 from typing import Dict, List, Optional, Set
@@ -12,21 +12,29 @@ from backend.generators.base import BaseGenerator
 
 
 class PojoGeneratorMixin:
-    """Mixin providing POJO generation capabilities."""
+    """Mixin providing POJO generation capabilities.
+
+    Enhanced to include:
+    - Streaming configuration constants (idle, watermark, retention)
+    - Sparsity field annotations
+    - Late data handling configuration
+    - Version metadata
+    """
 
     def generate_pojo(self: BaseGenerator, schema: ast.SchemaDefinition,
                       class_name: str, package: str) -> str:
-        """Generate Java POJO class."""
+        """Generate Java POJO class with streaming metadata."""
         self._imports: Set[str] = set()
 
         # Collect all fields
         all_fields = self._collect_all_fields(schema)
 
-        # Build field declarations
+        # Build field declarations with sparsity annotations
+        sparsity_hints = self._generate_sparsity_annotations(schema)
         field_declarations = []
         getter_setters = []
         for field_decl in all_fields:
-            java_field = self._generate_field(field_decl)
+            java_field = self._generate_field(field_decl, sparsity_hints)
             field_declarations.append(java_field['declaration'])
             getter_setters.append(java_field['getter'])
             getter_setters.append(java_field['setter'])
@@ -43,8 +51,25 @@ class PojoGeneratorMixin:
         fields_block = self.indent('\n'.join(field_declarations))
         methods_block = self.indent('\n\n'.join(getter_setters))
 
+        # Generate streaming constants (from StreamingGeneratorMixin)
+        streaming_constants = self._generate_streaming_constants(schema)
+        retention_constants = self._generate_retention_config(schema)
+        sparsity_constants = self._generate_sparsity_constants(schema)
+        version_constants = self._generate_version_constants(schema)
+
         # Generate correlation key method
         correlation_method = self._generate_correlation_key_method(all_fields)
+
+        # Generate streaming utility methods (from StreamingGeneratorMixin)
+        streaming_methods = self._generate_streaming_methods(schema)
+
+        # Combine all constants
+        all_constants = '\n'.join(filter(None, [
+            version_constants,
+            streaming_constants,
+            retention_constants,
+            sparsity_constants
+        ]))
 
         return f'''{header}
 {package_decl}
@@ -54,6 +79,7 @@ public class {class_name} implements Serializable {{
 
     private static final long serialVersionUID = 1L;
 
+{all_constants}
 {fields_block}
 
     public {class_name}() {{
@@ -64,6 +90,7 @@ public class {class_name} implements Serializable {{
 
 {correlation_method}
 
+{streaming_methods}
     @Override
     public String toString() {{
         return "{class_name}{{" +
@@ -73,19 +100,31 @@ public class {class_name} implements Serializable {{
 }}
 '''
 
-    def _generate_field(self: BaseGenerator, field_decl: ast.FieldDecl) -> Dict:
-        """Generate field declaration, getter, and setter."""
+    def _generate_field(self: BaseGenerator, field_decl: ast.FieldDecl,
+                         sparsity_hints: dict = None) -> Dict:
+        """Generate field declaration, getter, and setter with sparsity annotations."""
         field_name = self.to_java_field_name(field_decl.name)
         java_type = self._get_field_java_type(field_decl.field_type)
         imports = self._get_field_imports(field_decl.field_type)
 
+        # Build field comment with annotations
+        comments = []
+
         # Check for PII annotation
         pii_profile = self._get_pii_profile(field_decl)
-        pii_comment = ""
         if pii_profile:
-            pii_comment = f"    // PII: encrypted with '{pii_profile}' profile\n"
+            comments.append(f"PII: encrypted with '{pii_profile}' profile")
 
-        declaration = f"{pii_comment}    private {java_type} {field_name};"
+        # Check for sparsity annotation
+        if sparsity_hints and field_decl.name in sparsity_hints:
+            sparsity = sparsity_hints[field_decl.name]
+            comments.append(f"Sparsity: {sparsity}")
+
+        comment_block = ""
+        if comments:
+            comment_block = f"    // {' | '.join(comments)}\n"
+
+        declaration = f"{comment_block}    private {java_type} {field_name};"
 
         # Getter
         getter_name = f"get{field_name[0].upper()}{field_name[1:]}"
@@ -190,3 +229,37 @@ public class {class_name} implements Serializable {{
         first_field, first_getter = field_getters[0]
         return f'''        Object val = {first_getter}();
         return val != null ? val.toString() : "null";'''
+
+    def _generate_version_constants(self: BaseGenerator,
+                                     schema: ast.SchemaDefinition) -> str:
+        """Generate version metadata constants for schema evolution support.
+
+        Returns Java constants block for version information.
+        """
+        constants = []
+
+        # Schema version from version block
+        if schema.version:
+            version = schema.version
+            if hasattr(version, 'major') and hasattr(version, 'minor'):
+                constants.append(f"    public static final int SCHEMA_VERSION_MAJOR = {version.major};")
+                constants.append(f"    public static final int SCHEMA_VERSION_MINOR = {version.minor};")
+                if hasattr(version, 'patch') and version.patch is not None:
+                    constants.append(f"    public static final int SCHEMA_VERSION_PATCH = {version.patch};")
+                constants.append(f'    public static final String SCHEMA_VERSION = "{version.major}.{version.minor}' +
+                               (f'.{version.patch}";' if hasattr(version, 'patch') and version.patch is not None else '";'))
+            elif hasattr(version, 'version'):
+                constants.append(f'    public static final String SCHEMA_VERSION = "{version.version}";')
+
+        # Schema name constant
+        constants.append(f'    public static final String SCHEMA_NAME = "{schema.name}";')
+
+        if not constants:
+            return ""
+
+        return f'''    // =========================================================================
+    // Schema Version Metadata
+    // =========================================================================
+
+{chr(10).join(constants)}
+'''
