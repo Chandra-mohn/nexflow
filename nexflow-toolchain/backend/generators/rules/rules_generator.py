@@ -26,6 +26,10 @@ from backend.generators.rules.condition_generator import ConditionGeneratorMixin
 from backend.generators.rules.action_generator import ActionGeneratorMixin
 from backend.generators.rules.decision_table_generator import DecisionTableGeneratorMixin
 from backend.generators.rules.procedural_generator import ProceduralGeneratorMixin
+from backend.generators.rules.lookup_generator import LookupGeneratorMixin
+from backend.generators.rules.emit_generator import EmitGeneratorMixin
+from backend.generators.rules.execute_generator import ExecuteGeneratorMixin
+from backend.generators.rules.pojo_generator import RulesPojoGeneratorMixin
 
 
 class RulesGenerator(
@@ -33,6 +37,10 @@ class RulesGenerator(
     ActionGeneratorMixin,
     DecisionTableGeneratorMixin,
     ProceduralGeneratorMixin,
+    LookupGeneratorMixin,
+    EmitGeneratorMixin,
+    ExecuteGeneratorMixin,
+    RulesPojoGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -42,6 +50,10 @@ class RulesGenerator(
     - Decision table evaluators with hit policies
     - Procedural rule executors with conditionals
     - Condition matching and action execution
+    - External data lookups with caching
+    - Side output emissions via OutputTag
+    - Execute specifications for action handling
+    - Output POJOs for multiple return parameters
     """
 
     def __init__(self, config: GeneratorConfig):
@@ -64,6 +76,16 @@ class RulesGenerator(
         class_name = self.to_java_class_name(table.name) + "Table"
         package = f"{self.config.package_prefix}.rules"
         java_src_path = Path("src/main/java") / self.get_package_path(package)
+
+        # Generate Output POJO if needed (multiple return parameters)
+        if self.should_generate_output_pojo(table):
+            output_pojo_content = self.generate_output_pojo(table, package)
+            output_pojo_name = self.to_java_class_name(table.name) + "Output"
+            self.result.add_file(
+                java_src_path / f"{output_pojo_name}.java",
+                output_pojo_content,
+                "java"
+            )
 
         # Generate decision table class
         content = self.generate_decision_table_class(table, package)
@@ -89,11 +111,26 @@ class RulesGenerator(
             "java"
         )
 
-    def _collect_all_imports(self, program: ast.Program) -> Set[str]:
-        """Collect all imports needed for rules generation."""
+    def _collect_all_imports(
+        self,
+        table: ast.DecisionTableDef
+    ) -> Set[str]:
+        """Collect all imports needed for a decision table."""
         imports = set()
 
         imports.update(self.get_condition_imports())
         imports.update(self.get_action_imports())
+
+        # Add lookup imports if table uses lookups
+        if self.has_lookup_actions(table):
+            imports.update(self.get_lookup_imports())
+
+        # Add emit imports if table uses emit actions
+        if self.has_emit_actions(table):
+            imports.update(self.get_emit_imports())
+
+        # Add execute imports if table has execute spec
+        if self.has_execute_spec(table):
+            imports.update(self.get_execute_imports())
 
         return imports

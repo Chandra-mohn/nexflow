@@ -31,6 +31,7 @@ from backend.generators.transform.function_generator import FunctionGeneratorMix
 from backend.generators.transform.compose_generator import ComposeGeneratorMixin
 from backend.generators.transform.onchange_generator import OnChangeGeneratorMixin
 from backend.generators.transform.pojo_generator import PojoGeneratorMixin
+from backend.generators.transform.metadata_generator import MetadataGeneratorMixin
 
 
 class TransformGenerator(
@@ -43,6 +44,7 @@ class TransformGenerator(
     ComposeGeneratorMixin,
     OnChangeGeneratorMixin,
     PojoGeneratorMixin,
+    MetadataGeneratorMixin,
     BaseGenerator
 ):
     """

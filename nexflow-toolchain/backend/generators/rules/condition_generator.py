@@ -186,12 +186,44 @@ class ConditionGeneratorMixin:
         if isinstance(expr, ast.BooleanFactor):
             factors = [self._generate_boolean_expr(f, input_var) for f in expr.factors]
             return " && ".join(factors) if len(factors) > 1 else factors[0]
+        if isinstance(expr, ast.UnaryExpr):
+            inner = self._generate_boolean_expr(expr.operand, input_var)
+            if expr.operator == "not":
+                return f'!({inner})'
+            return inner
+        if isinstance(expr, ast.ParenExpr):
+            inner = self._generate_boolean_expr(expr.expression, input_var)
+            return f'({inner})'
         if isinstance(expr, ast.ComparisonExpr):
-            left = self._generate_value_expr(expr.left)
-            right = self._generate_value_expr(expr.right)
-            op = self._map_comparison_op(expr.operator)
-            return f'({left} {op} {right})'
+            return self._generate_comparison_expr(expr, input_var)
         return "true"
+
+    def _generate_comparison_expr(
+        self,
+        expr: ast.ComparisonExpr,
+        input_var: str
+    ) -> str:
+        """Generate Java comparison expression with IN/NOT IN support."""
+        left = self._generate_value_expr(expr.left)
+
+        # Handle IN/NOT IN expressions
+        if hasattr(expr, 'in_list') and expr.in_list is not None:
+            values = ", ".join(self._generate_value_expr(v) for v in expr.in_list)
+            check = f'Arrays.asList({values}).contains({left})'
+            if hasattr(expr, 'negated') and expr.negated:
+                return f'!{check}'
+            return check
+
+        # Handle IS NULL / IS NOT NULL
+        if hasattr(expr, 'is_null_check') and expr.is_null_check:
+            if hasattr(expr, 'negated') and expr.negated:
+                return f'({left} != null)'
+            return f'({left} == null)'
+
+        # Standard comparison
+        right = self._generate_value_expr(expr.right)
+        op = self._map_comparison_op(expr.operator)
+        return f'({left} {op} {right})'
 
     def _generate_field_path(self, fp: ast.FieldPath) -> str:
         """Generate Java getter chain for field path."""

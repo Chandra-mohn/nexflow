@@ -132,7 +132,7 @@ class ProceduralGeneratorMixin:
         return '\n'.join(lines)
 
     def _generate_boolean_expr(self, expr, context_var: str) -> str:
-        """Generate Java boolean expression."""
+        """Generate Java boolean expression with full NOT, IN/NOT IN support."""
         if isinstance(expr, ast.BooleanExpr):
             if hasattr(expr, 'terms') and expr.terms:
                 terms = [self._generate_boolean_expr(t, context_var)
@@ -144,6 +144,13 @@ class ProceduralGeneratorMixin:
                 return " && ".join(f"({f})" for f in factors)
 
         if isinstance(expr, ast.BooleanTerm):
+            # Handle NOT prefix on BooleanTerm
+            if hasattr(expr, 'negated') and expr.negated:
+                inner_terms = [self._generate_boolean_expr(t, context_var)
+                              for t in expr.terms]
+                if len(inner_terms) == 1:
+                    return f"!({inner_terms[0]})"
+                return f"!({' || '.join(f'({t})' for t in inner_terms)})"
             terms = [self._generate_boolean_expr(t, context_var)
                     for t in expr.terms]
             if len(terms) == 1:
@@ -158,10 +165,7 @@ class ProceduralGeneratorMixin:
             return " && ".join(f"({f})" for f in factors)
 
         if isinstance(expr, ast.ComparisonExpr):
-            left = self._generate_value_expr(expr.left)
-            right = self._generate_value_expr(expr.right)
-            op = self._map_comparison_op(expr.operator)
-            return f"({left} {op} {right})"
+            return self._generate_comparison_expr(expr, context_var)
 
         if isinstance(expr, ast.UnaryExpr):
             inner = self._generate_boolean_expr(expr.operand, context_var)
@@ -174,6 +178,29 @@ class ProceduralGeneratorMixin:
             return f"({inner})"
 
         return "true"
+
+    def _generate_comparison_expr(self, expr: ast.ComparisonExpr, context_var: str) -> str:
+        """Generate Java comparison expression with IN/NOT IN and IS NULL support."""
+        left = self._generate_value_expr(expr.left)
+
+        # Handle IN/NOT IN expressions
+        if hasattr(expr, 'in_list') and expr.in_list is not None:
+            values = ", ".join(self._generate_value_expr(v) for v in expr.in_list)
+            check = f'Arrays.asList({values}).contains({left})'
+            if hasattr(expr, 'negated') and expr.negated:
+                return f'!{check}'
+            return check
+
+        # Handle IS NULL / IS NOT NULL
+        if hasattr(expr, 'is_null_check') and expr.is_null_check:
+            if hasattr(expr, 'negated') and expr.negated:
+                return f'({left} != null)'
+            return f'({left} == null)'
+
+        # Standard comparison
+        right = self._generate_value_expr(expr.right)
+        op = self._map_comparison_op(expr.operator)
+        return f"({left} {op} {right})"
 
     def _generate_value_expr(self, expr) -> str:
         """Generate Java value expression."""

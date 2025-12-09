@@ -303,6 +303,9 @@ class ExpressionGeneratorMixin:
             java_op = op.value
         elif isinstance(op, ast.ComparisonOp):
             java_op = self._map_comparison_op(op)
+            # Handle null-safe equality operator (=?)
+            if op == ast.ComparisonOp.NULLSAFE_EQ:
+                return self._generate_nullsafe_equality(left, right)
             # Use .equals() for string equality comparisons
             if self._is_string_comparison(binary, op):
                 return self._generate_string_comparison(left, right, op)
@@ -385,6 +388,15 @@ class ExpressionGeneratorMixin:
         elif op == ast.ComparisonOp.NE:
             return f"!Objects.equals({left}, {right})"
         return f"({left} == {right})"
+
+    def _generate_nullsafe_equality(self, left: str, right: str) -> str:
+        """Generate null-safe equality comparison (=? operator).
+
+        Returns true if both are null OR both are non-null and equal.
+        This differs from Objects.equals() in explicitly handling the
+        "both null is equal" case as a feature, not an edge case.
+        """
+        return f"Objects.equals({left}, {right})"
 
     def _generate_string_comparison_raw(
         self,
@@ -513,7 +525,7 @@ class ExpressionGeneratorMixin:
             ast.ComparisonOp.GT: ">",
             ast.ComparisonOp.LE: "<=",
             ast.ComparisonOp.GE: ">=",
-            ast.ComparisonOp.NULLSAFE_EQ: "==",  # Handle null check separately
+            ast.ComparisonOp.NULLSAFE_EQ: "NULLSAFE",  # Handled specially
         }
         return op_map.get(op, "==")
 

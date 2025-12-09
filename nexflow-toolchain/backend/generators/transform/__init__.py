@@ -11,6 +11,7 @@ from .function_generator import FunctionGeneratorMixin
 from .compose_generator import ComposeGeneratorMixin
 from .onchange_generator import OnChangeGeneratorMixin
 from .pojo_generator import PojoGeneratorMixin
+from .metadata_generator import MetadataGeneratorMixin
 
 __all__ = [
     'TransformGenerator',
@@ -23,4 +24,5 @@ __all__ = [
     'ComposeGeneratorMixin',
     'OnChangeGeneratorMixin',
     'PojoGeneratorMixin',
+    'MetadataGeneratorMixin',
 ]
