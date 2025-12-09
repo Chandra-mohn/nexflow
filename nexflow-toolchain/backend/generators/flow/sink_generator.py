@@ -51,29 +51,56 @@ class SinkGeneratorMixin:
         return '\n'.join(lines)
 
     def _generate_sink(self, emit: ast.EmitDecl, input_stream: str, process: ast.ProcessDefinition) -> str:
-        """Generate sink code for a single emit declaration."""
+        """Generate sink code for a single emit declaration.
+
+        Supports fanout strategies:
+        - broadcast: Send to all partitions (BroadcastPartitioner)
+        - round_robin: Load-balanced distribution (RebalancePartitioner)
+        """
         target = emit.target
         schema_class = self._get_emit_schema_class(emit)
         sink_name = self._to_camel_case(target) + "Sink"
 
+        # Determine stream transformation based on fanout strategy
+        fanout_transform = ""
+        fanout_comment = ""
+        if emit.fanout:
+            if emit.fanout.strategy == ast.FanoutType.BROADCAST:
+                fanout_transform = f".broadcast()"
+                fanout_comment = " (BROADCAST to all partitions)"
+            elif emit.fanout.strategy == ast.FanoutType.ROUND_ROBIN:
+                fanout_transform = f".rebalance()"
+                fanout_comment = " (ROUND_ROBIN load balanced)"
+
         lines = [
-            f"// Sink: {target}",
+            f"// Sink: {target}{fanout_comment}",
             f"KafkaSink<{schema_class}> {sink_name} = KafkaSink",
             f"    .<{schema_class}>builder()",
-            f"    .setBootstrapServers(kafkaBootstrapServers)",
+            f"    .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)",
             f"    .setRecordSerializer(",
-            f"        KafkaRecordSerializationSchema.builder()",
+            f"        KafkaRecordSerializationSchema.<{schema_class}>builder()",
             f"            .setTopic(\"{target}\")",
-            f"            .setValueSerializationSchema(new {schema_class}Serializer())",
+            f"            .setValueSerializationSchema(new JsonSerializationSchema<{schema_class}>())",
             "            .build()",
             "    )",
-            "    .setDeliveryGuarantee(DeliveryGuarantee.EXACTLY_ONCE)",
+            "    .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)",
             "    .build();",
             "",
-            f"{input_stream}.sinkTo({sink_name})",
-            f"    .name(\"sink-{target}\");",
-            "",
         ]
+
+        # Apply fanout transformation before sink
+        if fanout_transform:
+            lines.extend([
+                f"{input_stream}{fanout_transform}.sinkTo({sink_name})",
+                f"    .name(\"sink-{target}\");",
+                "",
+            ])
+        else:
+            lines.extend([
+                f"{input_stream}.sinkTo({sink_name})",
+                f"    .name(\"sink-{target}\");",
+                "",
+            ])
 
         return '\n'.join(lines)
 

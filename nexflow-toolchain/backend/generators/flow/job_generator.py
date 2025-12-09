@@ -581,8 +581,10 @@ class JobGeneratorMixin:
     def _wire_join(self, join: ast.JoinDecl, input_stream: str, input_type: str, idx: int) -> tuple:
         """Wire a join operator for interval joins between two streams.
 
-        COVENANT: Generates complete, compilable Flink interval join code.
-        Requires both streams to be keyed by join fields.
+        COVENANT: Generates complete, compilable Flink join code.
+        Supports inner, left, right, and outer joins.
+        - Inner join: Uses intervalJoin (efficient for streaming)
+        - Left/Right/Outer: Uses coGroup with custom logic
         """
         left_stream = self._to_camel_case(join.left) + "Stream"
         right_stream = self._to_camel_case(join.right) + "Stream"
@@ -594,13 +596,117 @@ class JobGeneratorMixin:
         join_fields = ', '.join(f'"{f}"' for f in join.on_fields)
         join_key_comment = ', '.join(join.on_fields)
 
-        code = f'''        // Join: {join.left} {join_type} join {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
+        if join_type == "inner":
+            # Inner join: Use efficient intervalJoin
+            code = f'''        // Join: {join.left} INNER JOIN {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
         DataStream<JoinedRecord> {output_stream} = {left_stream}
             .keyBy(left -> left.getJoinKey())
             .intervalJoin({right_stream}.keyBy(right -> right.getJoinKey()))
             .between(Time.milliseconds(-{within_ms}), Time.milliseconds({within_ms}))
-            .process(new JoinProcessFunction())
-            .name("join-{join.left}-{join.right}");
+            .process(new ProcessJoinFunction<>() {{
+                @Override
+                public void processElement(Object left, Object right, Context ctx, Collector<JoinedRecord> out) {{
+                    out.collect(JoinedRecord.inner(left, right));
+                }}
+            }})
+            .name("inner-join-{join.left}-{join.right}");
+'''
+        elif join_type == "left":
+            # Left outer join: Use coGroup with null handling for missing right
+            code = f'''        // Join: {join.left} LEFT OUTER JOIN {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
+        DataStream<JoinedRecord> {output_stream} = {left_stream}
+            .keyBy(left -> left.getJoinKey())
+            .coGroup({right_stream}.keyBy(right -> right.getJoinKey()))
+            .where(left -> left.getJoinKey())
+            .equalTo(right -> right.getJoinKey())
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<>() {{
+                @Override
+                public void coGroup(Iterable leftRecords, Iterable rightRecords, Collector<JoinedRecord> out) {{
+                    List<Object> rights = new ArrayList<>();
+                    rightRecords.forEach(rights::add);
+                    for (Object left : leftRecords) {{
+                        if (rights.isEmpty()) {{
+                            // Left outer: emit with null right
+                            out.collect(JoinedRecord.leftOuter(left, null));
+                        }} else {{
+                            for (Object right : rights) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("left-join-{join.left}-{join.right}");
+'''
+        elif join_type == "right":
+            # Right outer join: Use coGroup with null handling for missing left
+            code = f'''        // Join: {join.left} RIGHT OUTER JOIN {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
+        DataStream<JoinedRecord> {output_stream} = {left_stream}
+            .keyBy(left -> left.getJoinKey())
+            .coGroup({right_stream}.keyBy(right -> right.getJoinKey()))
+            .where(left -> left.getJoinKey())
+            .equalTo(right -> right.getJoinKey())
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<>() {{
+                @Override
+                public void coGroup(Iterable leftRecords, Iterable rightRecords, Collector<JoinedRecord> out) {{
+                    List<Object> lefts = new ArrayList<>();
+                    leftRecords.forEach(lefts::add);
+                    for (Object right : rightRecords) {{
+                        if (lefts.isEmpty()) {{
+                            // Right outer: emit with null left
+                            out.collect(JoinedRecord.rightOuter(null, right));
+                        }} else {{
+                            for (Object left : lefts) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("right-join-{join.left}-{join.right}");
+'''
+        else:  # outer (full outer join)
+            # Full outer join: Use coGroup with null handling for both sides
+            code = f'''        // Join: {join.left} FULL OUTER JOIN {join.right} on [{join_key_comment}] within {self._format_window_size(join.within)}
+        DataStream<JoinedRecord> {output_stream} = {left_stream}
+            .keyBy(left -> left.getJoinKey())
+            .coGroup({right_stream}.keyBy(right -> right.getJoinKey()))
+            .where(left -> left.getJoinKey())
+            .equalTo(right -> right.getJoinKey())
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<>() {{
+                @Override
+                public void coGroup(Iterable leftRecords, Iterable rightRecords, Collector<JoinedRecord> out) {{
+                    List<Object> lefts = new ArrayList<>();
+                    List<Object> rights = new ArrayList<>();
+                    leftRecords.forEach(lefts::add);
+                    rightRecords.forEach(rights::add);
+
+                    if (lefts.isEmpty() && rights.isEmpty()) {{
+                        return;
+                    }} else if (lefts.isEmpty()) {{
+                        // Right only
+                        for (Object right : rights) {{
+                            out.collect(JoinedRecord.rightOuter(null, right));
+                        }}
+                    }} else if (rights.isEmpty()) {{
+                        // Left only
+                        for (Object left : lefts) {{
+                            out.collect(JoinedRecord.leftOuter(left, null));
+                        }}
+                    }} else {{
+                        // Both sides have records
+                        for (Object left : lefts) {{
+                            for (Object right : rights) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("full-outer-join-{join.left}-{join.right}");
 '''
         return code, output_stream, "JoinedRecord"
 

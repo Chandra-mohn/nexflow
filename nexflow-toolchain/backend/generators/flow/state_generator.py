@@ -85,9 +85,10 @@ class StateGeneratorMixin:
                 f"new {state_desc_class}<>(\"{local.name}\", {java_type}.class);"
             )
 
-            # Add TTL if specified
+            # Add TTL if specified (with cleanup strategy)
             if local.ttl:
-                lines.append(self._generate_ttl_config(local.ttl, desc_name))
+                cleanup = local.cleanup.strategy if hasattr(local, 'cleanup') and local.cleanup else None
+                lines.append(self._generate_ttl_config(local.ttl, desc_name, cleanup))
 
             lines.append(
                 f"    {state_var} = getRuntimeContext().getState({desc_name});"
@@ -107,7 +108,8 @@ class StateGeneratorMixin:
             )
 
             if buffer.ttl:
-                lines.append(self._generate_ttl_config(buffer.ttl, desc_name))
+                cleanup = buffer.cleanup.strategy if hasattr(buffer, 'cleanup') and buffer.cleanup else None
+                lines.append(self._generate_ttl_config(buffer.ttl, desc_name, cleanup))
 
             lines.append(
                 f"    {state_var} = getRuntimeContext().getListState({desc_name});"
@@ -117,17 +119,44 @@ class StateGeneratorMixin:
         lines.append("}")
         return '\n'.join(lines)
 
-    def _generate_ttl_config(self, ttl: ast.TtlDecl, desc_name: str) -> str:
-        """Generate TTL configuration for a state descriptor."""
+    def _generate_ttl_config(self, ttl: ast.TtlDecl, desc_name: str, cleanup: ast.CleanupStrategy = None) -> str:
+        """Generate TTL configuration for a state descriptor.
+
+        Supports cleanup strategies:
+        - on_checkpoint: Clean expired state during checkpoint (default)
+        - on_access: Clean expired state when accessed (lazy cleanup)
+        - background: Clean expired state in background thread (proactive cleanup)
+        """
         duration_ms = self._duration_to_ms(ttl.duration)
         ttl_type = "UpdateType.OnCreateAndWrite" if ttl.ttl_type == ast.TtlType.SLIDING else "UpdateType.OnReadAndWrite"
 
-        return f'''    StateTtlConfig ttlConfig = StateTtlConfig
-        .newBuilder(Time.milliseconds({duration_ms}))
-        .setUpdateType({ttl_type})
-        .setStateVisibility(StateVisibility.NeverReturnExpired)
-        .build();
-    {desc_name}.enableTimeToLive(ttlConfig);'''
+        # Determine cleanup strategy
+        cleanup_strategy = cleanup.value if cleanup else "on_checkpoint"
+
+        # Build TTL config with appropriate cleanup settings
+        lines = [
+            f"    StateTtlConfig ttlConfig = StateTtlConfig",
+            f"        .newBuilder(Time.milliseconds({duration_ms}))",
+            f"        .setUpdateType({ttl_type})",
+            f"        .setStateVisibility(StateVisibility.NeverReturnExpired)",
+        ]
+
+        if cleanup_strategy == "on_access":
+            # Cleanup on state access - lazy cleanup
+            lines.append("        .cleanupIncrementally(10, true)  // Clean 10 entries per access")
+        elif cleanup_strategy == "background":
+            # Background cleanup thread - proactive cleanup
+            lines.append("        .cleanupInRocksdbCompactFilter(1000)  // Clean during RocksDB compaction")
+        else:  # on_checkpoint (default)
+            # Cleanup during checkpoint - efficient for batch cleanup
+            lines.append("        .cleanupFullSnapshot()  // Clean during checkpoint")
+
+        lines.extend([
+            "        .build();",
+            f"    {desc_name}.enableTimeToLive(ttlConfig);"
+        ])
+
+        return '\n'.join(lines)
 
     def _get_state_java_type(self, state_type: ast.StateType) -> str:
         """Map state type to Java type."""
@@ -157,9 +186,58 @@ class StateGeneratorMixin:
 
     def _get_buffer_class(self, buffer_type: ast.BufferType) -> str:
         """Get Flink state class for buffer type."""
-        if buffer_type == ast.BufferType.PRIORITY:
-            return 'ListState'  # Use ListState with custom sorting
+        # All buffer types use ListState - ordering is handled in retrieval
         return 'ListState'
+
+    def _generate_buffer_retrieval(self, buffer: 'ast.BufferDecl', state_var: str) -> str:
+        """Generate buffer retrieval code based on buffer type.
+
+        Buffer types:
+        - FIFO: First-in, first-out (default - maintains insertion order)
+        - LIFO: Last-in, first-out (reverse iteration)
+        - PRIORITY: Priority queue based on specified field
+        """
+        buffer_type = buffer.buffer_type
+
+        if buffer_type == ast.BufferType.FIFO:
+            return f'''// FIFO retrieval: first-in, first-out (insertion order)
+List<Object> {buffer.name}Items = new ArrayList<>();
+{state_var}.get().forEach({buffer.name}Items::add);
+// Process in order: for (Object item : {buffer.name}Items) {{ ... }}'''
+
+        elif buffer_type == ast.BufferType.LIFO:
+            return f'''// LIFO retrieval: last-in, first-out (reverse order)
+List<Object> {buffer.name}Items = new ArrayList<>();
+{state_var}.get().forEach({buffer.name}Items::add);
+Collections.reverse({buffer.name}Items);
+// Process in reverse order: for (Object item : {buffer.name}Items) {{ ... }}'''
+
+        elif buffer_type == ast.BufferType.PRIORITY:
+            # Priority buffer - sort by priority field
+            priority_field = buffer.priority_field if hasattr(buffer, 'priority_field') else 'priority'
+            return f'''// PRIORITY retrieval: sorted by {priority_field} (highest first)
+List<Object> {buffer.name}Items = new ArrayList<>();
+{state_var}.get().forEach({buffer.name}Items::add);
+{buffer.name}Items.sort((a, b) -> {{
+    // Sort by priority field descending (highest priority first)
+    Comparable pa = getPriorityValue(a, "{priority_field}");
+    Comparable pb = getPriorityValue(b, "{priority_field}");
+    return pb.compareTo(pa);  // Descending order
+}});
+// Process in priority order: for (Object item : {buffer.name}Items) {{ ... }}
+
+// Helper method to extract priority value
+private Comparable getPriorityValue(Object obj, String field) {{
+    try {{
+        java.lang.reflect.Method getter = obj.getClass().getMethod(
+            "get" + Character.toUpperCase(field.charAt(0)) + field.substring(1));
+        return (Comparable) getter.invoke(obj);
+    }} catch (Exception e) {{
+        return 0;  // Default priority
+    }}
+}}'''
+
+        return f"// Unknown buffer type: {buffer_type}"
 
     def _duration_to_ms(self, duration: ast.Duration) -> int:
         """Convert Duration to milliseconds."""

@@ -51,6 +51,7 @@ public void open(Configuration parameters) throws Exception {
         .newBuilder(Time.milliseconds(86400000))
         .setUpdateType(UpdateType.OnCreateAndWrite)
         .setStateVisibility(StateVisibility.NeverReturnExpired)
+        .cleanupFullSnapshot()  // Clean during checkpoint
         .build();
     velocityCounterStateDesc.enableTimeToLive(ttlConfig);
     velocityCounterState = getRuntimeContext().getState(velocityCounterStateDesc);
