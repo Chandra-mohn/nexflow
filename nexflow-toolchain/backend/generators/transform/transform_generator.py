@@ -28,6 +28,9 @@ from backend.generators.transform.mapping_generator import MappingGeneratorMixin
 from backend.generators.transform.cache_generator import CacheGeneratorMixin
 from backend.generators.transform.error_generator import ErrorGeneratorMixin
 from backend.generators.transform.function_generator import FunctionGeneratorMixin
+from backend.generators.transform.compose_generator import ComposeGeneratorMixin
+from backend.generators.transform.onchange_generator import OnChangeGeneratorMixin
+from backend.generators.transform.pojo_generator import PojoGeneratorMixin
 
 
 class TransformGenerator(
@@ -37,6 +40,9 @@ class TransformGenerator(
     CacheGeneratorMixin,
     ErrorGeneratorMixin,
     FunctionGeneratorMixin,
+    ComposeGeneratorMixin,
+    OnChangeGeneratorMixin,
+    PojoGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -94,6 +100,26 @@ class TransformGenerator(
         # Determine input/output types from block specs
         input_type = self._get_block_input_type(block)
         output_type = self._get_block_output_type(block)
+
+        # Generate Input POJO if needed (multiple input fields)
+        if self.should_generate_input_pojo(block):
+            input_pojo_content = self.generate_input_pojo(block, package)
+            input_pojo_name = self.to_pascal_case(block.name) + "Input"
+            self.result.add_file(
+                java_src_path / f"{input_pojo_name}.java",
+                input_pojo_content,
+                "java"
+            )
+
+        # Generate Output POJO if needed (multiple output fields)
+        if self.should_generate_output_pojo(block):
+            output_pojo_content = self.generate_output_pojo(block, package)
+            output_pojo_name = self.to_pascal_case(block.name) + "Output"
+            self.result.add_file(
+                java_src_path / f"{output_pojo_name}.java",
+                output_pojo_content,
+                "java"
+            )
 
         # Generate ProcessFunction class
         content = self.generate_process_function_class(
@@ -169,18 +195,42 @@ class TransformGenerator(
         if isinstance(transform, ast.TransformDef):
             if transform.validate_input or transform.validate_output:
                 imports.update(self.get_validation_imports())
+                # Add structured validation imports if needed
+                if self.has_structured_validation(
+                    transform.validate_input,
+                    transform.validate_output
+                ):
+                    imports.update(self.get_structured_validation_imports())
             if transform.cache:
                 imports.update(self.get_cache_imports())
             if transform.on_error:
                 imports.update(self.get_error_imports())
+                # Add side output imports if emit_to is used
+                if any(action.emit_to for action in transform.on_error.actions):
+                    imports.update(self.get_side_output_imports())
 
         elif isinstance(transform, ast.TransformBlockDef):
             imports.update(self.get_mapping_imports())
             if transform.validate_input or transform.validate_output:
                 imports.update(self.get_validation_imports())
+                # Add structured validation imports if needed
+                if self.has_structured_validation(
+                    transform.validate_input,
+                    transform.validate_output
+                ):
+                    imports.update(self.get_structured_validation_imports())
             if transform.invariant:
                 imports.update(self.get_validation_imports())
             if transform.on_error:
                 imports.update(self.get_error_imports())
+                # Add side output imports if emit_to is used
+                if any(action.emit_to for action in transform.on_error.actions):
+                    imports.update(self.get_side_output_imports())
+            # Add compose imports if compose block is present
+            if transform.compose:
+                imports.update(self.get_compose_imports())
+            # Add on_change imports if on_change block is present
+            if transform.on_change:
+                imports.update(self.get_onchange_imports())
 
         return imports

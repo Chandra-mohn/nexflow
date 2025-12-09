@@ -100,62 +100,6 @@ class ErrorGeneratorMixin:
 
         return '\n'.join(lines)
 
-    def _generate_error_action(self, action: ast.ErrorAction) -> str:
-        """Generate code for a single error action.
-
-        Order of generated code:
-        1. Logging (if configured)
-        2. Error emission to side output (if configured)
-        3. Action (throw/return) - must be last as it terminates flow
-        """
-        lines = []
-
-        # 1. Log level handling - always first
-        if action.log_level:
-            # SLF4J uses 'warn' not 'warning'
-            log_method = action.log_level.value.lower()
-            if log_method == 'warning':
-                log_method = 'warn'
-            lines.append(
-                f'        LOG.{log_method}("Transform error: {{}}", e.getMessage());'
-            )
-
-        # 2. Error emission handling - before any throw/return
-        if action.emit_to:
-            lines.extend([
-                f'        // Emit error to {action.emit_to}',
-                '        ErrorRecord errorRecord = new ErrorRecord();',
-                '        errorRecord.setOriginalRecord(input);',
-                '        errorRecord.setErrorMessage(e.getMessage());',
-                '        errorRecord.setErrorCode('
-                f'"{action.error_code if action.error_code else "TRANSFORM_ERROR"}");',
-                '        errorRecord.setTimestamp(Instant.now());',
-                f'        emitToSideOutput("{action.emit_to}", errorRecord);',
-            ])
-
-        # 3. Action type handling - must be last (throw/return terminates)
-        if action.action_type:
-            if action.action_type == ast.ErrorActionType.REJECT:
-                lines.append('        throw new TransformRejectedException(e);')
-
-            elif action.action_type == ast.ErrorActionType.SKIP:
-                lines.append('        // Skip this record')
-                lines.append('        return null;')
-
-            elif action.action_type == ast.ErrorActionType.USE_DEFAULT:
-                if action.default_value:
-                    default_val = self.generate_expression(action.default_value)
-                    lines.append(f'        return {default_val};')
-                else:
-                    lines.append('        return getDefaultValue();')
-
-            elif action.action_type == ast.ErrorActionType.RAISE:
-                lines.append(
-                    '        throw new TransformException("Transform failed", e);'
-                )
-
-        return '\n'.join(lines)
-
     def generate_error_record_class(self) -> str:
         """Generate ErrorRecord inner class."""
         return '''    /**
@@ -224,10 +168,116 @@ class ErrorGeneratorMixin:
 
         return (try_start, catch_block)
 
+    def _get_emit_destinations(self, on_error: ast.OnErrorBlock) -> Set[str]:
+        """Collect unique emit_to destinations from error block.
+
+        Returns sorted set of destination names.
+        """
+        if not on_error:
+            return set()
+
+        destinations = set()
+        for action in on_error.actions:
+            if action.emit_to:
+                destinations.add(action.emit_to)
+        return destinations
+
+    def generate_side_output_tags(self, on_error: ast.OnErrorBlock) -> str:
+        """Generate OutputTag declarations for error side outputs.
+
+        Returns Java code declaring OutputTags for each emit_to destination.
+        """
+        emit_destinations = self._get_emit_destinations(on_error)
+        if not emit_destinations:
+            return ""
+
+        lines = ["    // Side output tags for error emission"]
+        for dest in sorted(emit_destinations):
+            tag_name = self.to_java_constant(dest) + "_TAG"
+            lines.append(
+                f'    private static final OutputTag<ErrorRecord> {tag_name} = '
+                f'new OutputTag<ErrorRecord>("{dest}") {{}};'
+            )
+
+        return '\n'.join(lines)
+
+    def generate_emit_to_side_output_method(self, on_error: ast.OnErrorBlock) -> str:
+        """Generate helper method for emitting to side outputs.
+
+        Returns Java method for routing errors to appropriate OutputTags.
+        """
+        emit_destinations = self._get_emit_destinations(on_error)
+        if not emit_destinations:
+            return ""
+
+        lines = [
+            "    /**",
+            "     * Emit error record to side output.",
+            "     * Used by ProcessFunction context for error routing.",
+            "     */",
+            "    private void emitToSideOutput(String destination, ErrorRecord record) {",
+            "        if (ctx == null) {",
+            '            LOG.warn("Cannot emit to side output - context not available");',
+            "            return;",
+            "        }",
+            "        switch (destination) {",
+        ]
+
+        for dest in sorted(emit_destinations):
+            tag_name = self.to_java_constant(dest) + "_TAG"
+            lines.append(f'            case "{dest}":')
+            lines.append(f'                ctx.output({tag_name}, record);')
+            lines.append('                break;')
+
+        lines.extend([
+            "            default:",
+            '                LOG.warn("Unknown side output destination: {}", destination);',
+            "        }",
+            "    }",
+        ])
+
+        return '\n'.join(lines)
+
+    def generate_get_output_tag_method(self, on_error: ast.OnErrorBlock) -> str:
+        """Generate method to get OutputTag by name.
+
+        Returns Java method for external access to OutputTags.
+        """
+        emit_destinations = self._get_emit_destinations(on_error)
+        if not emit_destinations:
+            return ""
+
+        lines = [
+            "    /**",
+            "     * Get OutputTag for error side output by name.",
+            "     * Use this to access side output streams from the main job.",
+            "     */",
+            "    public static OutputTag<ErrorRecord> getErrorOutputTag(String name) {",
+            "        switch (name) {",
+        ]
+
+        for dest in sorted(emit_destinations):
+            tag_name = self.to_java_constant(dest) + "_TAG"
+            lines.append(f'            case "{dest}": return {tag_name};')
+
+        lines.extend([
+            "            default: return null;",
+            "        }",
+            "    }",
+        ])
+
+        return '\n'.join(lines)
+
     def get_error_imports(self) -> Set[str]:
         """Get required imports for error handling generation."""
         return {
             'java.time.Instant',
             'org.slf4j.Logger',
             'org.slf4j.LoggerFactory',
+        }
+
+    def get_side_output_imports(self) -> Set[str]:
+        """Get imports needed for side output emission."""
+        return {
+            'org.apache.flink.util.OutputTag',
         }

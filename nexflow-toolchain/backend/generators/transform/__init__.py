@@ -8,6 +8,9 @@ from .mapping_generator import MappingGeneratorMixin
 from .cache_generator import CacheGeneratorMixin
 from .error_generator import ErrorGeneratorMixin
 from .function_generator import FunctionGeneratorMixin
+from .compose_generator import ComposeGeneratorMixin
+from .onchange_generator import OnChangeGeneratorMixin
+from .pojo_generator import PojoGeneratorMixin
 
 __all__ = [
     'TransformGenerator',
@@ -17,4 +20,7 @@ __all__ = [
     'CacheGeneratorMixin',
     'ErrorGeneratorMixin',
     'FunctionGeneratorMixin',
+    'ComposeGeneratorMixin',
+    'OnChangeGeneratorMixin',
+    'PojoGeneratorMixin',
 ]
