@@ -199,12 +199,14 @@ class SchemaValidator(BaseValidator):
                 )
 
         # Check that all transition states exist
+        # Note: '*' is a wildcard meaning "any state"
         transitions = getattr(sm, 'transitions', None) or []
         if transitions and states:
             valid_states = set(states)
             for transition in transitions:
                 from_state = getattr(transition, 'from_state', None)
-                if from_state and from_state not in valid_states:
+                # '*' is wildcard for "any state"
+                if from_state and from_state != '*' and from_state not in valid_states:
                     line, col = self._get_location(transition)
                     result.add_error(
                         f"Transition from unknown state '{from_state}'",
@@ -212,7 +214,8 @@ class SchemaValidator(BaseValidator):
                     )
                 to_states = getattr(transition, 'to_states', None) or []
                 for to_state in to_states:
-                    if to_state not in valid_states:
+                    # '*' is wildcard for "any state"
+                    if to_state != '*' and to_state not in valid_states:
                         line, col = self._get_location(transition)
                         result.add_error(
                             f"Transition to unknown state '{to_state}'",

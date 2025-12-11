@@ -1,6 +1,6 @@
 # Nexflow Toolchain - L1 to L6 Complete Feature Analysis
 
-**Date**: December 9, 2024 (Updated)
+**Date**: December 10, 2024 (Updated)
 **Purpose**: Comprehensive grammar vs code generator coverage analysis for all 6 DSL layers
 **Reference**: COVENANT-Code-Generation-Principles.md
 
@@ -10,14 +10,23 @@
 
 The Nexflow toolchain implements a **6-layer DSL architecture** designed for **zero developer Java coding**. This document provides a comprehensive analysis of grammar features vs generator implementation for each layer.
 
-| Layer | DSL Name | Extension | Grammar Features | Implemented | Coverage | Status |
-|-------|----------|-----------|------------------|-------------|----------|--------|
-| **L1** | ProcDSL | `.proc` | 68 | 66 | **97%** | Production-Ready |
-| **L2** | SchemaDSL | `.schema` | 95 | 95 | **100%** | Production-Ready |
-| **L3** | TransformDSL | `.xform` | 62 | 62 | **100%** | Production-Ready |
-| **L4** | RulesDSL | `.rules` | 54 | 54 | **100%** | Production-Ready |
+| Layer | DSL Name | Extension | Grammar Lines | Implemented | Coverage | Status |
+|-------|----------|-----------|---------------|-------------|----------|--------|
+| **L1** | ProcDSL | `.proc` | 1,584 | 97% | **97%** | Production-Ready |
+| **L2** | SchemaDSL | `.schema` | 793 | 100% | **100%** | Production-Ready |
+| **L3** | TransformDSL | `.xform` | 768 | 100% | **100%** | Production-Ready |
+| **L4** | RulesDSL | `.rules` | 736 | 100% | **100%** | Production-Ready |
 | **L5** | Infrastructure | `.infra` | N/A | N/A | **0%** | Spec Only |
 | **L6** | Compilation | N/A | N/A | N/A | **0%** | Not Implemented |
+
+### VS Code Extension Status
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Language Server | ✅ Ready | Python LSP server with pygls |
+| Syntax Highlighting | ✅ Ready | TextMate grammars for all 4 DSLs |
+| File Icons | ✅ Ready | Custom SVG icons per DSL type |
+| Extension Client | ✅ Ready | 188 lines TypeScript |
 
 ---
 
@@ -69,7 +78,7 @@ The Nexflow toolchain implements a **6-layer DSL architecture** designed for **z
 
 **Purpose**: Define the data flow "railroad" - structure only, NOT business logic
 
-**Grammar**: `grammar/ProcDSL.g4` (539 lines, v0.4.0)
+**Grammar**: `grammar/ProcDSL.g4` (1,584 lines, v0.5.0)
 **Extension**: `.proc`
 **Generator**: `backend/generators/flow/flow_generator.py`
 
@@ -191,7 +200,7 @@ The Nexflow toolchain implements a **6-layer DSL architecture** designed for **z
 
 **Purpose**: Define data structures, types, constraints, and streaming annotations
 
-**Grammar**: `grammar/SchemaDSL.g4` (716 lines, v1.0.0)
+**Grammar**: `grammar/SchemaDSL.g4` (793 lines, v1.1.0)
 **Extension**: `.schema`
 **Generator**: `backend/generators/schema_generator.py`
 
@@ -344,7 +353,7 @@ All L2 generator code has undergone systematic code quality review:
 
 **Purpose**: Define data transformations (pure functions, field mappings)
 
-**Grammar**: `grammar/TransformDSL.g4` (597 lines, v1.0.0)
+**Grammar**: `grammar/TransformDSL.g4` (768 lines, v1.1.0)
 **Extension**: `.xform`
 **Generator**: `backend/generators/transform/transform_generator.py`
 
@@ -528,7 +537,7 @@ New mixins and enhancements added to TransformGenerator:
 
 **Purpose**: Define decision logic (decision tables, procedural rules)
 
-**Grammar**: `grammar/RulesDSL.g4` (622 lines, v1.1.0)
+**Grammar**: `grammar/RulesDSL.g4` (736 lines, v1.2.0)
 **Extension**: `.rules`
 **Generator**: `backend/generators/rules/rules_generator.py`
 
@@ -1223,10 +1232,63 @@ class MyMixin:
 
 ---
 
+# VS Code Extension (December 10, 2024)
+
+## Extension Architecture
+
+The VS Code extension uses a **thin TypeScript client** (188 lines) that spawns a **Python LSP server**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  VS Code Extension (lsp/client/)                                │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ extension.ts (188 lines)                                  │  │
+│  │ - Find Python interpreter                                 │  │
+│  │ - Spawn Python LSP server                                 │  │
+│  │ - Register file types (.proc, .schema, .xform, .rules)    │  │
+│  │ - Connect via LSP protocol                                │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ LSP Protocol (JSON-RPC)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Python LSP Server (lsp/server/)                                │
+│  - Real-time diagnostics using backend/parser/*                │
+│  - Syntax error reporting                                       │
+│  - Semantic validation                                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## File Icons
+
+Custom SVG icons for VS Code Explorer:
+
+| DSL | Icon | Color | Design |
+|-----|------|-------|--------|
+| ProcDSL (.proc) | `icons/proc.svg` | Green (#66BB6A) | Flow diagram with nodes |
+| SchemaDSL (.schema) | `icons/schema.svg` | Cyan (#4FC3F7) | Grid/Blueprint pattern |
+| TransformDSL (.xform) | `icons/transform.svg` | Purple (#AB47BC) | Transform arrows with 'f' |
+| RulesDSL (.rules) | `icons/rules.svg` | Orange (#FF7043) | Balance scales |
+
+## Syntax Highlighting
+
+TextMate grammars provide syntax highlighting:
+
+| File | Scope | Highlights |
+|------|-------|------------|
+| `procdsl.tmLanguage.json` | `source.procdsl` | Keywords, blocks, operators |
+| `schemadsl.tmLanguage.json` | `source.schemadsl` | Types, fields, constraints |
+| `transformdsl.tmLanguage.json` | `source.transformdsl` | Mappings, expressions |
+| `rulesdsl.tmLanguage.json` | `source.rulesdsl` | Decision tables, conditions |
+
+---
+
 *Document generated December 8, 2024*
-*Updated: December 9, 2024 - Code quality review, Phase 1.5 completion, coverage table corrections*
+*Updated: December 10, 2024 - VS Code extension complete, file icons added, grammar line counts updated*
 *L1 at 97% coverage, L2/L3/L4 at 100% coverage*
 *All generator mixins refactored with TYPE_CHECKING pattern*
 *61 unit tests passing, mixin composition verified*
-*Reference: grammar/*.g4, backend/generators/*_generator.py*
-*Nexflow Toolchain v0.4.0*
+*VS Code extension: 188 lines TypeScript + Python LSP server*
+*Reference: grammar/*.g4, backend/generators/*_generator.py, lsp/*
+*Nexflow Toolchain v0.5.0*

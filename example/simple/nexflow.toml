@@ -1,0 +1,36 @@
+# Nexflow Project Configuration
+# Simple Transaction Processing Example
+
+[project]
+name = "simple-transaction"
+version = "1.0.0"
+description = "Simple credit card transaction processing pipeline"
+
+[paths]
+src = "."
+output = "generated"
+
+# Source directories - flat structure (all files in root)
+[sources.flow]
+path = "."
+
+[sources.schema]
+path = "."
+
+[sources.transform]
+path = "."
+
+[sources.rules]
+path = "."
+
+# Code generation targets
+[targets.flink]
+enabled = true
+output = "generated/flink"
+
+[targets.flink.options]
+package = "com.nexflow.example.simple"
+java_version = "17"
+
+[targets.spark]
+enabled = false

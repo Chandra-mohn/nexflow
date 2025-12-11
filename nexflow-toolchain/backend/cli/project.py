@@ -16,9 +16,9 @@ class ProjectError(Exception):
 
 # DSL language extensions and their layer mapping
 DSL_EXTENSIONS = {
-    ".flow": "flow",        # L1 - Process Orchestration
+    ".proc": "flow",        # L1 - Process Orchestration
     ".schema": "schema",    # L2 - Schema Registry
-    ".transform": "transform",  # L3 - Transform Catalog
+    ".xform": "transform",  # L3 - Transform Catalog
     ".rules": "rules",      # L4 - Business Rules
 }
 

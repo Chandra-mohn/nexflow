@@ -145,13 +145,14 @@ class SchemaGenerator(
             return self.get_java_type(field_type.base_type.value)
         if field_type.collection_type:
             coll = field_type.collection_type
-            if coll.collection_kind == ast.CollectionKind.LIST:
+            # collection_kind is a string: 'list', 'set', 'map'
+            if coll.collection_kind == 'list':
                 element_type = self._get_field_java_type(coll.element_type)
                 return f"List<{element_type}>"
-            elif coll.collection_kind == ast.CollectionKind.SET:
+            elif coll.collection_kind == 'set':
                 element_type = self._get_field_java_type(coll.element_type)
                 return f"Set<{element_type}>"
-            elif coll.collection_kind == ast.CollectionKind.MAP:
+            elif coll.collection_kind == 'map':
                 key_type = self._get_field_java_type(coll.key_type)
                 value_type = self._get_field_java_type(coll.element_type)
                 return f"Map<{key_type}, {value_type}>"
@@ -166,11 +167,12 @@ class SchemaGenerator(
             imports.update(self.get_java_imports_for_type(field_type.base_type.value))
         if field_type.collection_type:
             coll = field_type.collection_type
-            if coll.collection_kind == ast.CollectionKind.LIST:
+            # collection_kind is a string: 'list', 'set', 'map'
+            if coll.collection_kind == 'list':
                 imports.add('java.util.List')
-            elif coll.collection_kind == ast.CollectionKind.SET:
+            elif coll.collection_kind == 'set':
                 imports.add('java.util.Set')
-            elif coll.collection_kind == ast.CollectionKind.MAP:
+            elif coll.collection_kind == 'map':
                 imports.add('java.util.Map')
             imports.update(self._get_field_imports(coll.element_type))
             if coll.key_type:

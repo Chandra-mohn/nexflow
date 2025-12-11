@@ -1,0 +1,36 @@
+# Nexflow Project Configuration
+# Complex Credit Decisioning Example
+
+[project]
+name = "credit-decisioning"
+version = "1.0.0"
+description = "Enterprise credit card decisioning with multi-bureau integration"
+
+[paths]
+src = "."
+output = "generated"
+
+# Source directories - flat structure (all files in root)
+[sources.flow]
+path = "."
+
+[sources.schema]
+path = "."
+
+[sources.transform]
+path = "."
+
+[sources.rules]
+path = "."
+
+# Code generation targets
+[targets.flink]
+enabled = true
+output = "generated/flink"
+
+[targets.flink.options]
+package = "com.nexflow.example.credit"
+java_version = "17"
+
+[targets.spark]
+enabled = false

@@ -1,0 +1,36 @@
+# Nexflow Project Configuration
+# Medium Fraud Detection Example
+
+[project]
+name = "fraud-detector"
+version = "1.0.0"
+description = "Real-time fraud detection pipeline with ML scoring"
+
+[paths]
+src = "."
+output = "generated"
+
+# Source directories - flat structure (all files in root)
+[sources.flow]
+path = "."
+
+[sources.schema]
+path = "."
+
+[sources.transform]
+path = "."
+
+[sources.rules]
+path = "."
+
+# Code generation targets
+[targets.flink]
+enabled = true
+output = "generated/flink"
+
+[targets.flink.options]
+package = "com.nexflow.example.fraud"
+java_version = "17"
+
+[targets.spark]
+enabled = false
