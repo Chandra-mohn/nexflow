@@ -62,14 +62,14 @@ class TestFlowParserRouting:
         process with_routing
             mode stream
 
-            receive events from kafka_events
+            receive incoming_events from kafka_events
                 schema event
 
             route using event_router
 
-            emit to high_priority_events
+            emit to high_priority_output
                 schema event
-            emit to normal_events
+            emit to normal_output
                 schema event
         end
         """
@@ -110,7 +110,7 @@ class TestFlowParserWindow:
         process windowed_aggregation
             mode stream
 
-            receive events from kafka_events
+            receive raw_events from kafka_events
                 schema event
 
             window tumbling 1 minute
@@ -162,7 +162,8 @@ class TestFlowParserErrorHandling:
                 schema message
 
             on error
-                transform failure dead_letter dlq_transforms
+                transform_error dead_letter dlq_transforms
+            end
         end
         """
         result = parse(dsl, 'flow')

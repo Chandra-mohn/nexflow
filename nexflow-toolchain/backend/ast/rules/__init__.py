@@ -91,6 +91,8 @@ from .procedural import (
     ActionCallStmt,
     ActionSequence,
     ReturnStatement,
+    SetStatement,
+    LetStatement,
     Block,
     ElseIfBranch,
     RuleStep,
@@ -123,8 +125,8 @@ __all__ = [
     'InputParam', 'ReturnParam', 'GivenBlock', 'ColumnHeader', 'TableCell', 'TableRow',
     'TableMatrix', 'DecideBlock', 'ReturnSpec', 'ExecuteSpec', 'DecisionTableDef',
     # Procedural
-    'ActionCallStmt', 'ActionSequence', 'ReturnStatement', 'Block', 'ElseIfBranch',
-    'RuleStep', 'BlockItem', 'ProceduralRuleDef',
+    'ActionCallStmt', 'ActionSequence', 'ReturnStatement', 'SetStatement', 'LetStatement',
+    'Block', 'ElseIfBranch', 'RuleStep', 'BlockItem', 'ProceduralRuleDef',
     # Program
     'Program',
 ]

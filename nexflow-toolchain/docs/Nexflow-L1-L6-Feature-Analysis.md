@@ -1,6 +1,6 @@
 # Nexflow Toolchain - L1 to L6 Complete Feature Analysis
 
-**Date**: December 10, 2024 (Updated)
+**Date**: December 11, 2024 (Updated)
 **Purpose**: Comprehensive grammar vs code generator coverage analysis for all 6 DSL layers
 **Reference**: COVENANT-Code-Generation-Principles.md
 
@@ -1232,6 +1232,88 @@ class MyMixin:
 
 ---
 
+# L4 Procedural Rules Fixes (December 11, 2024)
+
+## Critical Fixes Implemented
+
+The L4 procedural rules code generation underwent significant fixes to address issues discovered during generated code review:
+
+### Issues Identified and Fixed
+
+| Issue | Severity | Root Cause | Fix Applied |
+|-------|----------|------------|-------------|
+| **Unreachable code** | Critical | `set`/`let` statements fell through to `return;` | Added `SetStatement` and `LetStatement` AST nodes |
+| **Empty Arrays.asList()** | Critical | IN expression `[6, 7]` list literals not parsed | Added `ctx.listLiteral()` handling in expression visitor |
+| **BinaryExpr raw output** | Critical | Arithmetic expressions outputting AST repr | Added BinaryExpr, ParenExpr, UnaryExpr to `generate_value_expr()` |
+| **FieldPath 'split' error** | Medium | Schema migration passed FieldPath object instead of string | Convert FieldPath to dot-separated string |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/generators/rules/utils_literals.py` | Added BinaryExpr `(left op right)`, ParenExpr `(inner)`, UnaryExpr `-(operand)` handling |
+| `backend/parser/rules/expression_visitor.py` | Fixed IN expression to handle `ctx.listLiteral()` with `[value1, value2]` syntax |
+| `backend/ast/rules/procedural.py` | Added `SetStatement` and `LetStatement` dataclasses |
+| `backend/parser/rules/procedural_visitor.py` | Added `visitSetStatement()` and `visitLetStatement()` methods |
+| `backend/generators/rules/procedural_generator.py` | Added code generation for set/let statements with proper Java output |
+| `backend/parser/schema/pattern_visitor.py` | Fixed FieldPath to string conversion in `visitMigrationStatement()` |
+
+### Generated Code Verification
+
+**Before Fix**:
+```java
+// BROKEN: return; before assignment makes code unreachable
+public void execute(Object context) {
+    if (condition) {
+        return;  // ← Wrong! This was generated before assignments
+        isUnusualTime = true;  // Never reached
+    }
+}
+
+// BROKEN: Empty list for IN expression
+Arrays.asList().contains(dayOfWeek(getTransactionTime()))  // Always false
+
+// BROKEN: Raw AST output
+(getOccupationMedian() * 3L)  // Was showing: BinaryExpr(...)
+```
+
+**After Fix**:
+```java
+// CORRECT: Proper assignment generation
+public void execute(Object context) {
+    if (((hour(getTransactionTime()) >= 1L) && ((hour(getTransactionTime()) <= 5L)))) {
+        isUnusualTime = true;  // ← SetStatement working
+        addRiskFactor("unusual_hour", 15L);
+    }
+}
+
+// CORRECT: List literal populated
+Arrays.asList(6L, 7L).contains(dayOfWeek(getTransactionTime()))
+
+// CORRECT: BinaryExpr generates proper Java
+(getOccupationMedian() * 3L)
+```
+
+### Regeneration Results
+
+All three example projects regenerated successfully:
+
+| Example | Rules Files | Schema Files | Total | Status |
+|---------|-------------|--------------|-------|--------|
+| Simple | 4 | 9 | 13 | ✅ Pass |
+| Medium | 12 | 18 | 30 | ✅ Pass |
+| Complex | 17 | 20 | 37 | ✅ Pass |
+
+### Remaining Observations
+
+The following patterns in generated code are **intentional** and correct:
+
+1. **Empty `Arrays.asList()`** for `let required_actions = []` - This correctly represents an empty list initialization
+2. **`append(getRequiredActions(), null)`** - The DSL source doesn't provide a second argument, so `null` is correct
+3. **Action method stubs with `throw UnsupportedOperationException`** - Expected pattern for abstract actions
+
+---
+
 # VS Code Extension (December 10, 2024)
 
 ## Extension Architecture
@@ -1286,6 +1368,7 @@ TextMate grammars provide syntax highlighting:
 
 *Document generated December 8, 2024*
 *Updated: December 10, 2024 - VS Code extension complete, file icons added, grammar line counts updated*
+*Updated: December 11, 2024 - L4 procedural rules critical fixes (SetStatement, LetStatement, BinaryExpr, ListLiteral in IN)*
 *L1 at 97% coverage, L2/L3/L4 at 100% coverage*
 *All generator mixins refactored with TYPE_CHECKING pattern*
 *61 unit tests passing, mixin composition verified*

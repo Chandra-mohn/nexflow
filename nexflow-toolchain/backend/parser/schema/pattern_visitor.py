@@ -176,9 +176,15 @@ class PatternVisitorMixin:
 
     def visitMigrationStatement(self, ctx: SchemaDSLParser.MigrationStatementContext) -> ast.MigrationStatement:
         if ctx.fieldPath():
-            # Single field path - convert to list
+            # Single field path - convert FieldPath to string
             field_path = self.visitFieldPath(ctx.fieldPath())
-            target_fields = [field_path] if isinstance(field_path, str) else field_path
+            # Convert FieldPath object to dot-separated string
+            if hasattr(field_path, 'parts'):
+                target_fields = ['.'.join(field_path.parts)]
+            elif isinstance(field_path, str):
+                target_fields = [field_path]
+            else:
+                target_fields = [str(field_path)]
         else:
             target_fields = self._get_field_list(ctx.fieldList())
 

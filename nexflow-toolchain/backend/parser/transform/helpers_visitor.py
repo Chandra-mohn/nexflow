@@ -70,7 +70,9 @@ class TransformHelpersVisitorMixin:
             return []
         fields = []
         for field_path_ctx in ctx.fieldPath():
-            parts = [ident.getText() for ident in field_path_ctx.IDENTIFIER()]
+            # fieldPath = fieldOrKeyword ('.' fieldOrKeyword)*
+            # Each fieldOrKeyword is either IDENTIFIER or a keyword
+            parts = [fok.getText() for fok in field_path_ctx.fieldOrKeyword()]
             fields.append('.'.join(parts))
         return fields
 

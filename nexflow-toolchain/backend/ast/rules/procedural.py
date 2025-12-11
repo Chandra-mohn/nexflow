@@ -33,6 +33,22 @@ class ReturnStatement:
 
 
 @dataclass
+class SetStatement:
+    """Set statement: set variable = expression."""
+    variable: str
+    value: ValueExpr
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class LetStatement:
+    """Let statement: let variable = expression."""
+    variable: str
+    value: ValueExpr
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
 class Block:
     """Block of statements in procedural rule."""
     items: List['BlockItem']
@@ -57,7 +73,7 @@ class RuleStep:
     location: Optional[SourceLocation] = None
 
 
-BlockItem = Union[RuleStep, ActionSequence, ReturnStatement]
+BlockItem = Union[RuleStep, ActionSequence, ReturnStatement, SetStatement, LetStatement]
 
 
 @dataclass

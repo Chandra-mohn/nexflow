@@ -39,8 +39,30 @@ class RulesProceduralVisitorMixin:
             return self.visitActionSequence(ctx.actionSequence())
         elif ctx.returnStatement():
             return ast.ReturnStatement(location=self._get_location(ctx))
+        elif ctx.setStatement():
+            return self.visitSetStatement(ctx.setStatement())
+        elif ctx.letStatement():
+            return self.visitLetStatement(ctx.letStatement())
 
         return ast.ReturnStatement(location=self._get_location(ctx))
+
+    def visitSetStatement(self, ctx: RulesDSLParser.SetStatementContext) -> ast.SetStatement:
+        variable = ctx.IDENTIFIER().getText()
+        value = self.visitValueExpr(ctx.valueExpr())
+        return ast.SetStatement(
+            variable=variable,
+            value=value,
+            location=self._get_location(ctx)
+        )
+
+    def visitLetStatement(self, ctx: RulesDSLParser.LetStatementContext) -> ast.LetStatement:
+        variable = ctx.IDENTIFIER().getText()
+        value = self.visitValueExpr(ctx.valueExpr())
+        return ast.LetStatement(
+            variable=variable,
+            value=value,
+            location=self._get_location(ctx)
+        )
 
     def visitRuleStep(self, ctx: RulesDSLParser.RuleStepContext) -> ast.RuleStep:
         condition = self.visitBooleanExpr(ctx.booleanExpr()[0])

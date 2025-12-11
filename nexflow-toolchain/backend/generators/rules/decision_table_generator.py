@@ -210,14 +210,27 @@ class DecisionTableGeneratorMixin(DecisionTableRowsMixin):
         return '\n'.join(lines)
 
     def _get_output_type(self, table: ast.DecisionTableDef) -> str:
-        """Get Java type for decision table output."""
+        """Get Java type for decision table output.
+
+        Returns Output POJO class name if multiple return params,
+        otherwise returns the Java type of the single return param.
+        """
         return_spec = getattr(table, 'return_spec', None)
-        if return_spec:
-            params = getattr(return_spec, 'params', None) or []
-            if params:
-                param_type = getattr(params[0], 'param_type', None)
-                return get_java_type(param_type)
-        return "String"
+        if not return_spec:
+            return "String"
+
+        params = getattr(return_spec, 'params', None) or []
+        if len(params) == 0:
+            return "String"
+
+        # Multiple return params → use Output POJO
+        if len(params) > 1:
+            table_name = getattr(table, 'name', 'unknown')
+            return to_pascal_case(table_name) + "Output"
+
+        # Single return param → use its Java type
+        param_type = getattr(params[0], 'param_type', None)
+        return get_java_type(param_type)
 
     def _collect_decision_table_imports(
         self,

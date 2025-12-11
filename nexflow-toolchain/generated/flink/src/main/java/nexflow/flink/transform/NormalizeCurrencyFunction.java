@@ -23,6 +23,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -37,8 +39,8 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Map<String, Objec
     private static final Logger LOG = LoggerFactory.getLogger(NormalizeCurrencyFunction.class);
     // Pure function - no side effects
 
-    // Flink State-based Cache Configuration
-    private transient ValueState<Object> normalizeCurrencyCacheState;
+    // Flink State-based Cache Configuration (Key-based with TTL)
+    private transient MapState<String, Object> normalizeCurrencyCacheMap;
 
     @Override
     public void open(Configuration parameters) throws Exception {
@@ -51,10 +53,10 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Map<String, Objec
             .setStateVisibility(StateTtlConfig.StateVisibility.NeverReturnExpired)
             .build();
 
-        ValueStateDescriptor<Object> normalizeCurrencyCacheStateDesc =
-            new ValueStateDescriptor<>("normalize_currency_cache", Object.class);
-        normalizeCurrencyCacheStateDesc.enableTimeToLive(ttlConfig);
-        normalizeCurrencyCacheState = getRuntimeContext().getState(normalizeCurrencyCacheStateDesc);
+        MapStateDescriptor<String, Object> normalizeCurrencyCacheMapDesc =
+            new MapStateDescriptor<>("normalize_currency_cache", String.class, Object.class);
+        normalizeCurrencyCacheMapDesc.enableTimeToLive(ttlConfig);
+        normalizeCurrencyCacheMap = getRuntimeContext().getMapState(normalizeCurrencyCacheMapDesc);
     }
 
     /**
@@ -128,35 +130,92 @@ public class NormalizeCurrencyFunction extends RichMapFunction<Map<String, Objec
 
     /**
      * Exception thrown when validation fails.
+     * Supports both simple string errors and structured ValidationError objects.
      */
     public static class ValidationException extends Exception {
-        private final List<String> errors;
+        private final List<?> errors;
 
-        public ValidationException(String message, List<String> errors) {
-            super(message + ": " + String.join(", ", errors));
+        public ValidationException(String message, List<?> errors) {
+            super(message + ": " + formatErrors(errors));
             this.errors = errors;
         }
 
-        public List<String> getErrors() {
-            return errors;
+        @SuppressWarnings("unchecked")
+        public <T> List<T> getErrors() {
+            return (List<T>) errors;
+        }
+
+        /**
+         * Get errors as strings (works for both String and ValidationError lists).
+         */
+        public List<String> getErrorMessages() {
+            return errors.stream()
+                .map(Object::toString)
+                .collect(java.util.stream.Collectors.toList());
+        }
+
+        /**
+         * Get errors filtered by severity (only for structured ValidationError lists).
+         */
+        public List<ValidationError> getErrorsBySeverity(ValidationSeverity severity) {
+            return errors.stream()
+                .filter(e -> e instanceof ValidationError)
+                .map(e -> (ValidationError) e)
+                .filter(e -> e.getSeverity() == severity)
+                .collect(java.util.stream.Collectors.toList());
+        }
+
+        /**
+         * Check if any error has the specified code.
+         */
+        public boolean hasErrorCode(String code) {
+            return errors.stream()
+                .filter(e -> e instanceof ValidationError)
+                .map(e -> (ValidationError) e)
+                .anyMatch(e -> code.equals(e.getCode()));
+        }
+
+        private static String formatErrors(List<?> errors) {
+            return errors.stream()
+                .map(Object::toString)
+                .collect(java.util.stream.Collectors.joining(", "));
         }
     }
 
     /**
-     * Cached version of normalize_currency transform using Flink state.
+     * Cached version of normalize_currency transform using key-based Flink state.
+     * Cache key composed from: currency
      */
     public Map<String, Object> transformWithCache(Map<String, Object> input) throws Exception {
-        // Try state lookup
-        Object cached = normalizeCurrencyCacheState.value();
+        // Build cache key from specified fields
+        String cacheKey = buildNormalizeCurrencyCacheKey(input);
+
+        // Try state lookup by key
+        Object cached = normalizeCurrencyCacheMap.get(cacheKey);
         if (cached != null) {
             return (Map<String, Object>) cached;
         }
 
-        // Execute transform and cache result in state
+        // Execute transform and cache result by key
         Map<String, Object> result = transform(input);
-        normalizeCurrencyCacheState.update(result);
+        normalizeCurrencyCacheMap.put(cacheKey, result);
 
         return result;
+    }
+
+    /**
+     * Invalidate cache entry for the given input's key.
+     */
+    public void invalidateCache(Map<String, Object> input) throws Exception {
+        String cacheKey = buildNormalizeCurrencyCacheKey(input);
+        normalizeCurrencyCacheMap.remove(cacheKey);
+    }
+
+    /**
+     * Clear all cached entries.
+     */
+    public void clearCache() throws Exception {
+        normalizeCurrencyCacheMap.clear();
     }
 
     /**

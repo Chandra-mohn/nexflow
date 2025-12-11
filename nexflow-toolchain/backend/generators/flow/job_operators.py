@@ -114,19 +114,149 @@ class JobOperatorsMixin:
         else:
             # 'route when' form - generate inline routing logic
             condition = route.condition or "true"
+            java_condition = self._compile_route_condition(condition)
             code = f'''        // Route: inline condition [{condition}]
         SingleOutputStreamOperator<{output_type}> {output_stream} = {input_stream}
             .process(new ProcessFunction<{input_type}, {output_type}>() {{
                 @Override
                 public void processElement({input_type} value, Context ctx, Collector<{output_type}> out) throws Exception {{
-                    // Condition: {condition}
-                    boolean matches = true;  // TODO: Evaluate condition expression
+                    boolean matches = {java_condition};
                     out.collect(new RoutedEvent(value, matches ? "matched" : "default"));
                 }}
             }})
             .name("route-inline-{idx}");
 '''
         return code, output_stream, output_type
+
+    def _compile_route_condition(self, condition: str) -> str:
+        """Compile a DSL condition expression to Java boolean expression.
+
+        Handles common patterns:
+        - Simple comparisons: amount > 1000, risk_score >= 0.8
+        - Field access: customer.status == "active"
+        - Boolean operators: amount > 1000 and risk_score > 0.5
+        - Negation: not is_blocked
+        """
+        import re
+
+        if not condition or condition.strip() == "true":
+            return "true"
+        if condition.strip() == "false":
+            return "false"
+
+        result = condition
+
+        # Step 1: Replace boolean operators
+        result = re.sub(r'\band\b', '&&', result)
+        result = re.sub(r'\bor\b', '||', result)
+        result = re.sub(r'\bnot\s+', '!', result)
+
+        # Step 2: Handle string comparisons first (field == "string")
+        # Pattern: field == "value" -> "value".equals(value.getField())
+        def replace_string_eq(match):
+            field = match.group(1).strip()
+            string_val = match.group(2)
+            getter = self._field_to_getter(field, "value")
+            return f'{string_val}.equals({getter})'
+
+        result = re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*==\s*("[^"]*")', replace_string_eq, result)
+
+        # Step 3: Handle string not-equal comparisons
+        def replace_string_ne(match):
+            field = match.group(1).strip()
+            string_val = match.group(2)
+            getter = self._field_to_getter(field, "value")
+            return f'!{string_val}.equals({getter})'
+
+        result = re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*!=\s*("[^"]*")', replace_string_ne, result)
+
+        # Step 4: Handle numeric comparisons (field op number)
+        # Pattern: field_name > 1000 -> value.getFieldName() > 1000
+        def replace_numeric_comparison(match):
+            field = match.group(1).strip()
+            op = match.group(2)
+            num = match.group(3)
+            getter = self._field_to_getter(field, "value")
+            return f'{getter} {op} {num}'
+
+        result = re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)', replace_numeric_comparison, result)
+
+        # Step 5: Handle standalone boolean field paths (is_active, customer.is_vip)
+        # Must be careful not to match already-processed expressions
+        tokens = []
+        i = 0
+        while i < len(result):
+            # Check for already processed content (method calls, operators, etc.)
+            if result[i] in '(){}[].,;!&|<>=+-*/':
+                tokens.append(result[i])
+                i += 1
+            elif result[i:i+2] in ('&&', '||', '>=', '<=', '==', '!='):
+                tokens.append(result[i:i+2])
+                i += 2
+            elif result[i].isspace():
+                tokens.append(result[i])
+                i += 1
+            elif result[i:i+5] == 'value':
+                # Already a Java reference, keep as-is up to end of call chain
+                j = i
+                while j < len(result) and (result[j].isalnum() or result[j] in '._()'):
+                    j += 1
+                tokens.append(result[i:j])
+                i = j
+            elif result[i].isalpha() or result[i] == '_':
+                # Identifier - check if it's a field path that needs conversion
+                j = i
+                while j < len(result) and (result[j].isalnum() or result[j] in '_.'):
+                    j += 1
+                identifier = result[i:j]
+                # Skip Java keywords/literals
+                if identifier in ('true', 'false', 'null', 'equals', 'get'):
+                    tokens.append(identifier)
+                # Skip if followed by ( - it's already a method call
+                elif j < len(result) and result[j] == '(':
+                    tokens.append(identifier)
+                # Skip numbers
+                elif identifier.replace('.', '').isdigit():
+                    tokens.append(identifier)
+                else:
+                    # Convert field path to getter
+                    tokens.append(self._field_to_getter(identifier, "value"))
+                i = j
+            elif result[i].isdigit() or (result[i] == '-' and i+1 < len(result) and result[i+1].isdigit()):
+                # Number
+                j = i
+                if result[j] == '-':
+                    j += 1
+                while j < len(result) and (result[j].isdigit() or result[j] == '.'):
+                    j += 1
+                tokens.append(result[i:j])
+                i = j
+            elif result[i] == '"':
+                # String literal
+                j = i + 1
+                while j < len(result) and result[j] != '"':
+                    if result[j] == '\\':
+                        j += 1
+                    j += 1
+                j += 1  # Include closing quote
+                tokens.append(result[i:j])
+                i = j
+            else:
+                tokens.append(result[i])
+                i += 1
+
+        return ''.join(tokens)
+
+    def _field_to_getter(self, field_path: str, obj_name: str) -> str:
+        """Convert a field path to a Java getter chain.
+
+        Examples:
+        - 'amount' -> 'value.getAmount()'
+        - 'customer.status' -> 'value.getCustomer().getStatus()'
+        """
+        parts = field_path.split('.')
+        getters = '.'.join(f"get{to_pascal_case(p)}()" for p in parts)
+        return f"{obj_name}.{getters}"
 
     def _wire_aggregate(self, aggregate: ast.AggregateDecl, input_stream: str, input_type: str, idx: int) -> tuple:
         """Wire an aggregate operator using AggregateFunction."""
@@ -149,6 +279,18 @@ class JobOperatorsMixin:
         output_stream = f"windowed{idx}Stream"
         window_assigner = self._get_window_assigner(window)
 
+        # Build keyBy expression from window.key_by field
+        if window.key_by:
+            # Convert field path to getter chain (e.g., "customer.id" -> "record.getCustomer().getId()")
+            key_parts = window.key_by.split('.')
+            key_getters = '.'.join(f"get{to_pascal_case(p)}()" for p in key_parts)
+            key_by_expr = f"record -> record.{key_getters}"
+            key_by_comment = f"key by {window.key_by}"
+        else:
+            # Default to a getKey() method if no key_by specified
+            key_by_expr = "record -> record.getKey()"
+            key_by_comment = "key by default"
+
         # Build lateness configuration
         lateness_code = ""
         if window.options and window.options.lateness:
@@ -167,9 +309,9 @@ class JobOperatorsMixin:
 
 '''
 
-        code = f'''{late_tag_decl}        // Window: {window.window_type.value} {format_duration(window.size)}
+        code = f'''{late_tag_decl}        // Window: {window.window_type.value} {format_duration(window.size)} ({key_by_comment})
         WindowedStream<{input_type}, String, TimeWindow> {output_stream} = {input_stream}
-            .keyBy(record -> record.getKey())
+            .keyBy({key_by_expr})
             .window({window_assigner}){lateness_code}{late_output_code};
 '''
         return code, output_stream, input_type

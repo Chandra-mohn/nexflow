@@ -45,6 +45,26 @@ def get_java_type(param_type, fallback: str = "Object") -> str:
         return fallback
 
     if isinstance(param_type, str):
+        # Handle common string type names
+        type_str_map = {
+            "text": "String",
+            "string": "String",
+            "number": "Long",
+            "integer": "Long",
+            "int": "Long",
+            "boolean": "Boolean",
+            "bool": "Boolean",
+            "date": "LocalDate",
+            "timestamp": "Instant",
+            "datetime": "Instant",
+            "money": "BigDecimal",
+            "decimal": "BigDecimal",
+            "percentage": "BigDecimal",
+        }
+        normalized = param_type.lower()
+        if normalized in type_str_map:
+            return type_str_map[normalized]
+        # Unknown string type - use PascalCase as custom type
         return to_pascal_case(param_type)
 
     LOG.warning(f"Unknown param_type: {type(param_type)}, using fallback: {fallback}")
@@ -142,6 +162,20 @@ def generate_value_expr(expr, log_unsupported: bool = True) -> str:
     if isinstance(expr, ast.ListLiteral):
         elements = ", ".join(generate_value_expr(e) for e in (expr.values or []))
         return f'Arrays.asList({elements})'
+
+    if isinstance(expr, ast.BinaryExpr):
+        left = generate_value_expr(getattr(expr, 'left', None), log_unsupported)
+        right = generate_value_expr(getattr(expr, 'right', None), log_unsupported)
+        operator = getattr(expr, 'operator', '+')
+        return f'({left} {operator} {right})'
+
+    if isinstance(expr, ast.ParenExpr):
+        inner = generate_value_expr(getattr(expr, 'inner', None), log_unsupported)
+        return f'({inner})'
+
+    if isinstance(expr, ast.UnaryExpr):
+        operand = generate_value_expr(getattr(expr, 'operand', None), log_unsupported)
+        return f'-({operand})'
 
     # Fallback: try to use as literal
     if hasattr(expr, 'value'):

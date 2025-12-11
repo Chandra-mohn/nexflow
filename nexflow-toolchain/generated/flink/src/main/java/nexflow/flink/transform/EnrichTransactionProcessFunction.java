@@ -113,7 +113,7 @@ public class EnrichTransactionProcessFunction
 
         // Validation: Invalid probability
         if (!(((output.getEnriched().getFraudProbability() >= new BigDecimal("0.0")) && (output.getEnriched().getFraudProbability() <= new BigDecimal("1.0"))))) {
-            errors.add("Invalid probability");
+            errors.add(new ValidationError("Invalid probability", "PROB_RANGE", ValidationSeverity.ERROR));
         }
 
         if (!errors.isEmpty()) {
@@ -139,17 +139,55 @@ public class EnrichTransactionProcessFunction
 
     /**
      * Exception thrown when validation fails.
+     * Supports both simple string errors and structured ValidationError objects.
      */
     public static class ValidationException extends Exception {
-        private final List<String> errors;
+        private final List<?> errors;
 
-        public ValidationException(String message, List<String> errors) {
-            super(message + ": " + String.join(", ", errors));
+        public ValidationException(String message, List<?> errors) {
+            super(message + ": " + formatErrors(errors));
             this.errors = errors;
         }
 
-        public List<String> getErrors() {
-            return errors;
+        @SuppressWarnings("unchecked")
+        public <T> List<T> getErrors() {
+            return (List<T>) errors;
+        }
+
+        /**
+         * Get errors as strings (works for both String and ValidationError lists).
+         */
+        public List<String> getErrorMessages() {
+            return errors.stream()
+                .map(Object::toString)
+                .collect(java.util.stream.Collectors.toList());
+        }
+
+        /**
+         * Get errors filtered by severity (only for structured ValidationError lists).
+         */
+        public List<ValidationError> getErrorsBySeverity(ValidationSeverity severity) {
+            return errors.stream()
+                .filter(e -> e instanceof ValidationError)
+                .map(e -> (ValidationError) e)
+                .filter(e -> e.getSeverity() == severity)
+                .collect(java.util.stream.Collectors.toList());
+        }
+
+        /**
+         * Check if any error has the specified code.
+         */
+        public boolean hasErrorCode(String code) {
+            return errors.stream()
+                .filter(e -> e instanceof ValidationError)
+                .map(e -> (ValidationError) e)
+                .anyMatch(e -> code.equals(e.getCode()));
+        }
+
+        private static String formatErrors(List<?> errors) {
+            return errors.stream()
+                .map(Object::toString)
+                .collect(java.util.stream.Collectors.joining(", "));
         }
     }
     /**

@@ -76,6 +76,14 @@ class RulesExpressionVisitorMixin:
             if ctx.valueList():
                 for val_ctx in ctx.valueList().valueExpr():
                     values.append(self.visitValueExpr(val_ctx))
+            elif ctx.listLiteral():
+                # Handle IN [value1, value2, ...] syntax
+                list_lit = self.visitListLiteral(ctx.listLiteral())
+                if hasattr(list_lit, 'values') and list_lit.values:
+                    values = list_lit.values
+            elif ctx.fieldPath():
+                # Handle IN field_path syntax (dynamic list from variable)
+                values = [self.visitFieldPath(ctx.fieldPath())]
             return ast.ComparisonExpr(
                 left=left,
                 in_values=values,

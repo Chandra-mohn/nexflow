@@ -5,11 +5,12 @@ Generates row matching and result extraction methods for decision tables.
 """
 
 import logging
-from typing import List
+from typing import List, Tuple
 
 from backend.ast import rules_ast as ast
 from backend.generators.rules.utils import (
     to_camel_case,
+    to_pascal_case,
     generate_literal,
     get_java_type,
 )
@@ -46,6 +47,16 @@ class DecisionTableRowsMixin:
         return_params = getattr(return_spec, 'params', None) if return_spec else []
         return_fields = [getattr(p, 'name', '') for p in return_params]
 
+        # Determine output type based on return params count
+        table_name = getattr(table, 'name', 'unknown')
+        if len(return_params) > 1:
+            output_type = to_pascal_case(table_name) + "Output"
+        elif len(return_params) == 1:
+            param_type = getattr(return_params[0], 'param_type', None)
+            output_type = get_java_type(param_type)
+        else:
+            output_type = "String"
+
         lines = []
         for i, row in enumerate(rows):
             row_num = i + 1
@@ -58,7 +69,7 @@ class DecisionTableRowsMixin:
 
             # Generate result method
             lines.append(self._generate_row_result_method(
-                row_num, row, headers, return_fields, input_type
+                row_num, row, headers, return_params, input_type, output_type
             ))
             lines.append("")
 
@@ -101,32 +112,54 @@ class DecisionTableRowsMixin:
         row_num: int,
         row,
         headers: List,
-        return_fields: List[str],
-        input_type: str
+        return_params: List,
+        input_type: str,
+        output_type: str
     ) -> str:
-        """Generate method to get row's result value."""
-        output_type = "String"
+        """Generate method to get row's result value.
 
+        For single return param: returns the value directly
+        For multiple return params: returns Output POJO with all fields
+        """
         lines = [
             f"    private {output_type} getRow{row_num}Result({input_type} input) {{",
         ]
 
         cells = getattr(row, 'cells', None) or []
-        result_generated = False
+        return_fields = [getattr(p, 'name', '') for p in return_params]
 
+        # Build mapping of header name to cell value
+        header_to_value = {}
         for j, cell in enumerate(cells):
             if j < len(headers):
                 header_name = getattr(headers[j], 'name', '')
-                if header_name in return_fields or j == len(cells) - 1:
+                if header_name in return_fields:
                     content = getattr(cell, 'content', None)
                     value = self._extract_action_value(content)
                     if value is not None:
-                        lines.append(f"        return {value};")
-                        result_generated = True
-                        break
+                        header_to_value[header_name] = value
 
-        if not result_generated:
-            LOG.warning(f"Row {row_num} has no result value, returning null")
+        # Single return param: return value directly
+        if len(return_params) == 1:
+            field_name = return_fields[0]
+            if field_name in header_to_value:
+                lines.append(f"        return {header_to_value[field_name]};")
+            else:
+                LOG.warning(f"Row {row_num} has no result for {field_name}, returning null")
+                lines.append('        return null;')
+        # Multiple return params: return Output POJO
+        elif len(return_params) > 1:
+            lines.append(f"        return {output_type}.builder()")
+            for param in return_params:
+                field_name = getattr(param, 'name', '')
+                setter_name = to_camel_case(field_name)
+                if field_name in header_to_value:
+                    lines.append(f"            .{setter_name}({header_to_value[field_name]})")
+                else:
+                    lines.append(f"            .{setter_name}(null)")
+            lines.append("            .build();")
+        else:
+            LOG.warning(f"Row {row_num} has no return params, returning null")
             lines.append('        return null;')
 
         lines.append("    }")
@@ -156,6 +189,21 @@ class DecisionTableRowsMixin:
         if isinstance(content, (ast.StringLiteral, ast.IntegerLiteral,
                                ast.DecimalLiteral, ast.BooleanLiteral)):
             return generate_literal(content)
+
+        # Handle condition types used as action values (e.g., "block" in action column)
+        # ExactMatchCondition wraps a literal value which is the actual action result
+        if isinstance(content, ast.ExactMatchCondition):
+            value = getattr(content, 'value', None)
+            if value is not None:
+                return generate_literal(value)
+            return None
+
+        # ComparisonCondition with a literal value can also be used as action
+        if isinstance(content, ast.ComparisonCondition):
+            value = getattr(content, 'value', None)
+            if value is not None:
+                return generate_literal(value)
+            return None
 
         LOG.warning(f"Unknown action content type: {type(content).__name__}")
         return None

@@ -166,6 +166,17 @@ class ProceduralGeneratorMixin(ProceduralExpressionsMixin):
         if isinstance(item, ast.ReturnStatement):
             return f"{prefix}return;"
 
+        if isinstance(item, ast.SetStatement):
+            variable = to_camel_case(getattr(item, 'variable', 'unknown'))
+            value = generate_value_expr(getattr(item, 'value', None))
+            return f"{prefix}{variable} = {value};"
+
+        if isinstance(item, ast.LetStatement):
+            variable = to_camel_case(getattr(item, 'variable', 'unknown'))
+            value = generate_value_expr(getattr(item, 'value', None))
+            # For now, use Object type for let statements (could be improved with type inference)
+            return f"{prefix}var {variable} = {value};"
+
         LOG.warning(f"Unknown block item type: {type(item).__name__}")
         return f"{prefix}// UNSUPPORTED: {type(item).__name__}"
 
