@@ -57,8 +57,9 @@ class FlowCoreVisitorMixin:
             state = self.visitStateBlock(ctx.stateBlock())
 
         resilience = None
-        if ctx.resilienceBlock():
-            resilience = self.visitResilienceBlock(ctx.resilienceBlock())
+        # Grammar: processDefinition has processTailBlocks which optionally contains resilienceBlock
+        if ctx.processTailBlocks() and ctx.processTailBlocks().resilienceBlock():
+            resilience = self.visitResilienceBlock(ctx.processTailBlocks().resilienceBlock())
 
         return ast.ProcessDefinition(
             name=name,

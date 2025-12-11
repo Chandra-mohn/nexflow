@@ -126,9 +126,9 @@ class JobSinksMixin:
 
     def _get_input_type_at_op(self, process: ast.ProcessDefinition, op_idx: int) -> str:
         """Get the input type at a specific operator index in the pipeline."""
-        # Start with initial input type
-        if process.input and process.input.receives:
-            receive = process.input.receives[0]
+        # Start with initial input type (v0.5.0+: process.receives is direct list)
+        if process.receives:
+            receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:
                 current_type = to_pascal_case(receive.schema.schema_name)
             else:

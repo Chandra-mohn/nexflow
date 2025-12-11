@@ -106,8 +106,9 @@ class ScaffoldGenerator(
 
     def _get_input_type(self, process: ast.ProcessDefinition) -> str:
         """Get the input type for the process."""
-        if process.input and process.input.receives:
-            receive = process.input.receives[0]
+        # v0.5.0+: process.receives is direct list
+        if process.receives:
+            receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:
                 return to_pascal_case(receive.schema.schema_name)
         return "Object"

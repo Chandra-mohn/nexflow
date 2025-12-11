@@ -44,6 +44,9 @@ class ScaffoldOperatorsMixin:
         rules_path: Path, input_type: str
     ) -> None:
         """Generate Router ProcessFunction scaffold for route operator."""
+        if not route.rule_name:
+            # 'route when' form - no scaffold needed, inline code generated
+            return
         router_class = to_pascal_case(route.rule_name) + "Router"
         content = self._generate_router(route, rules_package, input_type)
         self.result.add_file(rules_path / f"{router_class}.java", content, "java")

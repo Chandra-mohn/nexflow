@@ -122,9 +122,9 @@ class JobGeneratorMixin(
         current_stream = None
         current_type = None
 
-        # Generate source connections
-        if process.input and process.input.receives:
-            for receive in process.input.receives:
+        # Generate source connections (v0.5.0+: process.receives is direct list)
+        if process.receives:
+            for receive in process.receives:
                 source_code, stream_var, schema_class = self._generate_source_with_json(
                     receive, process
                 )
@@ -156,11 +156,11 @@ class JobGeneratorMixin(
             current_stream = new_stream
             current_type = new_type
 
-        # Generate sinks
-        if process.output and process.output.outputs:
+        # Generate sinks (v0.5.0+: process.emits is direct list)
+        if process.emits:
             lines.append("")
             lines.append("        // Sinks")
-            for output in process.output.outputs:
+            for output in process.emits:
                 if isinstance(output, ast.EmitDecl):
                     sink_code = self._generate_sink_with_json(
                         output, current_stream, current_type

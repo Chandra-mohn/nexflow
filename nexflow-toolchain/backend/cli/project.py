@@ -167,8 +167,9 @@ class Project:
     def file_counts(self) -> Dict[str, int]:
         """Count DSL files by type."""
         counts = {}
-        for lang, ext in [("flow", ".flow"), ("schema", ".schema"),
-                          ("transform", ".transform"), ("rules", ".rules")]:
+        # Use shorthand extensions: .proc, .xform
+        for lang, ext in [("flow", ".proc"), ("schema", ".schema"),
+                          ("transform", ".xform"), ("rules", ".rules")]:
             src_config = self.sources.get(lang)
             if src_config:
                 src_path = self.root_dir / src_config.path
@@ -186,8 +187,9 @@ class Project:
         if not src_config:
             return []
 
-        ext_map = {"flow": ".flow", "schema": ".schema",
-                   "transform": ".transform", "rules": ".rules"}
+        # Map language to file extension (using shorthand extensions)
+        ext_map = {"flow": ".proc", "schema": ".schema",
+                   "transform": ".xform", "rules": ".rules"}
         ext = ext_map.get(lang)
         if not ext:
             return []

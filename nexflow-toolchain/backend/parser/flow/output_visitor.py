@@ -25,10 +25,13 @@ class FlowOutputVisitorMixin:
         """
         Visit an emit declaration.
 
-        Grammar: EMIT TO IDENTIFIER emitClause*
+        Grammar: EMIT TO sinkName emitClause*
+        sinkName: keywordOrIdentifier
         emitClause: schemaDecl | connectorClause | emitOptions | fanoutDecl
         """
-        target = ctx.IDENTIFIER().getText()
+        # Grammar: emitDecl: EMIT TO sinkName emitClause*
+        # sinkName: keywordOrIdentifier
+        target = ctx.sinkName().getText()
 
         schema = None
         fanout = None

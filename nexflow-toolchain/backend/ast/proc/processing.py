@@ -30,8 +30,14 @@ class TransformDecl:
 
 @dataclass
 class RouteDecl:
-    """Route using L4 rules declaration."""
-    rule_name: str
+    """Route using L4 rules or inline condition.
+
+    Supports two forms:
+    - route using <rule_name>: References an L4 rules table
+    - route when <condition>: Inline conditional routing
+    """
+    rule_name: Optional[str] = None  # For 'route using' form
+    condition: Optional[str] = None  # For 'route when' form (expression as string)
     location: Optional[SourceLocation] = None
 
 
@@ -76,4 +82,111 @@ class JoinDecl:
     on_fields: List[str]
     within: Duration
     join_type: JoinType = JoinType.INNER
+    location: Optional[SourceLocation] = None
+
+
+# =============================================================================
+# Additional Processing Statements (Placeholder implementations)
+# These represent various DSL statements that affect the processing pipeline
+# =============================================================================
+
+@dataclass
+class EvaluateDecl:
+    """Evaluate expression statement."""
+    expression: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class TransitionDecl:
+    """State transition statement."""
+    target_state: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class EmitAuditDecl:
+    """Emit audit event statement."""
+    event_name: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class DeduplicateDecl:
+    """Deduplicate by field statement."""
+    key_field: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class LookupDecl:
+    """Lookup data source statement."""
+    source_name: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class BranchDecl:
+    """Parallel branch statement."""
+    branch_name: str
+    body: List = None  # List of statements in the branch
+    location: Optional[SourceLocation] = None
+
+    def __post_init__(self):
+        if self.body is None:
+            self.body = []
+
+
+@dataclass
+class ParallelDecl:
+    """Parallel execution block."""
+    name: str
+    branches: List[BranchDecl] = None
+    location: Optional[SourceLocation] = None
+
+    def __post_init__(self):
+        if self.branches is None:
+            self.branches = []
+
+
+@dataclass
+class ValidateInputDecl:
+    """Validate input statement."""
+    expression: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ForeachDecl:
+    """Foreach iteration statement."""
+    item_name: str
+    collection: str
+    body: List = None
+    location: Optional[SourceLocation] = None
+
+    def __post_init__(self):
+        if self.body is None:
+            self.body = []
+
+
+@dataclass
+class CallDecl:
+    """Call external function/service statement."""
+    target: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ScheduleDecl:
+    """Schedule delayed execution statement."""
+    delay: Duration
+    target: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class SetDecl:
+    """Set variable statement."""
+    variable: str
+    value: str
     location: Optional[SourceLocation] = None

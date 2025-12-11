@@ -178,7 +178,10 @@ class FlowProcessFunctionMixin:
 
                 elif isinstance(op, ast.RouteDecl):
                     lines.append(f"")
-                    lines.append(f"            // Route using: {op.rule_name}")
+                    if op.rule_name:
+                        lines.append(f"            // Route using: {op.rule_name}")
+                    else:
+                        lines.append(f"            // Route when: {op.condition}")
                     lines.append(f"            String routeDecision = evaluateRoute({current_var});")
 
         # Create result and emit

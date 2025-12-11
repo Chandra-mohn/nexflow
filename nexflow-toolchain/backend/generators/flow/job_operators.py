@@ -29,6 +29,31 @@ class JobOperatorsMixin:
             return self._wire_join(op, input_stream, input_type, idx)
         elif isinstance(op, ast.MergeDecl):
             return self._wire_merge(op, input_stream, input_type, idx)
+        # Additional statement types - generate comment placeholders
+        elif isinstance(op, ast.EvaluateDecl):
+            return f"        // Evaluate: {op.expression[:50] if op.expression else ''}...", input_stream, input_type
+        elif isinstance(op, ast.TransitionDecl):
+            return f"        // Transition to state: {op.target_state}", input_stream, input_type
+        elif isinstance(op, ast.EmitAuditDecl):
+            return f"        // Emit audit event: {op.event_name}", input_stream, input_type
+        elif isinstance(op, ast.DeduplicateDecl):
+            return f"        // Deduplicate by: {op.key_field}", input_stream, input_type
+        elif isinstance(op, ast.LookupDecl):
+            return f"        // Lookup from: {op.source_name}", input_stream, input_type
+        elif isinstance(op, ast.BranchDecl):
+            return f"        // Branch: {op.branch_name}", input_stream, input_type
+        elif isinstance(op, ast.ParallelDecl):
+            return f"        // Parallel block: {op.name}", input_stream, input_type
+        elif isinstance(op, ast.ValidateInputDecl):
+            return f"        // Validate input", input_stream, input_type
+        elif isinstance(op, ast.ForeachDecl):
+            return f"        // Foreach: {op.item_name} in {op.collection}", input_stream, input_type
+        elif isinstance(op, ast.CallDecl):
+            return f"        // Call: {op.target}", input_stream, input_type
+        elif isinstance(op, ast.ScheduleDecl):
+            return f"        // Schedule: {op.target}", input_stream, input_type
+        elif isinstance(op, ast.SetDecl):
+            return f"        // Set: {op.variable} = {op.value[:30] if op.value else ''}...", input_stream, input_type
         else:
             return f"        // [UNSUPPORTED] Operator: {type(op).__name__}", input_stream, input_type
 
@@ -69,12 +94,14 @@ class JobOperatorsMixin:
 
     def _wire_route(self, route: ast.RouteDecl, input_stream: str, input_type: str, idx: int) -> tuple:
         """Wire a route operator using ProcessFunction."""
-        rule_name = route.rule_name
-        router_class = to_pascal_case(rule_name) + "Router"
         output_stream = f"routed{idx}Stream"
         output_type = "RoutedEvent"
 
-        code = f'''        // Route: {rule_name}
+        if route.rule_name:
+            # 'route using' form - use L4 rules router
+            rule_name = route.rule_name
+            router_class = to_pascal_case(rule_name) + "Router"
+            code = f'''        // Route: using {rule_name}
         SingleOutputStreamOperator<{output_type}> {output_stream} = {input_stream}
             .process(new {router_class}())
             .name("route-{rule_name}");
@@ -83,6 +110,21 @@ class JobOperatorsMixin:
         // {output_stream}.getSideOutput({router_class}.APPROVED_TAG)
         // {output_stream}.getSideOutput({router_class}.FLAGGED_TAG)
         // {output_stream}.getSideOutput({router_class}.BLOCKED_TAG)
+'''
+        else:
+            # 'route when' form - generate inline routing logic
+            condition = route.condition or "true"
+            code = f'''        // Route: inline condition [{condition}]
+        SingleOutputStreamOperator<{output_type}> {output_stream} = {input_stream}
+            .process(new ProcessFunction<{input_type}, {output_type}>() {{
+                @Override
+                public void processElement({input_type} value, Context ctx, Collector<{output_type}> out) throws Exception {{
+                    // Condition: {condition}
+                    boolean matches = true;  // TODO: Evaluate condition expression
+                    out.collect(new RoutedEvent(value, matches ? "matched" : "default"));
+                }}
+            }})
+            .name("route-inline-{idx}");
 '''
         return code, output_stream, output_type
 

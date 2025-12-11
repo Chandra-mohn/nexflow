@@ -100,22 +100,24 @@ class FlowGenerator(
             return True
         if process.resilience and process.resilience.error:
             return True
-        if process.output and len(process.output.outputs) > 1:
+        if len(process.emits) > 1:
             return True
         return False
 
     def _get_input_type(self, process: ast.ProcessDefinition) -> str:
         """Get the input type for the process."""
-        if process.input and process.input.receives:
-            receive = process.input.receives[0]
+        # v0.5.0+: process.receives is direct list
+        if process.receives:
+            receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:
                 return self.to_java_class_name(receive.schema.schema_name)
         return "Object"
 
     def _get_output_type(self, process: ast.ProcessDefinition) -> str:
         """Get the output type for the process."""
-        if process.output and process.output.outputs:
-            for output in process.output.outputs:
-                if isinstance(output, ast.EmitDecl) and output.schema:
-                    return self.to_java_class_name(output.schema.schema_name)
+        # v0.5.0+: process.emits is direct list
+        if process.emits:
+            for emit in process.emits:
+                if isinstance(emit, ast.EmitDecl) and emit.schema:
+                    return self.to_java_class_name(emit.schema.schema_name)
         return "Object"

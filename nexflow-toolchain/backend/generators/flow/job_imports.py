@@ -129,8 +129,9 @@ class JobImportsMixin:
                     has_enrich = True
                     break
 
-        if process.input and process.input.receives:
-            for receive in process.input.receives:
+        # v0.5.0+: process.receives is a direct list
+        if process.receives:
+            for receive in process.receives:
                 if receive.schema and receive.schema.schema_name:
                     schema_class = to_pascal_case(receive.schema.schema_name)
                     imports.append(f"{schema_package}.{schema_class}")
@@ -154,8 +155,11 @@ class JobImportsMixin:
                     async_class = to_pascal_case(op.lookup_name) + "AsyncFunction"
                     imports.append(f"{transform_package}.{async_class}")
                 elif isinstance(op, ast.RouteDecl):
-                    router_class = to_pascal_case(op.rule_name) + "Router"
-                    imports.append(f"{rules_package}.{router_class}")
+                    if op.rule_name:
+                        # 'route using' form - import the L4 rules router
+                        router_class = to_pascal_case(op.rule_name) + "Router"
+                        imports.append(f"{rules_package}.{router_class}")
+                    # Both forms need RoutedEvent
                     imports.append(f"{rules_package}.RoutedEvent")
                 elif isinstance(op, ast.AggregateDecl):
                     agg_class = to_pascal_case(op.transform_name) + "Aggregator"

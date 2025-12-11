@@ -39,14 +39,15 @@ class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
 
     def generate_source_code(self, process: ast.ProcessDefinition) -> str:
         """Generate source connection code for a process."""
-        if not process.input or not process.input.receives:
+        # v0.5.0+: process.receives is direct list
+        if not process.receives:
             return "// No input sources defined\n"
 
         # Reset stored streams for this process
         self._stored_streams = {}
 
         lines = []
-        for receive in process.input.receives:
+        for receive in process.receives:
             source_code = self._generate_source(receive, process)
             lines.append(source_code)
 
@@ -153,11 +154,15 @@ class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
         return self._to_camel_case(name) + "Stream"
 
     def _to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase."""
+        """Convert snake_case or kebab-case to PascalCase."""
+        # Handle both underscores and hyphens
+        name = name.replace('-', '_')
         return ''.join(word.capitalize() for word in name.split('_'))
 
     def _to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase."""
+        """Convert snake_case or kebab-case to camelCase."""
+        # Handle both underscores and hyphens
+        name = name.replace('-', '_')
         parts = name.split('_')
         return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
 

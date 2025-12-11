@@ -16,7 +16,10 @@ class FlowProcessingVisitorMixin:
 
     def visitProcessingBlock(self, ctx: ProcDSLParser.ProcessingBlockContext) -> Union[
         ast.EnrichDecl, ast.TransformDecl, ast.RouteDecl, ast.AggregateDecl,
-        ast.WindowDecl, ast.JoinDecl, ast.MergeDecl
+        ast.WindowDecl, ast.JoinDecl, ast.MergeDecl, ast.EvaluateDecl,
+        ast.TransitionDecl, ast.EmitAuditDecl, ast.DeduplicateDecl,
+        ast.LookupDecl, ast.BranchDecl, ast.ParallelDecl, ast.ValidateInputDecl,
+        ast.ForeachDecl, ast.CallDecl, ast.ScheduleDecl, ast.SetDecl
     ]:
         if ctx.enrichDecl():
             return self.visitEnrichDecl(ctx.enrichDecl())
@@ -32,6 +35,31 @@ class FlowProcessingVisitorMixin:
             return self.visitJoinDecl(ctx.joinDecl())
         elif ctx.mergeDecl():
             return self.visitMergeDecl(ctx.mergeDecl())
+        # Additional statement types
+        elif ctx.evaluateStatement():
+            return self.visitEvaluateStatement(ctx.evaluateStatement())
+        elif ctx.transitionStatement():
+            return self.visitTransitionStatement(ctx.transitionStatement())
+        elif ctx.emitAuditStatement():
+            return self.visitEmitAuditStatement(ctx.emitAuditStatement())
+        elif ctx.deduplicateStatement():
+            return self.visitDeduplicateStatement(ctx.deduplicateStatement())
+        elif ctx.lookupStatement():
+            return self.visitLookupStatement(ctx.lookupStatement())
+        elif ctx.branchStatement():
+            return self.visitBranchStatement(ctx.branchStatement())
+        elif ctx.parallelStatement():
+            return self.visitParallelStatement(ctx.parallelStatement())
+        elif ctx.validateInputStatement():
+            return self.visitValidateInputStatement(ctx.validateInputStatement())
+        elif ctx.foreachStatement():
+            return self.visitForeachStatement(ctx.foreachStatement())
+        elif ctx.callStatement():
+            return self.visitCallStatement(ctx.callStatement())
+        elif ctx.scheduleStatement():
+            return self.visitScheduleStatement(ctx.scheduleStatement())
+        elif ctx.setStatement():
+            return self.visitSetStatement(ctx.setStatement())
         return None
 
     def visitEnrichDecl(self, ctx: ProcDSLParser.EnrichDeclContext) -> ast.EnrichDecl:
@@ -57,9 +85,19 @@ class FlowProcessingVisitorMixin:
         )
 
     def visitRouteDecl(self, ctx: ProcDSLParser.RouteDeclContext) -> ast.RouteDecl:
-        rule_name = ctx.IDENTIFIER().getText()
+        # Grammar: routeDecl: ROUTE (USING routeSource | WHEN expression) ...
+        # routeSource: fieldPath  (e.g., simple_approval or result.decision)
+        rule_name = None
+        condition = None
+        if ctx.routeSource():
+            # 'route using <rule_name>' form
+            rule_name = ctx.routeSource().getText()
+        elif ctx.expression():
+            # 'route when <condition>' form - capture expression as string
+            condition = ctx.expression().getText()
         return ast.RouteDecl(
             rule_name=rule_name,
+            condition=condition,
             location=self._get_location(ctx)
         )
 
@@ -182,3 +220,125 @@ class FlowProcessingVisitorMixin:
         elif 'outer' in type_text:
             return ast.JoinType.OUTER
         return ast.JoinType.INNER
+
+    # =========================================================================
+    # Additional Statement Visitors
+    # =========================================================================
+
+    def visitEvaluateStatement(self, ctx) -> ast.EvaluateDecl:
+        """Visit evaluate statement."""
+        expression = self._get_text(ctx.expression()) if hasattr(ctx, 'expression') and ctx.expression() else ""
+        return ast.EvaluateDecl(
+            expression=expression,
+            location=self._get_location(ctx)
+        )
+
+    def visitTransitionStatement(self, ctx) -> ast.TransitionDecl:
+        """Visit transition statement."""
+        target_state = ctx.STRING().getText().strip('"\'') if ctx.STRING() else ""
+        return ast.TransitionDecl(
+            target_state=target_state,
+            location=self._get_location(ctx)
+        )
+
+    def visitEmitAuditStatement(self, ctx) -> ast.EmitAuditDecl:
+        """Visit emit_audit_event statement."""
+        event_name = ctx.STRING().getText().strip('"\'') if ctx.STRING() else ""
+        return ast.EmitAuditDecl(
+            event_name=event_name,
+            location=self._get_location(ctx)
+        )
+
+    def visitDeduplicateStatement(self, ctx) -> ast.DeduplicateDecl:
+        """Visit deduplicate statement."""
+        key_field = self._get_text(ctx.fieldPath()) if hasattr(ctx, 'fieldPath') and ctx.fieldPath() else ""
+        return ast.DeduplicateDecl(
+            key_field=key_field,
+            location=self._get_location(ctx)
+        )
+
+    def visitLookupStatement(self, ctx) -> ast.LookupDecl:
+        """Visit lookup statement."""
+        source_name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        return ast.LookupDecl(
+            source_name=source_name,
+            location=self._get_location(ctx)
+        )
+
+    def visitBranchStatement(self, ctx) -> ast.BranchDecl:
+        """Visit branch statement."""
+        branch_name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        return ast.BranchDecl(
+            branch_name=branch_name,
+            body=[],  # TODO: Parse branch body
+            location=self._get_location(ctx)
+        )
+
+    def visitParallelStatement(self, ctx) -> ast.ParallelDecl:
+        """Visit parallel statement."""
+        name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        return ast.ParallelDecl(
+            name=name,
+            branches=[],  # TODO: Parse parallel branches
+            location=self._get_location(ctx)
+        )
+
+    def visitValidateInputStatement(self, ctx) -> ast.ValidateInputDecl:
+        """Visit validate_input statement."""
+        expression = self._get_text(ctx.expression()) if hasattr(ctx, 'expression') and ctx.expression() else ""
+        return ast.ValidateInputDecl(
+            expression=expression,
+            location=self._get_location(ctx)
+        )
+
+    def visitForeachStatement(self, ctx) -> ast.ForeachDecl:
+        """Visit foreach statement."""
+        item_name = ""
+        collection = ""
+        if hasattr(ctx, 'IDENTIFIER') and ctx.IDENTIFIER():
+            ids = ctx.IDENTIFIER()
+            if len(ids) >= 2:
+                item_name = ids[0].getText()
+                collection = ids[1].getText()
+            elif len(ids) == 1:
+                item_name = ids[0].getText()
+        return ast.ForeachDecl(
+            item_name=item_name,
+            collection=collection,
+            body=[],  # TODO: Parse foreach body
+            location=self._get_location(ctx)
+        )
+
+    def visitCallStatement(self, ctx) -> ast.CallDecl:
+        """Visit call statement."""
+        target = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        return ast.CallDecl(
+            target=target,
+            location=self._get_location(ctx)
+        )
+
+    def visitScheduleStatement(self, ctx) -> ast.ScheduleDecl:
+        """Visit schedule statement."""
+        target = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        delay = None
+        if hasattr(ctx, 'duration') and ctx.duration():
+            delay = self.visitDuration(ctx.duration())
+        return ast.ScheduleDecl(
+            delay=delay,
+            target=target,
+            location=self._get_location(ctx)
+        )
+
+    def visitSetStatement(self, ctx) -> ast.SetDecl:
+        """Visit set statement."""
+        variable = ""
+        value = ""
+        if hasattr(ctx, 'IDENTIFIER') and ctx.IDENTIFIER():
+            variable = ctx.IDENTIFIER().getText()
+        if hasattr(ctx, 'expression') and ctx.expression():
+            value = self._get_text(ctx.expression())
+        return ast.SetDecl(
+            variable=variable,
+            value=value,
+            location=self._get_location(ctx)
+        )

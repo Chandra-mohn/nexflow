@@ -86,15 +86,32 @@ SingleOutputStreamOperator<EnrichedRecord> {output_stream} = AsyncDataStream
         return code, output_stream
 
     def _generate_route(self, route: ast.RouteDecl, input_stream: str, idx: int) -> tuple:
-        """Generate route operator (ProcessFunction for L4 rules)."""
-        rule_name = route.rule_name
-        rule_class = self._to_pascal_case(rule_name) + "Rules"
+        """Generate route operator (ProcessFunction for L4 rules or inline condition)."""
         output_stream = f"routed{idx}Stream"
 
-        code = f'''// Route: {rule_name}
+        if route.rule_name:
+            # 'route using' form - use L4 rules table
+            rule_name = route.rule_name
+            rule_class = self._to_pascal_case(rule_name) + "Rules"
+            code = f'''// Route: using {rule_name}
 SingleOutputStreamOperator<RoutedRecord> {output_stream} = {input_stream}
     .process(new {rule_class}())
     .name("route-{rule_name}");
+'''
+        else:
+            # 'route when' form - generate inline routing logic
+            condition = route.condition or "true"
+            code = f'''// Route: inline condition
+SingleOutputStreamOperator<RoutedRecord> {output_stream} = {input_stream}
+    .process(new ProcessFunction<Object, RoutedRecord>() {{
+        @Override
+        public void processElement(Object value, Context ctx, Collector<RoutedRecord> out) {{
+            // Inline condition: {condition}
+            boolean matches = evaluate(value);  // TODO: Implement condition evaluation
+            out.collect(new RoutedRecord(value, matches ? "matched" : "default"));
+        }}
+    }})
+    .name("route-inline-{idx}");
 '''
         return code, output_stream
 

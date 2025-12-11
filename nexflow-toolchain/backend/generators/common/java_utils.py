@@ -14,31 +14,35 @@ from typing import Optional
 # =============================================================================
 
 def to_camel_case(name: str) -> str:
-    """Convert snake_case to camelCase.
+    """Convert snake_case or kebab-case to camelCase.
 
     Args:
-        name: Snake case string (e.g., 'user_name')
+        name: Snake case or kebab-case string (e.g., 'user_name' or 'user-name')
 
     Returns:
         Camel case string (e.g., 'userName')
     """
     if not name:
         return name
+    # Handle both underscores and hyphens
+    name = name.replace('-', '_')
     parts = name.split('_')
     return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
 
 
 def to_pascal_case(name: str) -> str:
-    """Convert snake_case to PascalCase.
+    """Convert snake_case or kebab-case to PascalCase.
 
     Args:
-        name: Snake case string (e.g., 'user_name')
+        name: Snake case or kebab-case string (e.g., 'user_name' or 'user-name')
 
     Returns:
         Pascal case string (e.g., 'UserName')
     """
     if not name:
         return name
+    # Handle both underscores and hyphens
+    name = name.replace('-', '_')
     return ''.join(word.capitalize() for word in name.split('_'))
 
 

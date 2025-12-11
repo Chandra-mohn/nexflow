@@ -58,6 +58,19 @@ from .processing import (
     WindowOptions,
     WindowDecl,
     JoinDecl,
+    # Additional statements
+    EvaluateDecl,
+    TransitionDecl,
+    EmitAuditDecl,
+    DeduplicateDecl,
+    LookupDecl,
+    BranchDecl,
+    ParallelDecl,
+    ValidateInputDecl,
+    ForeachDecl,
+    CallDecl,
+    ScheduleDecl,
+    SetDecl,
 )
 
 # Correlation block
@@ -122,6 +135,9 @@ __all__ = [
     # Processing
     'EnrichDecl', 'TransformDecl', 'RouteDecl', 'AggregateDecl', 'MergeDecl',
     'WindowOptions', 'WindowDecl', 'JoinDecl',
+    'EvaluateDecl', 'TransitionDecl', 'EmitAuditDecl', 'DeduplicateDecl',
+    'LookupDecl', 'BranchDecl', 'ParallelDecl', 'ValidateInputDecl',
+    'ForeachDecl', 'CallDecl', 'ScheduleDecl', 'SetDecl',
     # Correlation
     'TimeoutAction', 'CompletionCondition', 'CompletionClause', 'AwaitDecl', 'HoldDecl',
     # Output

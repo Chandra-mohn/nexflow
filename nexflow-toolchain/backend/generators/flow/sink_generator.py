@@ -21,11 +21,12 @@ class SinkGeneratorMixin:
 
     def generate_sink_code(self, process: ast.ProcessDefinition, input_stream: str) -> str:
         """Generate sink connection code for a process."""
-        if not process.output or not process.output.outputs:
+        # v0.5.0+: process.emits is direct list
+        if not process.emits:
             return "// No output sinks defined\n"
 
         lines = []
-        emits = [o for o in process.output.outputs if isinstance(o, ast.EmitDecl)]
+        emits = [e for e in process.emits if isinstance(e, ast.EmitDecl)]
 
         # Generate side output tags if multiple emits
         if len(emits) > 1:
