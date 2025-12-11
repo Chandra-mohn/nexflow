@@ -92,6 +92,7 @@ process credit_decisioning_pipeline                  // PROCESS: Main credit dec
             emit to declined_applications            // EMIT: Send to declined queue
                 reason "Duplicate application within 30 days"
             terminate                                // TERMINATE: Stop processing duplicate
+        end                                          // END: Required end for on_duplicate block
 
     // =========================================================================
     // CRITICAL PATTERN: Parallel Fan-Out with Circuit Breakers
@@ -255,8 +256,7 @@ process credit_decisioning_pipeline                  // PROCESS: Main credit dec
     // Normalize and calibrate scores from all models
     transform using normalize_model_scores           // TRANSFORM: Calibrate and combine scores
         input: [approval_model.result, risk_model.result, fraud_model.result, pricing_model.result]
-        params:
-            calibration_config: lookup(calibration_configs, "production_v3")  // PARAMS: Use production calibration
+        params: { calibration_config: lookup(calibration_configs, "production_v3") }  // PARAMS: Use production calibration
 
     emit_audit_event "ml_scoring_completed"          // AUDIT: Log ML scoring completion
 
@@ -276,6 +276,7 @@ process credit_decisioning_pipeline                  // PROCESS: Main credit dec
             emit to declined_applications            // EMIT: Also send to declined queue
                 reason "Fraud indicators detected"
             terminate                                // TERMINATE: Stop processing immediately
+        end                                          // END: Required end for on_critical_fraud block
 
     // RULE CHAIN: Apply business rules in sequence
     evaluate using validate_income_stated            // EVALUATE: Check stated income reasonableness

@@ -12,7 +12,7 @@ from .enums import MutationPattern
 from .types import IdentityBlock, FieldsBlock, NestedObjectBlock, TypeAliasBlock
 from .blocks import (
     VersionBlock, StreamingBlock, StateMachineBlock,
-    ParametersBlock, EntriesBlock
+    ParametersBlock, EntriesBlock, ConstraintsBlock
 )
 from .rules import RuleBlock, MigrationBlock
 
@@ -28,6 +28,8 @@ class SchemaDefinition:
     streaming: Optional[StreamingBlock] = None
     fields: Optional[FieldsBlock] = None
     nested_objects: List[NestedObjectBlock] = field(default_factory=list)
+    constraints: Optional[ConstraintsBlock] = None
+    immutable: Optional[bool] = None
     state_machine: Optional[StateMachineBlock] = None
     parameters: Optional[ParametersBlock] = None
     entries: Optional[EntriesBlock] = None

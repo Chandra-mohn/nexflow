@@ -19,6 +19,51 @@ class TransformDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by TransformDSLParser#idempotentDecl.
+    def visitIdempotentDecl(self, ctx:TransformDSLParser.IdempotentDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#lookupDecl.
+    def visitLookupDecl(self, ctx:TransformDSLParser.LookupDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#lookupsBlock.
+    def visitLookupsBlock(self, ctx:TransformDSLParser.LookupsBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#lookupFieldDecl.
+    def visitLookupFieldDecl(self, ctx:TransformDSLParser.LookupFieldDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#stateDecl.
+    def visitStateDecl(self, ctx:TransformDSLParser.StateDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#paramsBlock.
+    def visitParamsBlock(self, ctx:TransformDSLParser.ParamsBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#paramDecl.
+    def visitParamDecl(self, ctx:TransformDSLParser.ParamDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#paramQualifiers.
+    def visitParamQualifiers(self, ctx:TransformDSLParser.ParamQualifiersContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#paramDefault.
+    def visitParamDefault(self, ctx:TransformDSLParser.ParamDefaultContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by TransformDSLParser#transformName.
     def visitTransformName(self, ctx:TransformDSLParser.TransformNameContext):
         return self.visitChildren(ctx)
@@ -169,8 +214,8 @@ class TransformDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by TransformDSLParser#localAssignment.
-    def visitLocalAssignment(self, ctx:TransformDSLParser.LocalAssignmentContext):
+    # Visit a parse tree produced by TransformDSLParser#letAssignment.
+    def visitLetAssignment(self, ctx:TransformDSLParser.LetAssignmentContext):
         return self.visitChildren(ctx)
 
 
@@ -244,8 +289,38 @@ class TransformDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by TransformDSLParser#errorStatement.
+    def visitErrorStatement(self, ctx:TransformDSLParser.ErrorStatementContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by TransformDSLParser#errorAction.
     def visitErrorAction(self, ctx:TransformDSLParser.ErrorActionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#logErrorCall.
+    def visitLogErrorCall(self, ctx:TransformDSLParser.LogErrorCallContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#emitStatement.
+    def visitEmitStatement(self, ctx:TransformDSLParser.EmitStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#emitMode.
+    def visitEmitMode(self, ctx:TransformDSLParser.EmitModeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#rejectStatement.
+    def visitRejectStatement(self, ctx:TransformDSLParser.RejectStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#rejectArg.
+    def visitRejectArg(self, ctx:TransformDSLParser.RejectArgContext):
         return self.visitChildren(ctx)
 
 
@@ -286,6 +361,31 @@ class TransformDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by TransformDSLParser#primaryExpression.
     def visitPrimaryExpression(self, ctx:TransformDSLParser.PrimaryExpressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#objectLiteral.
+    def visitObjectLiteral(self, ctx:TransformDSLParser.ObjectLiteralContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#objectField.
+    def visitObjectField(self, ctx:TransformDSLParser.ObjectFieldContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#objectFieldName.
+    def visitObjectFieldName(self, ctx:TransformDSLParser.ObjectFieldNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#lambdaExpression.
+    def visitLambdaExpression(self, ctx:TransformDSLParser.LambdaExpressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#listElements.
+    def visitListElements(self, ctx:TransformDSLParser.ListElementsContext):
         return self.visitChildren(ctx)
 
 
@@ -334,6 +434,11 @@ class TransformDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by TransformDSLParser#functionName.
+    def visitFunctionName(self, ctx:TransformDSLParser.FunctionNameContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by TransformDSLParser#listLiteral.
     def visitListLiteral(self, ctx:TransformDSLParser.ListLiteralContext):
         return self.visitChildren(ctx)
@@ -341,6 +446,11 @@ class TransformDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by TransformDSLParser#fieldPath.
     def visitFieldPath(self, ctx:TransformDSLParser.FieldPathContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#fieldOrKeyword.
+    def visitFieldOrKeyword(self, ctx:TransformDSLParser.FieldOrKeywordContext):
         return self.visitChildren(ctx)
 
 

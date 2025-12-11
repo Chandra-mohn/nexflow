@@ -46,10 +46,18 @@ decisionTableDef
     : DECISION_TABLE tableName
         hitPolicyDecl?
         descriptionDecl?
+        versionDecl?
         givenBlock
         decideBlock
         (returnSpec | executeSpec | hybridSpec)?
+        postCalculateBlock?
+        aggregateBlock?
       END
+    ;
+
+// Version declaration for decision tables
+versionDecl
+    : VERSION COLON VERSION_NUMBER
     ;
 
 tableName
@@ -64,6 +72,7 @@ hitPolicyType
     : FIRST_MATCH
     | SINGLE_HIT
     | MULTI_HIT
+    | COLLECT_ALL
     ;
 
 descriptionDecl
@@ -89,6 +98,10 @@ inputParam
 
 paramName
     : IDENTIFIER
+    | PRIORITY          // 'priority' can be a param name
+    | DESCRIPTION       // 'description' can be a param name
+    | TEXT_TYPE         // 'text' can be a param name
+    | VERSION           // 'version' can be a param name
     ;
 
 paramType
@@ -131,7 +144,17 @@ priorityHeader
     ;
 
 columnHeader
-    : IDENTIFIER PIPE
+    : columnName PIPE
+    ;
+
+columnName
+    : IDENTIFIER
+    | PRIORITY          // 'priority' can be a column name
+    | DESCRIPTION       // 'description' can be a column name
+    | TEXT_TYPE         // 'text' can be a column name
+    | VERSION           // 'version' can be a column name
+    | DEFAULT           // 'default' can be a column name
+    | RETURN            // 'return' can be a column name
     ;
 
 tableSeparator
@@ -271,12 +294,43 @@ hybridSpec
     : returnSpec executeSpec
     ;
 
+// Post-calculate block for derived computations after decision table
+postCalculateBlock
+    : POST_CALCULATE COLON postCalculateStatement+
+    ;
+
+postCalculateStatement
+    : letStatement
+    | assignmentStatement
+    ;
+
+// Assignment without 'let' or 'set' keyword: variable = expression
+assignmentStatement
+    : IDENTIFIER EQ valueExpr
+    | IDENTIFIER EQ whenExpression
+    ;
+
+// Aggregate block for collect_all results
+aggregateBlock
+    : AGGREGATE COLON aggregateStatement+
+    ;
+
+aggregateStatement
+    : IDENTIFIER EQ valueExpr
+    ;
+
+// When expression (inline conditional): when condition then result otherwise default
+whenExpression
+    : WHEN booleanExpr THEN valueExpr (WHEN booleanExpr THEN valueExpr)* OTHERWISE valueExpr
+    ;
+
 // ----------------------------------------------------------------------------
 // Procedural Rule Definition (Enhanced from rules-dsl)
 // ----------------------------------------------------------------------------
 
 proceduralRuleDef
     : RULE ruleName COLON
+        descriptionDecl?
         blockItem+
       END
     ;
@@ -289,8 +343,20 @@ ruleName
 
 blockItem
     : ruleStep
+    | setStatement
+    | letStatement
     | actionSequence
     | returnStatement
+    ;
+
+// Assignment statement: set variable = expression
+setStatement
+    : SET IDENTIFIER EQ valueExpr
+    ;
+
+// Local variable declaration: let variable = expression
+letStatement
+    : LET IDENTIFIER EQ valueExpr
     ;
 
 ruleStep
@@ -347,6 +413,10 @@ comparisonExpr
     : valueExpr comparisonOp valueExpr
     | valueExpr IN LPAREN valueList RPAREN
     | valueExpr NOT IN LPAREN valueList RPAREN
+    | valueExpr IN listLiteral
+    | valueExpr NOT IN listLiteral
+    | valueExpr IN fieldPath
+    | valueExpr NOT IN fieldPath
     | valueExpr IS NULL
     | valueExpr IS NOT NULL
     | valueExpr IS_NULL
@@ -366,7 +436,7 @@ valueExpr
     ;
 
 term
-    : factor ((STAR | SLASH | PERCENT) factor)*
+    : factor ((STAR | SLASH | PERCENT | MOD) factor)*
     ;
 
 factor
@@ -378,7 +448,15 @@ atom
     | fieldPath
     | functionCall
     | listLiteral
+    | objectLiteral
+    | lambdaExpression
     | LPAREN valueExpr RPAREN
+    ;
+
+// Lambda expression: x -> expression or (x, y) -> expression
+lambdaExpression
+    : IDENTIFIER ARROW valueExpr
+    | LPAREN IDENTIFIER (COMMA IDENTIFIER)* RPAREN ARROW valueExpr
     ;
 
 arithmeticExpr
@@ -404,7 +482,26 @@ valueList
     ;
 
 listLiteral
-    : LBRACKET (literal (COMMA literal)*)? RBRACKET
+    : LBRACKET (valueExpr (COMMA valueExpr)*)? RBRACKET
+    ;
+
+// Object literal: {key: value, key2: value2}
+objectLiteral
+    : LBRACE (objectField (COMMA objectField)*)? RBRACE
+    ;
+
+objectField
+    : objectFieldName COLON valueExpr
+    ;
+
+objectFieldName
+    : IDENTIFIER
+    | DQUOTED_STRING
+    | TEXT_TYPE         // 'text' can be a field name in objects
+    | DESCRIPTION       // 'description' can be a field name in objects
+    | PRIORITY          // 'priority' can be a field name in objects
+    | RETURN            // 'return' can be a field name in objects
+    | DEFAULT           // 'default' can be a field name in objects
     ;
 
 // ----------------------------------------------------------------------------
@@ -451,6 +548,7 @@ HIT_POLICY   : 'hit_policy' ;
 FIRST_MATCH  : 'first_match' ;
 SINGLE_HIT   : 'single_hit' ;
 MULTI_HIT    : 'multi_hit' ;
+COLLECT_ALL  : 'collect_all' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Control Flow
@@ -461,6 +559,12 @@ THEN   : 'then' ;
 ELSEIF : 'elseif' ;
 ELSE   : 'else' ;
 ENDIF  : 'endif' ;
+SET    : 'set' ;
+LET    : 'let' ;
+WHEN   : 'when' ;
+OTHERWISE : 'otherwise' ;
+POST_CALCULATE : 'post_calculate' ;
+AGGREGATE : 'aggregate' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Logic
@@ -512,6 +616,7 @@ PERCENTAGE_TYPE : 'percentage' ;
 
 DESCRIPTION : 'description' ;
 PRIORITY    : 'priority' ;
+VERSION     : 'version' ;
 YES         : 'yes' ;
 MULTI       : 'multi' ;
 
@@ -535,6 +640,8 @@ MINUS   : '-' ;
 STAR    : '*' ;
 SLASH   : '/' ;
 PERCENT : '%' ;
+MOD     : 'mod' ;
+ARROW   : '->' ;
 
 // ----------------------------------------------------------------------------
 // Punctuation
@@ -548,6 +655,8 @@ LPAREN   : '(' ;
 RPAREN   : ')' ;
 LBRACKET : '[' ;
 RBRACKET : ']' ;
+LBRACE   : '{' ;
+RBRACE   : '}' ;
 
 // ----------------------------------------------------------------------------
 // Special Tokens
@@ -562,6 +671,11 @@ SEP : '=' '=' '=' '='* ;
 
 BOOLEAN
     : 'true' | 'false' | 'yes' | 'no'
+    ;
+
+// Version number like 1.0.0 or 2.1.3 (must come before INTEGER/DECIMAL)
+VERSION_NUMBER
+    : [0-9]+ '.' [0-9]+ '.' [0-9]+
     ;
 
 INTEGER

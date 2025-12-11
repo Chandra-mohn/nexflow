@@ -26,6 +26,87 @@ class TransformDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by TransformDSLParser#idempotentDecl.
+    def enterIdempotentDecl(self, ctx:TransformDSLParser.IdempotentDeclContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#idempotentDecl.
+    def exitIdempotentDecl(self, ctx:TransformDSLParser.IdempotentDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#lookupDecl.
+    def enterLookupDecl(self, ctx:TransformDSLParser.LookupDeclContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#lookupDecl.
+    def exitLookupDecl(self, ctx:TransformDSLParser.LookupDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#lookupsBlock.
+    def enterLookupsBlock(self, ctx:TransformDSLParser.LookupsBlockContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#lookupsBlock.
+    def exitLookupsBlock(self, ctx:TransformDSLParser.LookupsBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#lookupFieldDecl.
+    def enterLookupFieldDecl(self, ctx:TransformDSLParser.LookupFieldDeclContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#lookupFieldDecl.
+    def exitLookupFieldDecl(self, ctx:TransformDSLParser.LookupFieldDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#stateDecl.
+    def enterStateDecl(self, ctx:TransformDSLParser.StateDeclContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#stateDecl.
+    def exitStateDecl(self, ctx:TransformDSLParser.StateDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#paramsBlock.
+    def enterParamsBlock(self, ctx:TransformDSLParser.ParamsBlockContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#paramsBlock.
+    def exitParamsBlock(self, ctx:TransformDSLParser.ParamsBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#paramDecl.
+    def enterParamDecl(self, ctx:TransformDSLParser.ParamDeclContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#paramDecl.
+    def exitParamDecl(self, ctx:TransformDSLParser.ParamDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#paramQualifiers.
+    def enterParamQualifiers(self, ctx:TransformDSLParser.ParamQualifiersContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#paramQualifiers.
+    def exitParamQualifiers(self, ctx:TransformDSLParser.ParamQualifiersContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#paramDefault.
+    def enterParamDefault(self, ctx:TransformDSLParser.ParamDefaultContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#paramDefault.
+    def exitParamDefault(self, ctx:TransformDSLParser.ParamDefaultContext):
+        pass
+
+
     # Enter a parse tree produced by TransformDSLParser#transformName.
     def enterTransformName(self, ctx:TransformDSLParser.TransformNameContext):
         pass
@@ -296,12 +377,12 @@ class TransformDSLListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by TransformDSLParser#localAssignment.
-    def enterLocalAssignment(self, ctx:TransformDSLParser.LocalAssignmentContext):
+    # Enter a parse tree produced by TransformDSLParser#letAssignment.
+    def enterLetAssignment(self, ctx:TransformDSLParser.LetAssignmentContext):
         pass
 
-    # Exit a parse tree produced by TransformDSLParser#localAssignment.
-    def exitLocalAssignment(self, ctx:TransformDSLParser.LocalAssignmentContext):
+    # Exit a parse tree produced by TransformDSLParser#letAssignment.
+    def exitLetAssignment(self, ctx:TransformDSLParser.LetAssignmentContext):
         pass
 
 
@@ -431,12 +512,66 @@ class TransformDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by TransformDSLParser#errorStatement.
+    def enterErrorStatement(self, ctx:TransformDSLParser.ErrorStatementContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#errorStatement.
+    def exitErrorStatement(self, ctx:TransformDSLParser.ErrorStatementContext):
+        pass
+
+
     # Enter a parse tree produced by TransformDSLParser#errorAction.
     def enterErrorAction(self, ctx:TransformDSLParser.ErrorActionContext):
         pass
 
     # Exit a parse tree produced by TransformDSLParser#errorAction.
     def exitErrorAction(self, ctx:TransformDSLParser.ErrorActionContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#logErrorCall.
+    def enterLogErrorCall(self, ctx:TransformDSLParser.LogErrorCallContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#logErrorCall.
+    def exitLogErrorCall(self, ctx:TransformDSLParser.LogErrorCallContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#emitStatement.
+    def enterEmitStatement(self, ctx:TransformDSLParser.EmitStatementContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#emitStatement.
+    def exitEmitStatement(self, ctx:TransformDSLParser.EmitStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#emitMode.
+    def enterEmitMode(self, ctx:TransformDSLParser.EmitModeContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#emitMode.
+    def exitEmitMode(self, ctx:TransformDSLParser.EmitModeContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#rejectStatement.
+    def enterRejectStatement(self, ctx:TransformDSLParser.RejectStatementContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#rejectStatement.
+    def exitRejectStatement(self, ctx:TransformDSLParser.RejectStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#rejectArg.
+    def enterRejectArg(self, ctx:TransformDSLParser.RejectArgContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#rejectArg.
+    def exitRejectArg(self, ctx:TransformDSLParser.RejectArgContext):
         pass
 
 
@@ -509,6 +644,51 @@ class TransformDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by TransformDSLParser#primaryExpression.
     def exitPrimaryExpression(self, ctx:TransformDSLParser.PrimaryExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#objectLiteral.
+    def enterObjectLiteral(self, ctx:TransformDSLParser.ObjectLiteralContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#objectLiteral.
+    def exitObjectLiteral(self, ctx:TransformDSLParser.ObjectLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#objectField.
+    def enterObjectField(self, ctx:TransformDSLParser.ObjectFieldContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#objectField.
+    def exitObjectField(self, ctx:TransformDSLParser.ObjectFieldContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#objectFieldName.
+    def enterObjectFieldName(self, ctx:TransformDSLParser.ObjectFieldNameContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#objectFieldName.
+    def exitObjectFieldName(self, ctx:TransformDSLParser.ObjectFieldNameContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#lambdaExpression.
+    def enterLambdaExpression(self, ctx:TransformDSLParser.LambdaExpressionContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#lambdaExpression.
+    def exitLambdaExpression(self, ctx:TransformDSLParser.LambdaExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#listElements.
+    def enterListElements(self, ctx:TransformDSLParser.ListElementsContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#listElements.
+    def exitListElements(self, ctx:TransformDSLParser.ListElementsContext):
         pass
 
 
@@ -593,6 +773,15 @@ class TransformDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by TransformDSLParser#functionName.
+    def enterFunctionName(self, ctx:TransformDSLParser.FunctionNameContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#functionName.
+    def exitFunctionName(self, ctx:TransformDSLParser.FunctionNameContext):
+        pass
+
+
     # Enter a parse tree produced by TransformDSLParser#listLiteral.
     def enterListLiteral(self, ctx:TransformDSLParser.ListLiteralContext):
         pass
@@ -608,6 +797,15 @@ class TransformDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by TransformDSLParser#fieldPath.
     def exitFieldPath(self, ctx:TransformDSLParser.FieldPathContext):
+        pass
+
+
+    # Enter a parse tree produced by TransformDSLParser#fieldOrKeyword.
+    def enterFieldOrKeyword(self, ctx:TransformDSLParser.FieldOrKeywordContext):
+        pass
+
+    # Exit a parse tree produced by TransformDSLParser#fieldOrKeyword.
+    def exitFieldOrKeyword(self, ctx:TransformDSLParser.FieldOrKeywordContext):
         pass
 
 

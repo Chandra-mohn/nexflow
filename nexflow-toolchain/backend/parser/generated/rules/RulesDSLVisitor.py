@@ -1,4 +1,4 @@
-# Generated from grammar/RulesDSL.g4 by ANTLR 4.13.2
+# Generated from /Users/chandramohn/workspace/nexflow/nexflow-toolchain/grammar/RulesDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .RulesDSLParser import RulesDSLParser
@@ -16,6 +16,11 @@ class RulesDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RulesDSLParser#decisionTableDef.
     def visitDecisionTableDef(self, ctx:RulesDSLParser.DecisionTableDefContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#versionDecl.
+    def visitVersionDecl(self, ctx:RulesDSLParser.VersionDeclContext):
         return self.visitChildren(ctx)
 
 
@@ -96,6 +101,11 @@ class RulesDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RulesDSLParser#columnHeader.
     def visitColumnHeader(self, ctx:RulesDSLParser.ColumnHeaderContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#columnName.
+    def visitColumnName(self, ctx:RulesDSLParser.ColumnNameContext):
         return self.visitChildren(ctx)
 
 
@@ -224,6 +234,36 @@ class RulesDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RulesDSLParser#postCalculateBlock.
+    def visitPostCalculateBlock(self, ctx:RulesDSLParser.PostCalculateBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#postCalculateStatement.
+    def visitPostCalculateStatement(self, ctx:RulesDSLParser.PostCalculateStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#assignmentStatement.
+    def visitAssignmentStatement(self, ctx:RulesDSLParser.AssignmentStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#aggregateBlock.
+    def visitAggregateBlock(self, ctx:RulesDSLParser.AggregateBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#aggregateStatement.
+    def visitAggregateStatement(self, ctx:RulesDSLParser.AggregateStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#whenExpression.
+    def visitWhenExpression(self, ctx:RulesDSLParser.WhenExpressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RulesDSLParser#proceduralRuleDef.
     def visitProceduralRuleDef(self, ctx:RulesDSLParser.ProceduralRuleDefContext):
         return self.visitChildren(ctx)
@@ -236,6 +276,16 @@ class RulesDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RulesDSLParser#blockItem.
     def visitBlockItem(self, ctx:RulesDSLParser.BlockItemContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#setStatement.
+    def visitSetStatement(self, ctx:RulesDSLParser.SetStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#letStatement.
+    def visitLetStatement(self, ctx:RulesDSLParser.LetStatementContext):
         return self.visitChildren(ctx)
 
 
@@ -319,6 +369,11 @@ class RulesDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RulesDSLParser#lambdaExpression.
+    def visitLambdaExpression(self, ctx:RulesDSLParser.LambdaExpressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RulesDSLParser#arithmeticExpr.
     def visitArithmeticExpr(self, ctx:RulesDSLParser.ArithmeticExprContext):
         return self.visitChildren(ctx)
@@ -346,6 +401,21 @@ class RulesDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RulesDSLParser#listLiteral.
     def visitListLiteral(self, ctx:RulesDSLParser.ListLiteralContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#objectLiteral.
+    def visitObjectLiteral(self, ctx:RulesDSLParser.ObjectLiteralContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#objectField.
+    def visitObjectField(self, ctx:RulesDSLParser.ObjectFieldContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#objectFieldName.
+    def visitObjectFieldName(self, ctx:RulesDSLParser.ObjectFieldNameContext):
         return self.visitChildren(ctx)
 
 

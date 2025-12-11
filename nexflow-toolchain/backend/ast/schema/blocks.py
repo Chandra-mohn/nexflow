@@ -99,6 +99,7 @@ class TransitionDecl:
     """State transition declaration."""
     from_state: str
     to_states: List[str]
+    trigger: Optional[str] = None       # Event that triggers transition (arrow syntax)
     location: Optional[SourceLocation] = None
 
 
@@ -118,6 +119,7 @@ class StateMachineBlock:
     initial_state: Optional[str] = None
     transitions: List[TransitionDecl] = field(default_factory=list)
     on_transition_actions: List[TransitionAction] = field(default_factory=list)
+    terminal_states: List[str] = field(default_factory=list)  # States marked as terminal/final
     location: Optional[SourceLocation] = None
 
 
@@ -177,4 +179,23 @@ class EntryDecl:
 class EntriesBlock:
     """Entries block for reference_data pattern."""
     entries: List[EntryDecl]
+    location: Optional[SourceLocation] = None
+
+
+# =============================================================================
+# Constraints Block
+# =============================================================================
+
+@dataclass
+class ConstraintDecl:
+    """Constraint declaration with condition and message."""
+    condition: str
+    message: str
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ConstraintsBlock:
+    """Constraints block for business rule validation."""
+    constraints: List[ConstraintDecl]
     location: Optional[SourceLocation] = None

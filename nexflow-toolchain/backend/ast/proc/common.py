@@ -30,9 +30,13 @@ class Duration:
 
 @dataclass
 class FieldPath:
-    """Field path reference (e.g., 'order.customer.id')."""
+    """Field path reference (e.g., 'order.customer.id' or 'items[0].name')."""
     parts: List[str]
+    index: Optional[int] = None  # Optional array index for paths like items[0]
 
     @property
     def path(self) -> str:
-        return '.'.join(self.parts)
+        base = '.'.join(self.parts)
+        if self.index is not None:
+            return f"{base}[{self.index}]"
+        return base

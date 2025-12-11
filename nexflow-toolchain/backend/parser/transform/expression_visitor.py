@@ -174,7 +174,8 @@ class TransformExpressionVisitorMixin:
 
     def visitOptionalChainExpression(self, ctx: TransformDSLParser.OptionalChainExpressionContext) -> ast.OptionalChainExpression:
         base = self.visitFieldPath(ctx.fieldPath())
-        chain = [ident.getText() for ident in ctx.IDENTIFIER()]
+        # Optional chain now uses fieldOrKeyword instead of IDENTIFIER
+        chain = [self._get_text(fok) for fok in ctx.fieldOrKeyword()]
         return ast.OptionalChainExpression(
             base=base,
             chain=chain,
@@ -182,13 +183,25 @@ class TransformExpressionVisitorMixin:
         )
 
     def visitFunctionCall(self, ctx: TransformDSLParser.FunctionCallContext) -> ast.FunctionCall:
-        name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        # functionCall can be: functionName(...) or fieldPath.functionName(...)
+        name = ""
+        object_ref = None
+
+        if ctx.functionName():
+            name = self._get_text(ctx.functionName())
+
+        if ctx.fieldPath():
+            # This is a method call like state.get_window(...)
+            object_ref = self.visitFieldPath(ctx.fieldPath())
+
         arguments = []
         for expr_ctx in ctx.expression():
             arguments.append(self.visitExpression(expr_ctx))
+
         return ast.FunctionCall(
             name=name,
             arguments=arguments,
+            object_ref=object_ref,
             location=self._get_location(ctx)
         )
 

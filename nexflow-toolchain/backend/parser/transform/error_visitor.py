@@ -13,10 +13,60 @@ class TransformErrorVisitorMixin:
 
     def visitOnErrorBlock(self, ctx: TransformDSLParser.OnErrorBlockContext) -> ast.OnErrorBlock:
         actions = []
-        for action_ctx in ctx.errorAction():
-            actions.append(self.visitErrorAction(action_ctx))
+        for stmt_ctx in ctx.errorStatement():
+            action = self.visitErrorStatement(stmt_ctx)
+            if action:
+                actions.append(action)
         return ast.OnErrorBlock(
             actions=actions,
+            location=self._get_location(ctx)
+        )
+
+    def visitErrorStatement(self, ctx: TransformDSLParser.ErrorStatementContext) -> ast.ErrorAction:
+        """Visit error statement - can be errorAction, logErrorCall, emitStatement, or rejectStatement."""
+        if ctx.errorAction():
+            return self.visitErrorAction(ctx.errorAction())
+        elif ctx.logErrorCall():
+            return self.visitLogErrorCall(ctx.logErrorCall())
+        elif ctx.emitStatement():
+            return self.visitEmitStatement(ctx.emitStatement())
+        elif ctx.rejectStatement():
+            return self.visitRejectStatement(ctx.rejectStatement())
+        return None
+
+    def visitLogErrorCall(self, ctx: TransformDSLParser.LogErrorCallContext) -> ast.ErrorAction:
+        """Visit log_error('message') call."""
+        message = self._strip_quotes(ctx.STRING().getText()) if ctx.STRING() else ""
+        return ast.ErrorAction(
+            action_type=ast.ErrorActionType.LOG_ERROR,
+            error_message=message,
+            location=self._get_location(ctx)
+        )
+
+    def visitEmitStatement(self, ctx: TransformDSLParser.EmitStatementContext) -> ast.ErrorAction:
+        """Visit emit with defaults/partial statement."""
+        emit_mode = self._get_text(ctx.emitMode()).lower() if ctx.emitMode() else "defaults"
+        return ast.ErrorAction(
+            action_type=ast.ErrorActionType.EMIT,
+            emit_mode=emit_mode,
+            location=self._get_location(ctx)
+        )
+
+    def visitRejectStatement(self, ctx: TransformDSLParser.RejectStatementContext) -> ast.ErrorAction:
+        """Visit reject with code/message statement."""
+        reject_arg = ctx.rejectArg()
+        error_code = None
+        error_message = None
+        if reject_arg:
+            text = self._get_text(reject_arg)
+            if 'code' in text.lower():
+                error_code = self._strip_quotes(reject_arg.STRING().getText()) if reject_arg.STRING() else ""
+            else:
+                error_message = self._strip_quotes(reject_arg.STRING().getText()) if reject_arg.STRING() else ""
+        return ast.ErrorAction(
+            action_type=ast.ErrorActionType.REJECT,
+            error_code=error_code,
+            error_message=error_message,
             location=self._get_location(ctx)
         )
 

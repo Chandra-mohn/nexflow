@@ -17,6 +17,7 @@ class FunctionCall:
     """Function call expression."""
     name: str
     arguments: List['Expression'] = field(default_factory=list)
+    object_ref: Optional['FieldPath'] = None  # For method calls like state.get_window(...)
     location: Optional[SourceLocation] = None
 
 

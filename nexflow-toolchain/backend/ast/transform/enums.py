@@ -38,6 +38,8 @@ class ErrorActionType(Enum):
     SKIP = "skip"
     USE_DEFAULT = "use_default"
     RAISE = "raise"
+    LOG_ERROR = "log_error"
+    EMIT = "emit"
 
 
 class QualifierType(Enum):

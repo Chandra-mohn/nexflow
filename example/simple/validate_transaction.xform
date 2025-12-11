@@ -32,38 +32,60 @@ transform validate_basic                         // Declare transform named 'val
     description: "Basic transaction validation"  // Human-readable description of purpose
     pure: true                                   // PURE FUNCTION: no side effects, deterministic output
 
-    input: card_transaction                      // Input schema type this transform accepts
-    output: validated_transaction                // Output schema type this transform produces
+    input
+        transaction_id: uuid, required           // Unique transaction identifier
+        card_number: string, required            // Credit card number
+        card_expiry_year: integer, required      // Card expiration year
+        card_expiry_month: integer, required     // Card expiration month
+        amount: decimal, required                // Transaction amount
+        currency: string, required               // Currency code
+        merchant_id: string, required            // Merchant identifier
+        transaction_time: timestamp, required    // When transaction occurred
+    end
+
+    output
+        transaction_id: uuid, required           // Pass through transaction ID
+        card_number: string, required            // Pass through card number
+        amount: decimal, required                // Pass through amount
+        currency: string, required               // Pass through currency
+        merchant_id: string, required            // Pass through merchant ID
+        transaction_time: timestamp, required    // Pass through timestamp
+        is_valid: boolean, required              // Validation result flag
+        validation_errors: list<string>, required // List of validation error messages
+    end
 
     validate_input                               // PRE-CONDITIONS: checks before processing begins
-        require amount > 0 else "Amount must be positive"           // Reject if amount is zero or negative
-        require card_number is not null else "Card number required" // Reject if card number missing
-        require merchant_id is not null else "Merchant ID required" // Reject if merchant ID missing
+        amount > 0: "Amount must be positive"                    // Reject if amount is zero or negative
+        card_number is not null: "Card number required"          // Reject if card number missing
+        merchant_id is not null: "Merchant ID required"          // Reject if merchant ID missing
     end                                          // End of input validation block
 
     apply                                        // TRANSFORMATION LOGIC: map input to output fields
-        transaction_id = input.transaction_id    // Pass through: copy transaction ID unchanged
-        card_number = input.card_number          // Pass through: copy card number unchanged
-        amount = input.amount                    // Pass through: copy amount unchanged
-        currency = input.currency                // Pass through: copy currency unchanged
-        merchant_id = input.merchant_id          // Pass through: copy merchant ID unchanged
-        transaction_time = input.transaction_time // Pass through: copy timestamp unchanged
+        transaction_id = transaction_id          // Pass through: copy transaction ID unchanged
+        card_number = card_number                // Pass through: copy card number unchanged
+        amount = amount                          // Pass through: copy amount unchanged
+        currency = currency                      // Pass through: copy currency unchanged
+        merchant_id = merchant_id                // Pass through: copy merchant ID unchanged
+        transaction_time = transaction_time      // Pass through: copy timestamp unchanged
 
         // Check card expiry - compute if card is expired
-        let current_year = year(now())           // LOCAL VAR: get current year from system time
-        let current_month = month(now())         // LOCAL VAR: get current month from system time
-        let is_expired = input.card_expiry_year < current_year or  // Card expired if year is past
-            (input.card_expiry_year == current_year and input.card_expiry_month < current_month)  // Or same year but month is past
+        current_year = year(now())               // LOCAL VAR: get current year from system time
+        current_month = month(now())             // LOCAL VAR: get current month from system time
+        is_expired = card_expiry_year < current_year or
+            (card_expiry_year = current_year and card_expiry_month < current_month)
 
         // Build validation result - combine expiry check and amount limit
-        is_valid = not is_expired and input.amount <= 10000  // Valid only if not expired AND amount under $10k
-        validation_errors = when is_expired then ["Card expired"]  // CONDITIONAL: add error if expired
-                           when input.amount > 10000 then ["Amount exceeds limit"]  // Or if over limit
-                           otherwise []                       // Empty list if no errors
+        is_valid = not is_expired and amount <= 10000  // Valid only if not expired AND amount under $10k
+        errors_list = when is_expired: "Card expired"
+            when amount > 10000: "Amount exceeds limit"
+            otherwise: ""
+        validation_errors = errors_list
     end                                          // End of apply block
 
     on_error                                     // ERROR HANDLER: what to do if transform fails
-        reject with "Validation failed"          // Reject the record with error message
+        action: reject                           // Reject the record
+        error_code: "VALIDATION_FAILED"          // Error code for tracking
+        log_level: error                         // Log at error level
     end                                          // End of error handler
 end                                              // End of validate_basic transform
 
@@ -78,10 +100,15 @@ transform mask_card_number                       // Declare transform for card m
     description: "Mask card number for logging"  // Purpose description
     pure: true                                   // Pure function: no side effects
 
-    input: string                                // Takes a string input (the card number)
-    output: string                               // Returns a string output (masked number)
+    input
+        card_number: string, required            // The full card number to mask
+    end
+
+    output
+        masked_card: string, required            // The masked card number
+    end
 
     apply                                        // Transformation logic
-        result = "****-****-****-" + substring(input, 12, 4)  // Concatenate mask prefix with last 4 digits (chars 12-15)
+        masked_card = concat("****-****-****-", substring(card_number, 12, 4))  // Mask with last 4 digits
     end                                          // End apply block
 end                                              // End of mask_card_number transform

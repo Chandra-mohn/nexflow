@@ -3,6 +3,9 @@ Helper Methods Visitor Mixin for Flow Parser
 
 Common helper methods for field paths, durations, and utility functions
 used across all flow visitor mixins.
+
+Updated for grammar v0.5.0+ which uses keywordOrIdentifier for field paths
+to allow keywords as valid field names.
 """
 
 from typing import List, Optional
@@ -35,8 +38,23 @@ class FlowHelpersVisitorMixin:
         return ctx.getText() if ctx else ""
 
     def visitFieldPath(self, ctx: ProcDSLParser.FieldPathContext) -> ast.FieldPath:
-        parts = [ident.getText() for ident in ctx.IDENTIFIER()]
-        return ast.FieldPath(parts=parts)
+        """
+        Visit a field path.
+
+        Grammar v0.5.0+: fieldPath: keywordOrIdentifier (DOT keywordOrIdentifier)* (LBRACKET INTEGER RBRACKET)?
+        keywordOrIdentifier allows keywords like 'priority', 'state', 'type' to be field names.
+        """
+        parts = []
+        for koi_ctx in ctx.keywordOrIdentifier():
+            # keywordOrIdentifier can be IDENTIFIER or various keywords
+            parts.append(self._get_text(koi_ctx))
+
+        # Handle optional array index [N]
+        index = None
+        if ctx.INTEGER():
+            index = int(ctx.INTEGER().getText())
+
+        return ast.FieldPath(parts=parts, index=index)
 
     def visitDuration(self, ctx: ProcDSLParser.DurationContext) -> ast.Duration:
         if ctx.DURATION_LITERAL():
@@ -68,6 +86,7 @@ class FlowHelpersVisitorMixin:
             return []
         fields = []
         for field_path_ctx in ctx.fieldPath():
-            parts = [ident.getText() for ident in field_path_ctx.IDENTIFIER()]
+            # Use keywordOrIdentifier for each part of the field path
+            parts = [self._get_text(koi) for koi in field_path_ctx.keywordOrIdentifier()]
             fields.append('.'.join(parts))
         return fields

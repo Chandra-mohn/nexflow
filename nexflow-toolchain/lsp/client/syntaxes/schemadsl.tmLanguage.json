@@ -1,0 +1,205 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SchemaDSL",
+  "scopeName": "source.schemadsl",
+  "fileTypes": ["schema"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#operators" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.schemadsl",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.schemadsl",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.schemadsl",
+          "begin": "\"\"\"",
+          "end": "\"\"\""
+        },
+        {
+          "name": "string.quoted.double.schemadsl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.schemadsl",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.version.schemadsl",
+          "match": "\\b[0-9]+\\.[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.duration.schemadsl",
+          "match": "\\b[0-9]+(ms|s|m|h|d|w)\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.schemadsl",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.schemadsl",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.structure.schemadsl",
+          "match": "\\b(schema|end|types)\\b"
+        },
+        {
+          "name": "keyword.control.pattern.schemadsl",
+          "match": "\\b(pattern|master_data|immutable_ledger|versioned_configuration|operational_parameters|event_log|state_machine|temporal_data|reference_data|business_logic)\\b"
+        },
+        {
+          "name": "keyword.control.version.schemadsl",
+          "match": "\\b(version|compatibility|backward|forward|full|none|previous_version|deprecated|deprecated_since|removal_version|migration_guide|removal)\\b"
+        },
+        {
+          "name": "keyword.control.block.schemadsl",
+          "match": "\\b(identity|streaming|fields|parameters|entries|rule|migration|transitions|on_transition|given|calculate|return|retention)\\b"
+        },
+        {
+          "name": "storage.type.primitive.schemadsl",
+          "match": "\\b(string|integer|decimal|boolean|date|timestamp|uuid|bytes)\\b"
+        },
+        {
+          "name": "storage.type.collection.schemadsl",
+          "match": "\\b(list|set|map|object)\\b"
+        },
+        {
+          "name": "keyword.control.streaming.schemadsl",
+          "match": "\\b(key_fields|time_field|time_semantics|event_time|processing_time|ingestion_time|watermark_delay|watermark_strategy|watermark_field|max_out_of_orderness|watermark_interval|bounded_out_of_orderness|periodic|punctuated|late_data_handling|late_data_stream|side_output|drop|update|allowed_lateness|idle_timeout|idle_behavior|mark_idle|advance_to_infinity|keep_waiting|sparsity|dense|moderate|sparse|time|size|policy|delete_oldest|archive|compact)\\b"
+        },
+        {
+          "name": "keyword.control.qualifier.schemadsl",
+          "match": "\\b(required|optional|unique|cannot_change|encrypted|default|pii)\\b"
+        },
+        {
+          "name": "keyword.control.constraint.schemadsl",
+          "match": "\\b(range|length|pattern|values|precision|scale)\\b"
+        },
+        {
+          "name": "keyword.control.state-machine.schemadsl",
+          "match": "\\b(for_entity|states|initial_state|from|to)\\b"
+        },
+        {
+          "name": "keyword.control.expression.schemadsl",
+          "match": "\\b(when|otherwise|and|or)\\b"
+        },
+        {
+          "name": "keyword.control.parameter.schemadsl",
+          "match": "\\b(can_schedule|change_frequency|deprecated_reason)\\b"
+        },
+        {
+          "name": "keyword.other.time-unit.schemadsl",
+          "match": "\\b(seconds?|minutes?|hours?|days?|weeks?|months?|years?|milliseconds?)\\b"
+        },
+        {
+          "name": "keyword.other.size-unit.schemadsl",
+          "match": "\\b(bytes|KB|MB|GB|TB)\\b"
+        },
+        {
+          "name": "constant.language.boolean.schemadsl",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.schemadsl",
+          "match": "\\bnull\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.range.schemadsl",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.comparison.schemadsl",
+          "match": "(>=|<=|!=|==|>|<)"
+        },
+        {
+          "name": "keyword.operator.assignment.schemadsl",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.schemadsl",
+          "match": "[+\\-*/]"
+        },
+        {
+          "name": "punctuation.separator.colon.schemadsl",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.separator.comma.schemadsl",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.dot.schemadsl",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.bracket.angle.schemadsl",
+          "match": "[<>]"
+        },
+        {
+          "name": "punctuation.bracket.square.schemadsl",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.bracket.round.schemadsl",
+          "match": "[()]"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "entity.name.type.schema.schemadsl",
+          "match": "(?<=schema\\s+)[a-z_][a-z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.alias.schemadsl",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "entity.name.function.rule.schemadsl",
+          "match": "(?<=rule\\s+)[a-z_][a-z0-9_]*"
+        },
+        {
+          "name": "variable.other.field.schemadsl",
+          "match": "\\b[a-z_][a-z0-9_]*(?=\\s*\\.)"
+        },
+        {
+          "name": "variable.other.schemadsl",
+          "match": "\\b[a-z_][a-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

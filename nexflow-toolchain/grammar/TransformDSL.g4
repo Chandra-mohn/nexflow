@@ -43,14 +43,62 @@ transformDef
     : 'transform' transformName
         transformMetadata?
         purityDecl?
+        idempotentDecl?
         cacheDecl?
         inputSpec
+        lookupDecl?
+        lookupsBlock?
+        stateDecl?
+        paramsBlock?
         outputSpec
         validateInputBlock?
         applyBlock
         validateOutputBlock?
         onErrorBlock?
       'end'
+    ;
+
+// Idempotent declaration (safe to retry)
+idempotentDecl
+    : 'idempotent' ':' BOOLEAN
+    ;
+
+// Lookup declaration (external data source)
+lookupDecl
+    : 'lookup' ':' IDENTIFIER
+    ;
+
+// Multiple lookups block
+lookupsBlock
+    : 'lookups' ':' lookupFieldDecl+ 'end'?
+    ;
+
+lookupFieldDecl
+    : IDENTIFIER ':' IDENTIFIER
+    ;
+
+// State declaration (stateful transforms)
+stateDecl
+    : 'state' ':' IDENTIFIER
+    ;
+
+// Parameters block (parameterized transforms)
+paramsBlock
+    : 'params' ':' paramDecl+ 'end'?
+    ;
+
+paramDecl
+    : IDENTIFIER ':' fieldType paramQualifiers?
+    ;
+
+paramQualifiers
+    : 'required' paramDefault?
+    | 'optional' paramDefault?
+    | paramDefault
+    ;
+
+paramDefault
+    : DEFAULT_KW ':' expression
     ;
 
 transformName
@@ -232,15 +280,16 @@ applyBlock
 
 statement
     : assignment
-    | localAssignment
+    | letAssignment
     ;
 
 assignment
     : fieldPath '=' expression
+    | IDENTIFIER '=' expression           // Simple identifier assignment
     ;
 
-localAssignment
-    : IDENTIFIER '=' expression
+letAssignment
+    : 'let' IDENTIFIER '=' expression     // let x = value for local variables
     ;
 
 // ----------------------------------------------------------------------------
@@ -294,6 +343,7 @@ validateOutputBlock
 validationRule
     : expression ':' validationMessage
     | 'when' expression ':' validationRule+ 'end'
+    | 'require' expression 'else' validationMessage   // require ... else syntax
     ;
 
 validationMessage
@@ -322,7 +372,14 @@ invariantBlock
 // ----------------------------------------------------------------------------
 
 onErrorBlock
-    : 'on_error' errorAction+ 'end'
+    : 'on_error' errorStatement+ 'end'
+    ;
+
+errorStatement
+    : errorAction
+    | logErrorCall
+    | emitStatement
+    | rejectStatement
     ;
 
 errorAction
@@ -331,6 +388,31 @@ errorAction
     | 'log_level' ':' logLevel
     | 'emit_to' ':' IDENTIFIER
     | 'error_code' ':' STRING
+    ;
+
+// log_error("message") function call
+logErrorCall
+    : 'log_error' '(' STRING ')'
+    ;
+
+// emit with defaults/partial data
+emitStatement
+    : 'emit' 'with' emitMode
+    ;
+
+emitMode
+    : 'defaults'
+    | 'partial' 'data'?
+    ;
+
+// reject with code/message
+rejectStatement
+    : 'reject' 'with' rejectArg
+    ;
+
+rejectArg
+    : 'code' STRING
+    | STRING
     ;
 
 errorActionType
@@ -384,10 +466,12 @@ expression
     | expression (DEFAULT_KW | '??') expression                    // Null coalescing
     | expression 'between' expression 'and' expression            // Between
     | expression 'not' 'between' expression 'and' expression      // Not between
-    | expression 'in' listLiteral                                 // In set
+    | expression 'in' listLiteral                                 // In set (with brackets)
+    | expression 'in' LBRACKET listElements RBRACKET              // In set with curly-style brackets
     | expression 'not' 'in' listLiteral                           // Not in set
     | expression 'is' 'null'                                      // Is null
     | expression 'is' 'not' 'null'                                // Is not null
+    | expression 'matches' STRING                                 // Regex matching
     | primaryExpression                                           // Primary (terminals)
     ;
 
@@ -399,23 +483,62 @@ primaryExpression
     | whenExpression
     | indexExpression
     | optionalChainExpression
+    | objectLiteral                                               // Inline object { field: value }
+    | lambdaExpression                                            // Lambda: x -> expr
+    | listLiteral                                                 // List [a, b, c]
+    ;
+
+// Inline object literal { field: value, ... }
+objectLiteral
+    : LBRACE objectField (',' objectField)* RBRACE
+    | LBRACE RBRACE                                               // Empty object
+    ;
+
+objectField
+    : objectFieldName ':' expression
+    ;
+
+// Object field names can be identifiers, strings, or contextual keywords
+objectFieldName
+    : IDENTIFIER
+    | STRING
+    | 'input' | 'output' | 'state' | 'error' | 'message' | 'code' | 'key'
+    | 'values' | 'pattern' | 'length' | 'range' | 'params' | 'lookup'
+    | 'severity' | 'action' | 'data'
+    ;
+
+// Lambda expression: x -> expr or (x, y) -> expr
+lambdaExpression
+    : IDENTIFIER ARROW expression                                  // Single param: x -> expr
+    | '(' IDENTIFIER (',' IDENTIFIER)* ')' ARROW expression       // Multi param: (x, y) -> expr
+    ;
+
+// List elements (for object-style lists)
+listElements
+    : expression (',' expression)*
     ;
 
 // When-Otherwise conditional expression
+// Supports both forms:
+//   when cond : result otherwise : default          (colon style)
+//   when cond then result otherwise default         (then/otherwise style)
 whenExpression
     : 'when' expression ':' expression
       ('when' expression ':' expression)*
       'otherwise' ':' expression
+    | 'when' expression 'then' expression
+      ('when' expression 'then' expression)*
+      'otherwise' expression
     ;
 
-// Array/list index expression
+// Array/list index expression with optional field access after index
 indexExpression
-    : fieldPath '[' expression ']'
+    : fieldPath '[' expression ']' ('.' fieldOrKeyword)*
     ;
 
 // Optional chaining for null-safe access
 optionalChainExpression
-    : fieldPath ('?.' IDENTIFIER)+
+    : fieldPath ('?.' fieldOrKeyword)+               // Optional chain: a?.b?.c
     ;
 
 // Binary operators
@@ -430,7 +553,7 @@ arithmeticOp
     ;
 
 comparisonOp
-    : EQ | NE | LANGLE | RANGLE | LE | GE
+    : EQ | '=' | NE | LANGLE | RANGLE | LE | GE   // Allow both == and = for equality
     | NULLSAFE_EQ                             // Null-safe equality
     ;
 
@@ -442,9 +565,27 @@ unaryOp
     : 'not' | '-'
     ;
 
-// Function call
+// Function call (including method calls like state.get_window(...))
 functionCall
-    : IDENTIFIER '(' (expression (',' expression)*)? ')'
+    : functionName '(' (expression (',' expression)*)? ')'
+    | fieldPath '.' functionName '(' (expression (',' expression)*)? ')'  // Method call on object
+    ;
+
+functionName
+    : IDENTIFIER
+    | 'lookup'      // Allow lookup as function name (also a keyword)
+    | 'state'       // Allow state as function name (also a keyword)
+    | 'length'      // Allow length as function name (also a keyword)
+    | 'values'      // Allow values as function name (also a keyword)
+    | 'map'         // Allow map as function name (also collection type)
+    | 'list'        // Allow list as function name (also collection type)
+    | 'set'         // Allow set as function name (also collection type)
+    | 'range'       // Allow range as function name (also constraint keyword)
+    | 'pattern'     // Allow pattern as function name (also constraint keyword)
+    | 'date'        // Allow date as function name (also base type)
+    | 'string'      // Allow string as function name (also base type)
+    | 'integer'     // Allow integer as function name (also base type)
+    | 'decimal'     // Allow decimal as function name (also base type)
     ;
 
 // List literal for 'in' expressions
@@ -457,7 +598,29 @@ listLiteral
 // ----------------------------------------------------------------------------
 
 fieldPath
-    : IDENTIFIER ('.' IDENTIFIER)*
+    : fieldOrKeyword ('.' fieldOrKeyword)*
+    ;
+
+// Allow contextual keywords to be used as field names in expressions
+fieldOrKeyword
+    : IDENTIFIER
+    | 'input'       // Keywords also used as field references
+    | 'output'
+    | 'state'
+    | 'error'
+    | 'message'
+    | 'code'
+    | 'key'
+    | 'values'
+    | 'pattern'
+    | 'length'
+    | 'range'
+    | 'params'      // Parameter references
+    | 'lookup'      // Lookup object references
+    | 'lookups'     // Lookups block reference
+    | 'severity'    // Alert severity level
+    | 'action'      // Action field
+    | 'data'        // Data field
     ;
 
 fieldArray
@@ -569,9 +732,11 @@ LBRACKET : '[' ;
 RBRACKET : ']' ;
 LPAREN : '(' ;
 RPAREN : ')' ;
+LBRACE : '{' ;
+RBRACE : '}' ;
 LANGLE : '<' ;
 RANGLE : '>' ;
-EQ : '=' ;
+EQ : '==' | '=' ;                        // Support both == and = for comparison
 NE : '!=' ;
 LE : '<=' ;
 GE : '>=' ;
@@ -582,6 +747,7 @@ STAR : '*' ;
 SLASH : '/' ;
 PERCENT : '%' ;
 DOTDOT : '..' ;
+ARROW : '->' ;                           // Lambda arrow
 OPTIONAL_CHAIN : '?.' ;
 COALESCE : '??' ;
 

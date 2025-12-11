@@ -47,10 +47,10 @@ process simple_transaction_processor             // Declare a process named 'sim
     // STEP 4: Emit to output destinations
     emit to approved_transactions                // EMIT: write approved transactions to sink
     emit to declined_transactions                // EMIT: write declined transactions to sink
-
+    
     // ERROR HANDLING: retry transient failures
     on error                                     // ERROR HANDLER: define what happens on processing errors
-        retry 3 times                            // RETRY: attempt processing up to 3 times
-        then emit to failed_transactions         // DEAD LETTER: after 3 failures, send to failed_transactions sink
+        transform failure retry 3                // RETRY: on transform failure, retry up to 3 times
+        transform failure dead_letter failed_transactions  // DEAD LETTER: after retries, send to failed_transactions
     end                                          // End of error handler block
 end                                              // End of process definition

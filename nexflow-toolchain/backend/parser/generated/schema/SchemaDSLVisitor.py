@@ -1,4 +1,4 @@
-# Generated from grammar/SchemaDSL.g4 by ANTLR 4.13.2
+# Generated from /Users/chandramohn/workspace/nexflow/nexflow-toolchain/grammar/SchemaDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .SchemaDSLParser import SchemaDSLParser
@@ -66,6 +66,21 @@ class SchemaDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SchemaDSLParser#retentionDecl.
     def visitRetentionDecl(self, ctx:SchemaDSLParser.RetentionDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#immutableDecl.
+    def visitImmutableDecl(self, ctx:SchemaDSLParser.ImmutableDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#constraintsBlock.
+    def visitConstraintsBlock(self, ctx:SchemaDSLParser.ConstraintsBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#constraintDecl.
+    def visitConstraintDecl(self, ctx:SchemaDSLParser.ConstraintDeclContext):
         return self.visitChildren(ctx)
 
 
@@ -194,8 +209,18 @@ class SchemaDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SchemaDSLParser#initialStateDecl.
+    def visitInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SchemaDSLParser#forEntityDecl.
     def visitForEntityDecl(self, ctx:SchemaDSLParser.ForEntityDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#statesBlock.
+    def visitStatesBlock(self, ctx:SchemaDSLParser.StatesBlockContext):
         return self.visitChildren(ctx)
 
 
@@ -204,13 +229,23 @@ class SchemaDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SchemaDSLParser#stateArray.
-    def visitStateArray(self, ctx:SchemaDSLParser.StateArrayContext):
+    # Visit a parse tree produced by SchemaDSLParser#stateDefList.
+    def visitStateDefList(self, ctx:SchemaDSLParser.StateDefListContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SchemaDSLParser#initialStateDecl.
-    def visitInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
+    # Visit a parse tree produced by SchemaDSLParser#stateDef.
+    def visitStateDef(self, ctx:SchemaDSLParser.StateDefContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#stateQualifier.
+    def visitStateQualifier(self, ctx:SchemaDSLParser.StateQualifierContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#stateArray.
+    def visitStateArray(self, ctx:SchemaDSLParser.StateArrayContext):
         return self.visitChildren(ctx)
 
 
@@ -221,6 +256,11 @@ class SchemaDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SchemaDSLParser#transitionDecl.
     def visitTransitionDecl(self, ctx:SchemaDSLParser.TransitionDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#transitionArrowDecl.
+    def visitTransitionArrowDecl(self, ctx:SchemaDSLParser.TransitionArrowDeclContext):
         return self.visitChildren(ctx)
 
 
@@ -326,6 +366,16 @@ class SchemaDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SchemaDSLParser#fieldType.
     def visitFieldType(self, ctx:SchemaDSLParser.FieldTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#inlineObjectType.
+    def visitInlineObjectType(self, ctx:SchemaDSLParser.InlineObjectTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#inlineFieldDecl.
+    def visitInlineFieldDecl(self, ctx:SchemaDSLParser.InlineFieldDeclContext):
         return self.visitChildren(ctx)
 
 

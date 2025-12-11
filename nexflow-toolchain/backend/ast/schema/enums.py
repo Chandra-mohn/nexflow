@@ -17,6 +17,11 @@ class MutationPattern(Enum):
     TEMPORAL_DATA = "temporal_data"
     REFERENCE_DATA = "reference_data"
     BUSINESS_LOGIC = "business_logic"
+    COMMAND = "command"
+    RESPONSE = "response"
+    AGGREGATE = "aggregate"
+    DOCUMENT = "document"
+    AUDIT_EVENT = "audit_event"
 
 
 class CompatibilityMode(Enum):

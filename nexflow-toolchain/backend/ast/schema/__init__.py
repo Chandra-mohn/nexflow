@@ -69,6 +69,8 @@ from .blocks import (
     EntryField,
     EntryDecl,
     EntriesBlock,
+    ConstraintDecl,
+    ConstraintsBlock,
 )
 
 # Rules
@@ -107,6 +109,7 @@ __all__ = [
     'ActionCall', 'TransitionDecl', 'TransitionAction', 'StateMachineBlock',
     'ParameterOption', 'ParameterDecl', 'ParametersBlock',
     'EntryField', 'EntryDecl', 'EntriesBlock',
+    'ConstraintDecl', 'ConstraintsBlock',
     # Rules
     'RuleFieldDecl', 'Expression', 'Calculation', 'GivenBlock', 'CalculateBlock',
     'ReturnBlock', 'RuleBlock', 'MigrationStatement', 'MigrationBlock',

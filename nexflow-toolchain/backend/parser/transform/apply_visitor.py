@@ -29,12 +29,17 @@ class TransformApplyVisitorMixin:
     def visitStatement(self, ctx: TransformDSLParser.StatementContext) -> Union[ast.Assignment, ast.LocalAssignment]:
         if ctx.assignment():
             return self.visitAssignment(ctx.assignment())
-        elif ctx.localAssignment():
-            return self.visitLocalAssignment(ctx.localAssignment())
+        elif ctx.letAssignment():
+            return self.visitLetAssignment(ctx.letAssignment())
         return None
 
     def visitAssignment(self, ctx: TransformDSLParser.AssignmentContext) -> ast.Assignment:
-        target = self.visitFieldPath(ctx.fieldPath())
+        # Handle both fieldPath and simple IDENTIFIER assignments
+        if ctx.fieldPath():
+            target = self.visitFieldPath(ctx.fieldPath())
+        else:
+            # Simple IDENTIFIER = expression
+            target = ast.FieldPath(parts=[ctx.IDENTIFIER().getText()])
         value = self.visitExpression(ctx.expression())
         return ast.Assignment(
             target=target,
@@ -42,7 +47,7 @@ class TransformApplyVisitorMixin:
             location=self._get_location(ctx)
         )
 
-    def visitLocalAssignment(self, ctx: TransformDSLParser.LocalAssignmentContext) -> ast.LocalAssignment:
+    def visitLetAssignment(self, ctx: TransformDSLParser.LetAssignmentContext) -> ast.LocalAssignment:
         name = ctx.IDENTIFIER().getText()
         value = self.visitExpression(ctx.expression())
         return ast.LocalAssignment(

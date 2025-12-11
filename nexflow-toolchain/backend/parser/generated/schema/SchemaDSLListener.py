@@ -116,6 +116,33 @@ class SchemaDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SchemaDSLParser#immutableDecl.
+    def enterImmutableDecl(self, ctx:SchemaDSLParser.ImmutableDeclContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#immutableDecl.
+    def exitImmutableDecl(self, ctx:SchemaDSLParser.ImmutableDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#constraintsBlock.
+    def enterConstraintsBlock(self, ctx:SchemaDSLParser.ConstraintsBlockContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#constraintsBlock.
+    def exitConstraintsBlock(self, ctx:SchemaDSLParser.ConstraintsBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#constraintDecl.
+    def enterConstraintDecl(self, ctx:SchemaDSLParser.ConstraintDeclContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#constraintDecl.
+    def exitConstraintDecl(self, ctx:SchemaDSLParser.ConstraintDeclContext):
+        pass
+
+
     # Enter a parse tree produced by SchemaDSLParser#identityBlock.
     def enterIdentityBlock(self, ctx:SchemaDSLParser.IdentityBlockContext):
         pass
@@ -350,6 +377,15 @@ class SchemaDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SchemaDSLParser#statesBlock.
+    def enterStatesBlock(self, ctx:SchemaDSLParser.StatesBlockContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#statesBlock.
+    def exitStatesBlock(self, ctx:SchemaDSLParser.StatesBlockContext):
+        pass
+
+
     # Enter a parse tree produced by SchemaDSLParser#statesDecl.
     def enterStatesDecl(self, ctx:SchemaDSLParser.StatesDeclContext):
         pass
@@ -359,21 +395,39 @@ class SchemaDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SchemaDSLParser#stateDefList.
+    def enterStateDefList(self, ctx:SchemaDSLParser.StateDefListContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#stateDefList.
+    def exitStateDefList(self, ctx:SchemaDSLParser.StateDefListContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#stateDef.
+    def enterStateDef(self, ctx:SchemaDSLParser.StateDefContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#stateDef.
+    def exitStateDef(self, ctx:SchemaDSLParser.StateDefContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#stateQualifier.
+    def enterStateQualifier(self, ctx:SchemaDSLParser.StateQualifierContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#stateQualifier.
+    def exitStateQualifier(self, ctx:SchemaDSLParser.StateQualifierContext):
+        pass
+
+
     # Enter a parse tree produced by SchemaDSLParser#stateArray.
     def enterStateArray(self, ctx:SchemaDSLParser.StateArrayContext):
         pass
 
     # Exit a parse tree produced by SchemaDSLParser#stateArray.
     def exitStateArray(self, ctx:SchemaDSLParser.StateArrayContext):
-        pass
-
-
-    # Enter a parse tree produced by SchemaDSLParser#initialStateDecl.
-    def enterInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
-        pass
-
-    # Exit a parse tree produced by SchemaDSLParser#initialStateDecl.
-    def exitInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
         pass
 
 
@@ -392,6 +446,15 @@ class SchemaDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by SchemaDSLParser#transitionDecl.
     def exitTransitionDecl(self, ctx:SchemaDSLParser.TransitionDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#transitionArrowDecl.
+    def enterTransitionArrowDecl(self, ctx:SchemaDSLParser.TransitionArrowDeclContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#transitionArrowDecl.
+    def exitTransitionArrowDecl(self, ctx:SchemaDSLParser.TransitionArrowDeclContext):
         pass
 
 
@@ -581,6 +644,24 @@ class SchemaDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by SchemaDSLParser#fieldType.
     def exitFieldType(self, ctx:SchemaDSLParser.FieldTypeContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#inlineObjectType.
+    def enterInlineObjectType(self, ctx:SchemaDSLParser.InlineObjectTypeContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#inlineObjectType.
+    def exitInlineObjectType(self, ctx:SchemaDSLParser.InlineObjectTypeContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#inlineFieldDecl.
+    def enterInlineFieldDecl(self, ctx:SchemaDSLParser.InlineFieldDeclContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#inlineFieldDecl.
+    def exitInlineFieldDecl(self, ctx:SchemaDSLParser.InlineFieldDeclContext):
         pass
 
 

@@ -45,7 +45,12 @@ class StreamingVisitorMixin:
         return self._get_field_list(ctx.fieldArray())
 
     def visitTimeFieldDecl(self, ctx: SchemaDSLParser.TimeFieldDeclContext) -> ast.FieldPath:
-        return self.visitFieldPath(ctx.fieldPath())
+        # v0.5.0+: time_field can be fieldPath OR timeSemanticsType (like event_time)
+        if ctx.fieldPath():
+            return self.visitFieldPath(ctx.fieldPath())
+        elif ctx.timeSemanticsType():
+            # When using a keyword like event_time as time_field, treat it as a simple field path
+            return ast.FieldPath(parts=[self._get_text(ctx.timeSemanticsType())])
 
     def visitTimeSemanticsDecl(self, ctx: SchemaDSLParser.TimeSemanticsDeclContext) -> ast.TimeSemantics:
         semantics_text = self._get_text(ctx.timeSemanticsType()).lower()

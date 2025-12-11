@@ -2,9 +2,12 @@
 Core Visitor Mixin for Flow Parser
 
 Handles parsing of top-level elements: program and process definition.
+
+Updated for grammar v0.5.0+ which uses bodyContent for flexible ordering
+instead of separate inputBlock/outputBlock.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
@@ -29,25 +32,25 @@ class FlowCoreVisitorMixin:
         if ctx.executionBlock():
             execution = self.visitExecutionBlock(ctx.executionBlock())
 
-        input_block = None
-        if ctx.inputBlock():
-            input_block = self.visitInputBlock(ctx.inputBlock())
-
+        # v0.5.0+: bodyContent contains receive, processing, emit, correlation, completion
+        # in any order. We collect them by type.
+        receives = []
         processing = []
-        for proc_block_ctx in ctx.processingBlock():
-            processing.append(self.visitProcessingBlock(proc_block_ctx))
+        emits = []
+        correlations = []
+        completions = []
 
-        correlation = None
-        if ctx.correlationBlock():
-            correlation = self.visitCorrelationBlock(ctx.correlationBlock())
-
-        output = None
-        if ctx.outputBlock():
-            output = self.visitOutputBlock(ctx.outputBlock())
-
-        completion = None
-        if ctx.completionBlock():
-            completion = self.visitCompletionBlock(ctx.completionBlock())
+        for body_ctx in ctx.bodyContent():
+            if body_ctx.receiveDecl():
+                receives.append(self.visitReceiveDecl(body_ctx.receiveDecl()))
+            elif body_ctx.processingBlock():
+                processing.append(self.visitProcessingBlock(body_ctx.processingBlock()))
+            elif body_ctx.emitDecl():
+                emits.append(self.visitEmitDecl(body_ctx.emitDecl()))
+            elif body_ctx.correlationBlock():
+                correlations.append(self.visitCorrelationBlock(body_ctx.correlationBlock()))
+            elif body_ctx.completionBlock():
+                completions.append(self.visitCompletionBlock(body_ctx.completionBlock()))
 
         state = None
         if ctx.stateBlock():
@@ -60,11 +63,11 @@ class FlowCoreVisitorMixin:
         return ast.ProcessDefinition(
             name=name,
             execution=execution,
-            input=input_block,
+            receives=receives,
             processing=processing,
-            correlation=correlation,
-            output=output,
-            completion=completion,
+            emits=emits,
+            correlations=correlations,
+            completions=completions,
             state=state,
             resilience=resilience,
             location=self._get_location(ctx)

@@ -59,7 +59,8 @@ class CoreVisitorMixin:
         )
 
     def visitSchemaDefinition(self, ctx: SchemaDSLParser.SchemaDefinitionContext) -> ast.SchemaDefinition:
-        name = ctx.schemaName().IDENTIFIER().getText()
+        # v0.5.0+: schemaName can be IDENTIFIER, mutationPattern, or timeSemanticsType
+        name = self._get_text(ctx.schemaName())
 
         patterns = []
         if ctx.patternDecl():
@@ -105,6 +106,26 @@ class CoreVisitorMixin:
         for rule_ctx in ctx.ruleBlock():
             rules.append(self.visitRuleBlock(rule_ctx))
 
+        # v0.5.0+: Handle standalone compatibilityDecl (evolution keyword)
+        # Note: Version block may also have compatibilityDecl, handle both
+        if ctx.compatibilityDecl() and version is None:
+            # Standalone evolution/compatibility - no version block
+            version = ast.VersionBlock(
+                version="1.0.0",  # Default version when only compatibility is specified
+                compatibility=self.visitCompatibilityDecl(ctx.compatibilityDecl()),
+                location=self._get_location(ctx.compatibilityDecl())
+            )
+
+        # v0.5.0+: Handle constraintsBlock
+        constraints = None
+        if ctx.constraintsBlock():
+            constraints = self.visitConstraintsBlock(ctx.constraintsBlock())
+
+        # v0.5.0+: Handle immutableDecl
+        immutable = None
+        if ctx.immutableDecl():
+            immutable = self.visitImmutableDecl(ctx.immutableDecl())
+
         migration = None
         if ctx.migrationBlock():
             migration = self.visitMigrationBlock(ctx.migrationBlock())
@@ -118,6 +139,8 @@ class CoreVisitorMixin:
             streaming=streaming,
             fields=fields,
             nested_objects=nested_objects,
+            constraints=constraints,
+            immutable=immutable,
             state_machine=state_machine,
             parameters=parameters,
             entries=entries,
@@ -148,6 +171,12 @@ class CoreVisitorMixin:
             'temporal_data': ast.MutationPattern.TEMPORAL_DATA,
             'reference_data': ast.MutationPattern.REFERENCE_DATA,
             'business_logic': ast.MutationPattern.BUSINESS_LOGIC,
+            # v0.5.0+: Additional patterns
+            'command': ast.MutationPattern.COMMAND,
+            'response': ast.MutationPattern.RESPONSE,
+            'aggregate': ast.MutationPattern.AGGREGATE,
+            'document': ast.MutationPattern.DOCUMENT,
+            'audit_event': ast.MutationPattern.AUDIT_EVENT,
         }
         return pattern_map.get(pattern_text, ast.MutationPattern.MASTER_DATA)
 
@@ -190,6 +219,9 @@ class CoreVisitorMixin:
             'forward': ast.CompatibilityMode.FORWARD,
             'full': ast.CompatibilityMode.FULL,
             'none': ast.CompatibilityMode.NONE,
+            # v0.5.0+: Additional compatibility modes (aliases)
+            'backward_compatible': ast.CompatibilityMode.BACKWARD,
+            'forward_compatible': ast.CompatibilityMode.FORWARD,
         }
         return mode_map.get(mode_text, ast.CompatibilityMode.BACKWARD)
 
@@ -271,3 +303,44 @@ class CoreVisitorMixin:
             nested_objects=nested,
             location=self._get_location(ctx)
         )
+
+    # =========================================================================
+    # Constraints Block (v0.5.0+)
+    # =========================================================================
+
+    def visitConstraintsBlock(self, ctx: SchemaDSLParser.ConstraintsBlockContext) -> ast.ConstraintsBlock:
+        """Visit constraints block for business rule validation."""
+        constraints = []
+        for constraint_ctx in ctx.constraintDecl():
+            constraints.append(self.visitConstraintDecl(constraint_ctx))
+        return ast.ConstraintsBlock(
+            constraints=constraints,
+            location=self._get_location(ctx)
+        )
+
+    def visitConstraintDecl(self, ctx: SchemaDSLParser.ConstraintDeclContext) -> ast.ConstraintDecl:
+        """Visit constraint declaration: condition as "message"."""
+        # Get the condition text (everything before 'as')
+        condition_ctx = ctx.condition()
+        condition = self._get_text(condition_ctx) if condition_ctx else ""
+
+        # Get the message string
+        message = ""
+        if ctx.STRING():
+            message = self._strip_quotes(ctx.STRING().getText())
+
+        return ast.ConstraintDecl(
+            condition=condition,
+            message=message,
+            location=self._get_location(ctx)
+        )
+
+    # =========================================================================
+    # Immutable Declaration (v0.5.0+)
+    # =========================================================================
+
+    def visitImmutableDecl(self, ctx: SchemaDSLParser.ImmutableDeclContext) -> bool:
+        """Visit immutable declaration: immutable true/false."""
+        if ctx.BOOLEAN():
+            return ctx.BOOLEAN().getText().lower() == 'true'
+        return False

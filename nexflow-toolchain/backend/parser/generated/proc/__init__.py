@@ -1,4 +1,4 @@
-# ProcDSL (L1) generated parser
+# Auto-generated ANTLR parser for ProcDSL (L1 Flow DSL)
 from .ProcDSLLexer import ProcDSLLexer
 from .ProcDSLParser import ProcDSLParser
 from .ProcDSLListener import ProcDSLListener

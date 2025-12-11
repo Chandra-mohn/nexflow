@@ -123,8 +123,10 @@ class RulesDecisionTableVisitorMixin:
             has_priority = True
 
         for col_ctx in header_ctx.columnHeader():
+            # Get column name from columnName rule (supports keywords as names)
+            col_name = self._get_text(col_ctx.columnName())
             headers.append(ast.ColumnHeader(
-                name=col_ctx.IDENTIFIER().getText(),
+                name=col_name,
                 location=self._get_location(col_ctx)
             ))
 

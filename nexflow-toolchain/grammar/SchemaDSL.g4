@@ -37,11 +37,14 @@ schemaDefinition
     : 'schema' schemaName
         patternDecl?
         versionBlock?
+        compatibilityDecl?              // Allow standalone evolution/compatibility declaration
         retentionDecl?
         identityBlock?
         streamingBlock?
         fieldsBlock?
         nestedObjectBlock*
+        constraintsBlock?               // Business rule constraints
+        immutableDecl?                  // immutable true/false for audit schemas (can appear after fields)
         stateMachineBlock?
         parametersBlock?
         entriesBlock?
@@ -52,6 +55,8 @@ schemaDefinition
 
 schemaName
     : IDENTIFIER
+    | mutationPattern                   // Allow pattern keywords as schema names
+    | timeSemanticsType                 // Allow event_time, processing_time as names
     ;
 
 // ----------------------------------------------------------------------------
@@ -72,6 +77,11 @@ mutationPattern
     | 'temporal_data'                 // Effective-dated values
     | 'reference_data'                // Lookup tables
     | 'business_logic'                // Compiled rules
+    | 'command'                       // Command/request pattern
+    | 'response'                      // Response pattern
+    | 'aggregate'                     // Aggregate/summary pattern
+    | 'document'                      // Document/output pattern
+    | 'audit_event'                   // Audit trail events
     ;
 
 // ----------------------------------------------------------------------------
@@ -87,7 +97,7 @@ versionBlock
     ;
 
 compatibilityDecl
-    : 'compatibility' compatibilityMode
+    : ('compatibility' | 'evolution') compatibilityMode
     ;
 
 compatibilityMode
@@ -95,6 +105,8 @@ compatibilityMode
     | 'forward'                       // Old reads new
     | 'full'                          // Both directions
     | 'none'                          // Breaking changes allowed
+    | 'backward_compatible'           // Alias for backward
+    | 'forward_compatible'            // Alias for forward
     ;
 
 previousVersionDecl
@@ -117,6 +129,26 @@ migrationGuideDecl
 
 retentionDecl
     : 'retention' duration
+    ;
+
+// ----------------------------------------------------------------------------
+// Immutable Declaration (for audit schemas)
+// ----------------------------------------------------------------------------
+
+immutableDecl
+    : 'immutable' BOOLEAN
+    ;
+
+// ----------------------------------------------------------------------------
+// Constraints Block (business rule validation)
+// ----------------------------------------------------------------------------
+
+constraintsBlock
+    : 'constraints' constraintDecl+ 'end'
+    ;
+
+constraintDecl
+    : condition 'as' STRING             // field > 0 as "Message"
     ;
 
 // ----------------------------------------------------------------------------
@@ -156,7 +188,7 @@ keyFieldsDecl
     ;
 
 timeFieldDecl
-    : 'time_field' ':' fieldPath
+    : 'time_field' ':' (fieldPath | timeSemanticsType)  // Allow time_field: event_time (common naming pattern)
     ;
 
 timeSemanticsDecl
@@ -249,6 +281,8 @@ fieldDecl
 
 fieldName
     : IDENTIFIER
+    | timeSemanticsType                 // Allow event_time, processing_time as field names
+    | stateQualifier                    // Allow initial, terminal as field names
     ;
 
 // ----------------------------------------------------------------------------
@@ -266,34 +300,63 @@ nestedObjectBlock
 
 stateMachineBlock
     : forEntityDecl?
-      statesDecl
+      statesBlock
       initialStateDecl?
       transitionsBlock?
       onTransitionBlock?
+    ;
+
+// Explicit initial state declaration (alternative to inline :initial qualifier)
+initialStateDecl
+    : 'initial_state' ':' IDENTIFIER
     ;
 
 forEntityDecl
     : 'for_entity' ':' IDENTIFIER
     ;
 
+// New intuitive states block: states ... end with optional qualifiers
+statesBlock
+    : 'states' (statesDecl | stateDefList) 'end'?
+    ;
+
+// Original compact syntax: states: [s1, s2, s3]
 statesDecl
-    : 'states' ':' stateArray
+    : ':' stateArray
+    ;
+
+// New intuitive syntax: each state on its own line
+stateDefList
+    : stateDef+
+    ;
+
+stateDef
+    : IDENTIFIER (':' stateQualifier)?     // received: initial OR just received
+    ;
+
+stateQualifier
+    : 'initial'
+    | 'terminal'
+    | 'final'                              // alias for terminal
     ;
 
 stateArray
     : '[' IDENTIFIER (',' IDENTIFIER)* ']'
     ;
 
-initialStateDecl
-    : 'initial_state' ':' IDENTIFIER
-    ;
-
+// Transitions block supports both syntaxes
 transitionsBlock
-    : 'transitions' transitionDecl+ 'end'
+    : 'transitions' (transitionDecl | transitionArrowDecl)+ 'end'
     ;
 
+// Original syntax: from state: [target1, target2]
 transitionDecl
     : 'from' IDENTIFIER ':' stateArray
+    ;
+
+// New arrow syntax: state -> state: trigger_event
+transitionArrowDecl
+    : (IDENTIFIER | '*') ARROW IDENTIFIER (':' IDENTIFIER)?  // from -> to: trigger
     ;
 
 onTransitionBlock
@@ -416,8 +479,18 @@ aliasName
 fieldType
     : baseType constraint*                      // string, integer, etc.
     | collectionType                            // list<T>, set<T>, map<K,V>
+    | inlineObjectType                          // object { fieldDecl* }
     | IDENTIFIER                                // Custom/domain type
     | UPPER_IDENTIFIER                          // Type alias reference
+    ;
+
+// Inline object type: object { field: type, ... }
+inlineObjectType
+    : 'object' LBRACE inlineFieldDecl* RBRACE
+    ;
+
+inlineFieldDecl
+    : fieldName ':' fieldType fieldQualifier*
     ;
 
 baseType
@@ -516,6 +589,7 @@ expression
     : literal
     | fieldPath
     | functionCall
+    | timeUnit                          // Allow time units as expression (e.g., years, days)
     | expression operator expression
     | '(' expression ')'
     | whenExpression
@@ -693,7 +767,7 @@ LPAREN : '(' ;
 RPAREN : ')' ;
 LANGLE : '<' ;
 RANGLE : '>' ;
-EQ : '=' ;
+EQ : '=' | '==' ;                     // Support both = and == for equality
 NE : '!=' ;
 LE : '<=' ;
 GE : '>=' ;
@@ -702,6 +776,9 @@ MINUS : '-' ;
 STAR : '*' ;
 SLASH : '/' ;
 DOTDOT : '..' ;
+ARROW : '->' ;
+LBRACE : '{' ;
+RBRACE : '}' ;
 
 // ----------------------------------------------------------------------------
 // Comments and Whitespace

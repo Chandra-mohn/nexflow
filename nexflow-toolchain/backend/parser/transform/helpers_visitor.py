@@ -43,7 +43,8 @@ class TransformHelpersVisitorMixin:
         return text
 
     def visitFieldPath(self, ctx: TransformDSLParser.FieldPathContext) -> ast.FieldPath:
-        parts = [ident.getText() for ident in ctx.IDENTIFIER()]
+        # fieldPath now uses fieldOrKeyword which can be IDENTIFIER or keyword
+        parts = [self._get_text(fok) for fok in ctx.fieldOrKeyword()]
         return ast.FieldPath(parts=parts)
 
     def visitDuration(self, ctx: TransformDSLParser.DurationContext) -> ast.Duration:

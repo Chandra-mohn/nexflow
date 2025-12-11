@@ -90,6 +90,12 @@ class FlowProcessingVisitorMixin:
         )
 
     def visitWindowDecl(self, ctx: ProcDSLParser.WindowDeclContext) -> ast.WindowDecl:
+        """
+        Visit a window declaration.
+
+        Grammar v0.5.0+: WINDOW windowType duration windowBody?
+        windowBody: keyByClause? inlineAggregateBlock? stateClause? windowOptions?
+        """
         window_type_ctx = ctx.windowType()
         duration_ctx = ctx.duration()
 
@@ -114,14 +120,21 @@ class FlowProcessingVisitorMixin:
             size = self.visitDuration(duration_ctx)
             slide = None
 
+        # v0.5.0+: windowOptions is now inside windowBody
         options = None
-        if ctx.windowOptions():
-            options = self.visitWindowOptions(ctx.windowOptions())
+        key_by = None
+        if ctx.windowBody():
+            body_ctx = ctx.windowBody()
+            if body_ctx.keyByClause():
+                key_by = self._get_text(body_ctx.keyByClause().fieldPath())
+            if body_ctx.windowOptions():
+                options = self.visitWindowOptions(body_ctx.windowOptions())
 
         return ast.WindowDecl(
             window_type=window_type,
             size=size,
             slide=slide,
+            key_by=key_by,
             options=options,
             location=self._get_location(ctx)
         )

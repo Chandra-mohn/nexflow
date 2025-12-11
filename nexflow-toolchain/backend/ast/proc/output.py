@@ -26,6 +26,7 @@ class EmitDecl:
     target: str
     schema: Optional[SchemaDecl] = None
     fanout: Optional[FanoutDecl] = None
+    options: Optional[dict] = None  # reason, preserve_state, etc.
     location: Optional[SourceLocation] = None
 
 

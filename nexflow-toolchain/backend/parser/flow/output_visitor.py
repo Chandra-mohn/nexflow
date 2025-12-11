@@ -1,8 +1,11 @@
 """
 Output and Completion Block Visitor Mixin for Flow Parser
 
-Handles parsing of output declarations (emit, route) and completion
+Handles parsing of output declarations (emit) and completion
 callbacks (on_commit, on_commit_failure).
+
+Updated for grammar v0.5.0+ which uses emitDecl directly in bodyContent
+instead of a separate outputBlock.
 """
 
 from typing import Union
@@ -15,40 +18,44 @@ class FlowOutputVisitorMixin:
     """Mixin for output and completion block visitor methods."""
 
     # =========================================================================
-    # Output Block
+    # Emit Declaration (v0.5.0+ - direct in bodyContent)
     # =========================================================================
 
-    def visitOutputBlock(self, ctx: ProcDSLParser.OutputBlockContext) -> ast.OutputBlock:
-        outputs = []
-        for output_ctx in ctx.outputDecl():
-            outputs.append(self.visitOutputDecl(output_ctx))
-        return ast.OutputBlock(
-            outputs=outputs,
-            location=self._get_location(ctx)
-        )
-
-    def visitOutputDecl(self, ctx: ProcDSLParser.OutputDeclContext) -> Union[ast.EmitDecl, ast.RouteDecl]:
-        if ctx.emitDecl():
-            return self.visitEmitDecl(ctx.emitDecl())
-        elif ctx.routeDecl():
-            return self.visitRouteDecl(ctx.routeDecl())
-        return None
-
     def visitEmitDecl(self, ctx: ProcDSLParser.EmitDeclContext) -> ast.EmitDecl:
+        """
+        Visit an emit declaration.
+
+        Grammar: EMIT TO IDENTIFIER emitClause*
+        emitClause: schemaDecl | connectorClause | emitOptions | fanoutDecl
+        """
         target = ctx.IDENTIFIER().getText()
 
         schema = None
-        if ctx.schemaDecl():
-            schema = self.visitSchemaDecl(ctx.schemaDecl())
-
         fanout = None
-        if ctx.fanoutDecl():
-            fanout = self.visitFanoutDecl(ctx.fanoutDecl())
+        connector = None
+        options = {}
+
+        # Process clauses in any order
+        for clause_ctx in ctx.emitClause():
+            if clause_ctx.schemaDecl():
+                schema = self.visitSchemaDecl(clause_ctx.schemaDecl())
+            elif clause_ctx.fanoutDecl():
+                fanout = self.visitFanoutDecl(clause_ctx.fanoutDecl())
+            elif clause_ctx.connectorClause():
+                # Extract connector info if needed
+                pass
+            elif clause_ctx.emitOptions():
+                # Process emit options (reason, preserve_state, etc.)
+                opt_ctx = clause_ctx.emitOptions()
+                opt_text = self._get_text(opt_ctx)
+                if 'reason' in opt_text and opt_ctx.STRING():
+                    options['reason'] = opt_ctx.STRING().getText().strip('"')
 
         return ast.EmitDecl(
             target=target,
             schema=schema,
             fanout=fanout,
+            options=options if options else None,
             location=self._get_location(ctx)
         )
 

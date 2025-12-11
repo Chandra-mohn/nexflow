@@ -63,6 +63,7 @@ class WindowDecl:
     window_type: WindowType
     size: Duration
     slide: Optional[Duration] = None  # For sliding windows
+    key_by: Optional[str] = None  # Key by field path (v0.5.0+)
     options: Optional[WindowOptions] = None
     location: Optional[SourceLocation] = None
 

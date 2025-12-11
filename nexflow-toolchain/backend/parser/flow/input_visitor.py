@@ -3,6 +3,8 @@ Input Block Visitor Mixin for Flow Parser
 
 Handles parsing of input declarations: receive statements, schema references,
 projections, store actions, and match actions.
+
+Updated for grammar v0.5.0+ which uses flexible clause ordering.
 """
 
 from backend.ast import proc_ast as ast
@@ -12,44 +14,59 @@ from backend.parser.generated.proc import ProcDSLParser
 class FlowInputVisitorMixin:
     """Mixin for input block visitor methods."""
 
-    def visitInputBlock(self, ctx: ProcDSLParser.InputBlockContext) -> ast.InputBlock:
-        receives = []
-        for recv_ctx in ctx.receiveDecl():
-            receives.append(self.visitReceiveDecl(recv_ctx))
-        return ast.InputBlock(
-            receives=receives,
-            location=self._get_location(ctx)
-        )
-
     def visitReceiveDecl(self, ctx: ProcDSLParser.ReceiveDeclContext) -> ast.ReceiveDecl:
+        """
+        Visit a receive declaration.
+
+        Grammar: RECEIVE IDENTIFIER (FROM IDENTIFIER)? receiveClause*
+
+        The first IDENTIFIER is the alias, the optional second is an inline source reference.
+        Clauses (schema, connector, project, action, filter) can appear in any order.
+        """
         identifiers = ctx.IDENTIFIER()
 
-        if len(identifiers) == 2:
-            alias = identifiers[0].getText()
-            source = identifiers[1].getText()
-        else:
-            alias = None
-            source = identifiers[0].getText()
+        # First identifier is always the alias
+        alias = identifiers[0].getText() if identifiers else None
 
+        # Second identifier (if present) is inline source: "receive X from Y"
+        source = identifiers[1].getText() if len(identifiers) > 1 else None
+
+        # Process clauses in any order
         schema = None
-        if ctx.schemaDecl():
-            schema = self.visitSchemaDecl(ctx.schemaDecl())
-
         project = None
-        if ctx.projectClause():
-            project = self.visitProjectClause(ctx.projectClause())
-
         store_action = None
         match_action = None
-        if ctx.receiveAction():
-            action_ctx = ctx.receiveAction()
-            if action_ctx.storeAction():
-                store_action = self.visitStoreAction(action_ctx.storeAction())
-            elif action_ctx.matchAction():
-                match_action = self.visitMatchAction(action_ctx.matchAction())
+        connector_source = None
+        filter_expr = None
+
+        for clause_ctx in ctx.receiveClause():
+            if clause_ctx.schemaDecl():
+                schema = self.visitSchemaDecl(clause_ctx.schemaDecl())
+            elif clause_ctx.projectClause():
+                project = self.visitProjectClause(clause_ctx.projectClause())
+            elif clause_ctx.receiveAction():
+                action_ctx = clause_ctx.receiveAction()
+                if action_ctx.storeAction():
+                    store_action = self.visitStoreAction(action_ctx.storeAction())
+                elif action_ctx.matchAction():
+                    match_action = self.visitMatchAction(action_ctx.matchAction())
+            elif clause_ctx.connectorClause():
+                # Extract source from connector clause if not already set
+                connector_ctx = clause_ctx.connectorClause()
+                if connector_ctx.connectorConfig():
+                    config = connector_ctx.connectorConfig()
+                    # Get first string or identifier from config
+                    if config.STRING():
+                        connector_source = config.STRING(0).getText().strip('"')
+                    elif config.IDENTIFIER():
+                        connector_source = config.IDENTIFIER(0).getText()
+            # Filter clause handled separately if needed
+
+        # Use inline source or connector source
+        final_source = source or connector_source or alias
 
         return ast.ReceiveDecl(
-            source=source,
+            source=final_source,
             alias=alias,
             schema=schema,
             project=project,

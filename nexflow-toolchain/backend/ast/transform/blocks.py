@@ -136,6 +136,8 @@ class ErrorAction:
     log_level: Optional[LogLevel] = None
     emit_to: Optional[str] = None
     error_code: Optional[str] = None
+    error_message: Optional[str] = None  # For log_error and reject messages
+    emit_mode: Optional[str] = None  # For emit with defaults/partial
     location: Optional[SourceLocation] = None
 
 
