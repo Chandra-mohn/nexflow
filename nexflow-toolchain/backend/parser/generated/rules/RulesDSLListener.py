@@ -17,12 +17,246 @@ class RulesDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RulesDSLParser#servicesBlock.
+    def enterServicesBlock(self, ctx:RulesDSLParser.ServicesBlockContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#servicesBlock.
+    def exitServicesBlock(self, ctx:RulesDSLParser.ServicesBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceDecl.
+    def enterServiceDecl(self, ctx:RulesDSLParser.ServiceDeclContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceDecl.
+    def exitServiceDecl(self, ctx:RulesDSLParser.ServiceDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceName.
+    def enterServiceName(self, ctx:RulesDSLParser.ServiceNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceName.
+    def exitServiceName(self, ctx:RulesDSLParser.ServiceNameContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceClassName.
+    def enterServiceClassName(self, ctx:RulesDSLParser.ServiceClassNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceClassName.
+    def exitServiceClassName(self, ctx:RulesDSLParser.ServiceClassNameContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceMethodName.
+    def enterServiceMethodName(self, ctx:RulesDSLParser.ServiceMethodNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceMethodName.
+    def exitServiceMethodName(self, ctx:RulesDSLParser.ServiceMethodNameContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceType.
+    def enterServiceType(self, ctx:RulesDSLParser.ServiceTypeContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceType.
+    def exitServiceType(self, ctx:RulesDSLParser.ServiceTypeContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceParamList.
+    def enterServiceParamList(self, ctx:RulesDSLParser.ServiceParamListContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceParamList.
+    def exitServiceParamList(self, ctx:RulesDSLParser.ServiceParamListContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceParam.
+    def enterServiceParam(self, ctx:RulesDSLParser.ServiceParamContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceParam.
+    def exitServiceParam(self, ctx:RulesDSLParser.ServiceParamContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceReturnType.
+    def enterServiceReturnType(self, ctx:RulesDSLParser.ServiceReturnTypeContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceReturnType.
+    def exitServiceReturnType(self, ctx:RulesDSLParser.ServiceReturnTypeContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceOptions.
+    def enterServiceOptions(self, ctx:RulesDSLParser.ServiceOptionsContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceOptions.
+    def exitServiceOptions(self, ctx:RulesDSLParser.ServiceOptionsContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#serviceOption.
+    def enterServiceOption(self, ctx:RulesDSLParser.ServiceOptionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#serviceOption.
+    def exitServiceOption(self, ctx:RulesDSLParser.ServiceOptionContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#duration.
+    def enterDuration(self, ctx:RulesDSLParser.DurationContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#duration.
+    def exitDuration(self, ctx:RulesDSLParser.DurationContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#durationUnit.
+    def enterDurationUnit(self, ctx:RulesDSLParser.DurationUnitContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#durationUnit.
+    def exitDurationUnit(self, ctx:RulesDSLParser.DurationUnitContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionsBlock.
+    def enterActionsBlock(self, ctx:RulesDSLParser.ActionsBlockContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionsBlock.
+    def exitActionsBlock(self, ctx:RulesDSLParser.ActionsBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionDecl.
+    def enterActionDecl(self, ctx:RulesDSLParser.ActionDeclContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionDecl.
+    def exitActionDecl(self, ctx:RulesDSLParser.ActionDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionDeclName.
+    def enterActionDeclName(self, ctx:RulesDSLParser.ActionDeclNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionDeclName.
+    def exitActionDeclName(self, ctx:RulesDSLParser.ActionDeclNameContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionParamList.
+    def enterActionParamList(self, ctx:RulesDSLParser.ActionParamListContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionParamList.
+    def exitActionParamList(self, ctx:RulesDSLParser.ActionParamListContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionParam.
+    def enterActionParam(self, ctx:RulesDSLParser.ActionParamContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionParam.
+    def exitActionParam(self, ctx:RulesDSLParser.ActionParamContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#actionTarget.
+    def enterActionTarget(self, ctx:RulesDSLParser.ActionTargetContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#actionTarget.
+    def exitActionTarget(self, ctx:RulesDSLParser.ActionTargetContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#emitTarget.
+    def enterEmitTarget(self, ctx:RulesDSLParser.EmitTargetContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#emitTarget.
+    def exitEmitTarget(self, ctx:RulesDSLParser.EmitTargetContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#stateTarget.
+    def enterStateTarget(self, ctx:RulesDSLParser.StateTargetContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#stateTarget.
+    def exitStateTarget(self, ctx:RulesDSLParser.StateTargetContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#stateOperation.
+    def enterStateOperation(self, ctx:RulesDSLParser.StateOperationContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#stateOperation.
+    def exitStateOperation(self, ctx:RulesDSLParser.StateOperationContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#stateOperationArg.
+    def enterStateOperationArg(self, ctx:RulesDSLParser.StateOperationArgContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#stateOperationArg.
+    def exitStateOperationArg(self, ctx:RulesDSLParser.StateOperationArgContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#auditTarget.
+    def enterAuditTarget(self, ctx:RulesDSLParser.AuditTargetContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#auditTarget.
+    def exitAuditTarget(self, ctx:RulesDSLParser.AuditTargetContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#callTarget.
+    def enterCallTarget(self, ctx:RulesDSLParser.CallTargetContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#callTarget.
+    def exitCallTarget(self, ctx:RulesDSLParser.CallTargetContext):
+        pass
+
+
     # Enter a parse tree produced by RulesDSLParser#decisionTableDef.
     def enterDecisionTableDef(self, ctx:RulesDSLParser.DecisionTableDefContext):
         pass
 
     # Exit a parse tree produced by RulesDSLParser#decisionTableDef.
     def exitDecisionTableDef(self, ctx:RulesDSLParser.DecisionTableDefContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#versionDecl.
+    def enterVersionDecl(self, ctx:RulesDSLParser.VersionDeclContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#versionDecl.
+    def exitVersionDecl(self, ctx:RulesDSLParser.VersionDeclContext):
         pass
 
 
@@ -167,6 +401,15 @@ class RulesDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by RulesDSLParser#columnHeader.
     def exitColumnHeader(self, ctx:RulesDSLParser.ColumnHeaderContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#columnName.
+    def enterColumnName(self, ctx:RulesDSLParser.ColumnNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#columnName.
+    def exitColumnName(self, ctx:RulesDSLParser.ColumnNameContext):
         pass
 
 
@@ -395,6 +638,60 @@ class RulesDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RulesDSLParser#postCalculateBlock.
+    def enterPostCalculateBlock(self, ctx:RulesDSLParser.PostCalculateBlockContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#postCalculateBlock.
+    def exitPostCalculateBlock(self, ctx:RulesDSLParser.PostCalculateBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#postCalculateStatement.
+    def enterPostCalculateStatement(self, ctx:RulesDSLParser.PostCalculateStatementContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#postCalculateStatement.
+    def exitPostCalculateStatement(self, ctx:RulesDSLParser.PostCalculateStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#assignmentStatement.
+    def enterAssignmentStatement(self, ctx:RulesDSLParser.AssignmentStatementContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#assignmentStatement.
+    def exitAssignmentStatement(self, ctx:RulesDSLParser.AssignmentStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#aggregateBlock.
+    def enterAggregateBlock(self, ctx:RulesDSLParser.AggregateBlockContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#aggregateBlock.
+    def exitAggregateBlock(self, ctx:RulesDSLParser.AggregateBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#aggregateStatement.
+    def enterAggregateStatement(self, ctx:RulesDSLParser.AggregateStatementContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#aggregateStatement.
+    def exitAggregateStatement(self, ctx:RulesDSLParser.AggregateStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#whenExpression.
+    def enterWhenExpression(self, ctx:RulesDSLParser.WhenExpressionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#whenExpression.
+    def exitWhenExpression(self, ctx:RulesDSLParser.WhenExpressionContext):
+        pass
+
+
     # Enter a parse tree produced by RulesDSLParser#proceduralRuleDef.
     def enterProceduralRuleDef(self, ctx:RulesDSLParser.ProceduralRuleDefContext):
         pass
@@ -419,6 +716,24 @@ class RulesDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by RulesDSLParser#blockItem.
     def exitBlockItem(self, ctx:RulesDSLParser.BlockItemContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#setStatement.
+    def enterSetStatement(self, ctx:RulesDSLParser.SetStatementContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#setStatement.
+    def exitSetStatement(self, ctx:RulesDSLParser.SetStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#letStatement.
+    def enterLetStatement(self, ctx:RulesDSLParser.LetStatementContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#letStatement.
+    def exitLetStatement(self, ctx:RulesDSLParser.LetStatementContext):
         pass
 
 
@@ -566,6 +881,15 @@ class RulesDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RulesDSLParser#lambdaExpression.
+    def enterLambdaExpression(self, ctx:RulesDSLParser.LambdaExpressionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#lambdaExpression.
+    def exitLambdaExpression(self, ctx:RulesDSLParser.LambdaExpressionContext):
+        pass
+
+
     # Enter a parse tree produced by RulesDSLParser#arithmeticExpr.
     def enterArithmeticExpr(self, ctx:RulesDSLParser.ArithmeticExprContext):
         pass
@@ -617,6 +941,33 @@ class RulesDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by RulesDSLParser#listLiteral.
     def exitListLiteral(self, ctx:RulesDSLParser.ListLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#objectLiteral.
+    def enterObjectLiteral(self, ctx:RulesDSLParser.ObjectLiteralContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#objectLiteral.
+    def exitObjectLiteral(self, ctx:RulesDSLParser.ObjectLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#objectField.
+    def enterObjectField(self, ctx:RulesDSLParser.ObjectFieldContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#objectField.
+    def exitObjectField(self, ctx:RulesDSLParser.ObjectFieldContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#objectFieldName.
+    def enterObjectFieldName(self, ctx:RulesDSLParser.ObjectFieldNameContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#objectFieldName.
+    def exitObjectFieldName(self, ctx:RulesDSLParser.ObjectFieldNameContext):
         pass
 
 

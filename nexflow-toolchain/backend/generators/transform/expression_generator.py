@@ -144,28 +144,31 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         if first_part_camel in local_vars:
             if len(parts) == 1:
                 return first_part_camel
-            rest = ".".join(self.to_getter(p) for p in parts[1:])
+            # Use record accessor pattern: field() instead of getField()
+            rest = ".".join(self.to_record_accessor(p) for p in parts[1:])
             return f"{first_part_camel}.{rest}"
 
         # Check if this is an already-assigned output field (reference to result map)
         if use_map and first_part in assigned_output_fields:
             if len(parts) == 1:
                 return f'result.get("{first_part}")'
-            rest = ".".join(self.to_getter(p) for p in parts[1:])
+            # Use record accessor pattern for nested access
+            rest = ".".join(self.to_record_accessor(p) for p in parts[1:])
             return f'((Object)result.get("{first_part}")).{rest}'
 
         # Input field access
         if use_map:
             if len(parts) == 1:
                 return f'input.get("{first_part}")'
-            rest = ".".join(self.to_getter(p) for p in parts[1:])
+            # Use record accessor pattern for nested access
+            rest = ".".join(self.to_record_accessor(p) for p in parts[1:])
             return f'((Object)input.get("{first_part}")).{rest}'
 
-        # Standard getter chain
+        # Standard record accessor chain (Java Records use fieldName() instead of getFieldName())
         if len(parts) == 1:
-            return f"input.{self.to_getter(parts[0])}"
-        getters = [self.to_getter(p) for p in parts]
-        return f"input.{'.'.join(getters)}"
+            return f"input.{self.to_record_accessor(parts[0])}"
+        accessors = [self.to_record_accessor(p) for p in parts]
+        return f"input.{'.'.join(accessors)}"
 
     def _generate_function_call(
         self,

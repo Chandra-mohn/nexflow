@@ -71,6 +71,17 @@ from .blocks import (
     EntriesBlock,
     ConstraintDecl,
     ConstraintsBlock,
+    # Computed fields
+    ComputedExpression,
+    BinaryExpression,
+    UnaryExpression,
+    FieldRefExpression,
+    LiteralExpression,
+    FunctionCallExpression,
+    WhenBranch,
+    WhenExpression,
+    ComputedFieldDecl,
+    ComputedBlock,
 )
 
 # Rules
@@ -110,6 +121,10 @@ __all__ = [
     'ParameterOption', 'ParameterDecl', 'ParametersBlock',
     'EntryField', 'EntryDecl', 'EntriesBlock',
     'ConstraintDecl', 'ConstraintsBlock',
+    # Computed fields
+    'ComputedExpression', 'BinaryExpression', 'UnaryExpression', 'FieldRefExpression',
+    'LiteralExpression', 'FunctionCallExpression', 'WhenBranch', 'WhenExpression',
+    'ComputedFieldDecl', 'ComputedBlock',
     # Rules
     'RuleFieldDecl', 'Expression', 'Calculation', 'GivenBlock', 'CalculateBlock',
     'ReturnBlock', 'RuleBlock', 'MigrationStatement', 'MigrationBlock',

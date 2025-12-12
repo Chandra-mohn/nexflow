@@ -214,7 +214,9 @@ class BaseGenerator(ABC):
         return ''.join(word.capitalize() for word in name.split('_'))
 
     def to_getter(self, field_name: str) -> str:
-        """Convert field name to Java getter method call.
+        """Convert field name to Java getter method call (POJO pattern).
+
+        DEPRECATED: Use to_record_accessor() for Java Records.
 
         Args:
             field_name: Field name in snake_case or camelCase
@@ -225,8 +227,24 @@ class BaseGenerator(ABC):
         camel = self.to_camel_case(field_name)
         return f"get{camel[0].upper()}{camel[1:]}()"
 
+    def to_record_accessor(self, field_name: str) -> str:
+        """Convert field name to Java Record accessor method call.
+
+        Java Records use fieldName() instead of getFieldName().
+
+        Args:
+            field_name: Field name in snake_case or camelCase
+
+        Returns:
+            Record accessor call (e.g., 'myField()')
+        """
+        camel = self.to_camel_case(field_name)
+        return f"{camel}()"
+
     def to_setter(self, field_name: str) -> str:
-        """Convert field name to Java setter method name.
+        """Convert field name to Java setter method name (POJO pattern).
+
+        DEPRECATED: Java Records are immutable. Use withField() pattern instead.
 
         Args:
             field_name: Field name in snake_case or camelCase
@@ -236,6 +254,20 @@ class BaseGenerator(ABC):
         """
         camel = self.to_camel_case(field_name)
         return f"set{camel[0].upper()}{camel[1:]}"
+
+    def to_with_method(self, field_name: str) -> str:
+        """Convert field name to Java Record withField method name.
+
+        Java Records are immutable. Use withField() to create modified copies.
+
+        Args:
+            field_name: Field name in snake_case or camelCase
+
+        Returns:
+            With method name (e.g., 'withMyField')
+        """
+        camel = self.to_camel_case(field_name)
+        return f"with{camel[0].upper()}{camel[1:]}"
 
     # =========================================================================
     # File Header Generation

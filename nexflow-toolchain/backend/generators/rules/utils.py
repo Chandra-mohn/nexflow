@@ -15,7 +15,9 @@ from backend.generators.rules.utils_naming import (
     to_camel_case,
     to_pascal_case,
     to_getter,
+    to_record_accessor,
     to_setter,
+    to_with_method,
 )
 from backend.generators.rules.utils_literals import (
     get_java_type,
@@ -29,6 +31,7 @@ from backend.generators.rules.utils_imports import (
     get_collection_imports,
     get_time_imports,
     get_concurrent_imports,
+    get_runtime_imports,
 )
 
 if TYPE_CHECKING:

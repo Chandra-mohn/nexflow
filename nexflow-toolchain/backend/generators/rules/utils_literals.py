@@ -7,7 +7,7 @@ Literal and value expression generation for L4 Rules code generation.
 import logging
 from typing import TYPE_CHECKING
 
-from backend.generators.rules.utils_naming import to_camel_case, to_getter
+from backend.generators.rules.utils_naming import to_camel_case, to_getter, to_record_accessor
 
 if TYPE_CHECKING:
     from backend.ast import rules_ast as ast
@@ -193,13 +193,14 @@ def generate_field_path(fp) -> str:
         fp: FieldPath AST node
 
     Returns:
-        Java getter chain string
+        Java record accessor chain string
     """
     if not fp or not fp.parts:
         LOG.warning("Empty field path provided")
         return ""
 
+    # Use record accessor pattern: fieldName() instead of getFieldName()
     if len(fp.parts) == 1:
-        return to_getter(fp.parts[0])
+        return to_record_accessor(fp.parts[0])
 
-    return ".".join(to_getter(p) for p in fp.parts)
+    return ".".join(to_record_accessor(p) for p in fp.parts)

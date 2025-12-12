@@ -19,10 +19,10 @@ public class ValidateApplicationRule {
      * Execute rule: validate_application
      */
     public void execute(Object context) {
-        if (((getAmount() > 100000L))) {
+        if (((amount() > 100000L))) {
             requireManualApproval();
         }
-        if (((getApplicantAge() < 18L))) {
+        if (((applicantAge() < 18L))) {
             reject("Applicant must be 18 or older");
             return;
         }

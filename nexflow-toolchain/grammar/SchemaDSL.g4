@@ -43,6 +43,7 @@ schemaDefinition
         streamingBlock?
         fieldsBlock?
         nestedObjectBlock*
+        computedBlock?                  // Computed/derived fields
         constraintsBlock?               // Business rule constraints
         immutableDecl?                  // immutable true/false for audit schemas (can appear after fields)
         stateMachineBlock?
@@ -292,6 +293,39 @@ fieldName
 nestedObjectBlock
     : fieldName ':' 'object' fieldDecl* nestedObjectBlock* 'end'
     | fieldName ':' 'list' LANGLE 'object' RANGLE fieldDecl* nestedObjectBlock* 'end'
+    ;
+
+// ----------------------------------------------------------------------------
+// Computed Block (derived fields calculated from other fields)
+// ----------------------------------------------------------------------------
+
+computedBlock
+    : 'computed' computedField+ 'end'
+    ;
+
+computedField
+    : fieldName '=' computedExpression
+    ;
+
+// Computed expressions support arithmetic, when/then/else, and field references
+computedExpression
+    : computedExpression (STAR | SLASH) computedExpression      // Multiplication/Division (highest precedence)
+    | computedExpression (PLUS | MINUS) computedExpression      // Addition/Subtraction
+    | computedExpression comparisonOp computedExpression        // Comparisons
+    | computedExpression 'and' computedExpression               // Logical AND
+    | computedExpression 'or' computedExpression                // Logical OR
+    | 'not' computedExpression                                  // Logical NOT
+    | '(' computedExpression ')'                                // Parenthesized expression
+    | computedWhenExpression                                    // Conditional expression
+    | functionCall                                              // Function call
+    | fieldPath                                                 // Field reference
+    | literal                                                   // Literal value
+    ;
+
+computedWhenExpression
+    : 'when' computedExpression 'then' computedExpression
+      ('when' computedExpression 'then' computedExpression)*
+      'else' computedExpression
     ;
 
 // ----------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static nexflow.flink.runtime.NexflowRuntime.*;
 
 public class FraudCheckTable {
 
@@ -56,7 +57,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow1(FraudCheckTableInput input) {
-        return ((input.getAmount() > 50000L)) && ("high".equals(input.getRiskTier())) && (true) && (true);
+        return ((input.getAmount() != null && input.getAmount().compareTo(new BigDecimal("50000")) > 0)) && ("high".equals(input.getRiskTier())) && (true) && (true);
     }
 
     private String getRow1Result(FraudCheckTableInput input) {
@@ -64,7 +65,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow2(FraudCheckTableInput input) {
-        return ((input.getAmount() > 25000L)) && ("high".equals(input.getRiskTier())) && ((input.getVelocity24h() > 10L)) && (true);
+        return ((input.getAmount() != null && input.getAmount().compareTo(new BigDecimal("25000")) > 0)) && ("high".equals(input.getRiskTier())) && ((input.getVelocity24h() > 10L)) && (true);
     }
 
     private String getRow2Result(FraudCheckTableInput input) {
@@ -72,7 +73,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow3(FraudCheckTableInput input) {
-        return ((input.getAmount() > 10000L)) && (true) && ((input.getVelocity24h() > 20L)) && (true);
+        return ((input.getAmount() != null && input.getAmount().compareTo(new BigDecimal("10000")) > 0)) && (true) && ((input.getVelocity24h() > 20L)) && (true);
     }
 
     private String getRow3Result(FraudCheckTableInput input) {
@@ -80,7 +81,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow4(FraudCheckTableInput input) {
-        return (true) && ("high".equals(input.getRiskTier())) && (true) && ((input.getFraudProbability() > new BigDecimal("0.8")));
+        return (true) && ("high".equals(input.getRiskTier())) && (true) && ((input.getFraudProbability() != null && input.getFraudProbability().compareTo(new BigDecimal("0.8")) > 0));
     }
 
     private String getRow4Result(FraudCheckTableInput input) {
@@ -88,7 +89,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow5(FraudCheckTableInput input) {
-        return (true) && ("medium".equals(input.getRiskTier())) && (true) && ((input.getFraudProbability() > new BigDecimal("0.7")));
+        return (true) && ("medium".equals(input.getRiskTier())) && (true) && ((input.getFraudProbability() != null && input.getFraudProbability().compareTo(new BigDecimal("0.7")) > 0));
     }
 
     private String getRow5Result(FraudCheckTableInput input) {
@@ -96,7 +97,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow6(FraudCheckTableInput input) {
-        return ((input.getAmount() > 5000L)) && (true) && (true) && ((input.getFraudProbability() > new BigDecimal("0.6")));
+        return ((input.getAmount() != null && input.getAmount().compareTo(new BigDecimal("5000")) > 0)) && (true) && (true) && ((input.getFraudProbability() != null && input.getFraudProbability().compareTo(new BigDecimal("0.6")) > 0));
     }
 
     private String getRow6Result(FraudCheckTableInput input) {
@@ -104,7 +105,7 @@ public class FraudCheckTable {
     }
 
     private boolean matchRow7(FraudCheckTableInput input) {
-        return ((input.getAmount() < 100L)) && ("low".equals(input.getRiskTier())) && ((input.getVelocity24h() < 5L)) && ((input.getFraudProbability() < new BigDecimal("0.3")));
+        return ((input.getAmount() != null && input.getAmount().compareTo(new BigDecimal("100")) < 0)) && ("low".equals(input.getRiskTier())) && ((input.getVelocity24h() < 5L)) && ((input.getFraudProbability() != null && input.getFraudProbability().compareTo(new BigDecimal("0.3")) < 0));
     }
 
     private String getRow7Result(FraudCheckTableInput input) {

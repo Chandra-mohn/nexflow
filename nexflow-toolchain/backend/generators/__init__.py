@@ -22,6 +22,7 @@ from backend.generators.flow import FlowGenerator
 from backend.generators.transform import TransformGenerator
 from backend.generators.rules import RulesGenerator
 from backend.generators.scaffold_generator import ScaffoldGenerator
+from backend.generators.runtime import RuntimeGenerator
 
 # Generator registry - maps DSL type to generator class
 GENERATORS: Dict[str, Type[BaseGenerator]] = {
@@ -60,6 +61,7 @@ __all__ = [
     'TransformGenerator',
     'RulesGenerator',
     'ScaffoldGenerator',
+    'RuntimeGenerator',
     'VoltageProfile',
     'VoltageProfilesConfig',
     'GENERATORS',

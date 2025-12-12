@@ -10,6 +10,7 @@ from .operator_generator import OperatorGeneratorMixin
 from .window_generator import WindowGeneratorMixin
 from .sink_generator import SinkGeneratorMixin
 from .state_generator import StateGeneratorMixin
+from .state_context_generator import StateContextGeneratorMixin
 from .resilience_generator import ResilienceGeneratorMixin
 from .job_generator import JobGeneratorMixin
 from .job_imports import JobImportsMixin
@@ -24,6 +25,7 @@ __all__ = [
     'WindowGeneratorMixin',
     'SinkGeneratorMixin',
     'StateGeneratorMixin',
+    'StateContextGeneratorMixin',
     'ResilienceGeneratorMixin',
     'JobGeneratorMixin',
     'JobImportsMixin',

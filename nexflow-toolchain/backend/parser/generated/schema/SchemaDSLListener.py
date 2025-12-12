@@ -359,12 +359,57 @@ class SchemaDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SchemaDSLParser#computedBlock.
+    def enterComputedBlock(self, ctx:SchemaDSLParser.ComputedBlockContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#computedBlock.
+    def exitComputedBlock(self, ctx:SchemaDSLParser.ComputedBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#computedField.
+    def enterComputedField(self, ctx:SchemaDSLParser.ComputedFieldContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#computedField.
+    def exitComputedField(self, ctx:SchemaDSLParser.ComputedFieldContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#computedExpression.
+    def enterComputedExpression(self, ctx:SchemaDSLParser.ComputedExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#computedExpression.
+    def exitComputedExpression(self, ctx:SchemaDSLParser.ComputedExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#computedWhenExpression.
+    def enterComputedWhenExpression(self, ctx:SchemaDSLParser.ComputedWhenExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#computedWhenExpression.
+    def exitComputedWhenExpression(self, ctx:SchemaDSLParser.ComputedWhenExpressionContext):
+        pass
+
+
     # Enter a parse tree produced by SchemaDSLParser#stateMachineBlock.
     def enterStateMachineBlock(self, ctx:SchemaDSLParser.StateMachineBlockContext):
         pass
 
     # Exit a parse tree produced by SchemaDSLParser#stateMachineBlock.
     def exitStateMachineBlock(self, ctx:SchemaDSLParser.StateMachineBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by SchemaDSLParser#initialStateDecl.
+    def enterInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
+        pass
+
+    # Exit a parse tree produced by SchemaDSLParser#initialStateDecl.
+    def exitInitialStateDecl(self, ctx:SchemaDSLParser.InitialStateDeclContext):
         pass
 
 

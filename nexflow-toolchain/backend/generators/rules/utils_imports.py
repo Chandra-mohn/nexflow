@@ -51,3 +51,18 @@ def get_concurrent_imports() -> Set[str]:
         'java.util.concurrent.ExecutorService',
         'java.util.concurrent.Executors',
     }
+
+
+def get_runtime_imports(package_prefix: str = None) -> Set[str]:
+    """Get static imports for NexflowRuntime built-in functions.
+
+    Args:
+        package_prefix: Package prefix for the project (e.g., 'nexflow.flink')
+                       If None, uses a placeholder that must be replaced.
+
+    Returns:
+        Set containing static import statement for NexflowRuntime
+    """
+    if package_prefix:
+        return {f"static {package_prefix}.runtime.NexflowRuntime.*"}
+    return {"static nexflow.runtime.NexflowRuntime.*"}

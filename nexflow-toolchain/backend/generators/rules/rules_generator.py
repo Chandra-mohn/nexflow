@@ -30,6 +30,8 @@ from backend.generators.rules.lookup_generator import LookupGeneratorMixin
 from backend.generators.rules.emit_generator import EmitGeneratorMixin
 from backend.generators.rules.execute_generator import ExecuteGeneratorMixin
 from backend.generators.rules.pojo_generator import RulesPojoGeneratorMixin
+from backend.generators.rules.services_generator import ServicesGeneratorMixin
+from backend.generators.rules.action_methods_generator import ActionMethodsGeneratorMixin
 
 
 class RulesGenerator(
@@ -41,6 +43,8 @@ class RulesGenerator(
     EmitGeneratorMixin,
     ExecuteGeneratorMixin,
     RulesPojoGeneratorMixin,
+    ServicesGeneratorMixin,
+    ActionMethodsGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -54,6 +58,8 @@ class RulesGenerator(
     - Side output emissions via OutputTag
     - Execute specifications for action handling
     - Output POJOs for multiple return parameters
+    - Service interfaces and call wrappers (timeout, fallback, retry, caching)
+    - Action method implementations (emit, state, audit, call)
     """
 
     def __init__(self, config: GeneratorConfig):

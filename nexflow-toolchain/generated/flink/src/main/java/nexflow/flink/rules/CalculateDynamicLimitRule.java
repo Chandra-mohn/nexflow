@@ -19,39 +19,39 @@ public class CalculateDynamicLimitRule {
      * Execute rule: calculate_dynamic_limit
      */
     public void execute(Object context) {
-        if (((getBaseLimit() > 0L) && ((getAccountAge() >= 0L)) && ((getCreditScore() >= 300L)) && ((getCreditScore() <= 850L)))) {
-            if (((getAccountAge() < 30L))) {
+        if (((baseLimit() > 0L) && ((accountAge() >= 0L)) && ((creditScore() >= 300L)) && ((creditScore() <= 850L)))) {
+            if (((accountAge() < 30L))) {
                 applyAgeMultiplier(new BigDecimal("0.5"));
-            } else if (((getAccountAge() < 90L))) {
+            } else if (((accountAge() < 90L))) {
                 applyAgeMultiplier(new BigDecimal("0.75"));
-            } else if (((getAccountAge() < 365L))) {
+            } else if (((accountAge() < 365L))) {
                 applyAgeMultiplier(new BigDecimal("0.9"));
             } else {
                 applyAgeMultiplier(new BigDecimal("1.0"));
             }
-            if (((getCreditScore() >= 750L))) {
+            if (((creditScore() >= 750L))) {
                 applyCreditMultiplier(new BigDecimal("1.25"));
-            } else if (((getCreditScore() >= 700L))) {
+            } else if (((creditScore() >= 700L))) {
                 applyCreditMultiplier(new BigDecimal("1.1"));
-            } else if (((getCreditScore() >= 650L))) {
+            } else if (((creditScore() >= 650L))) {
                 applyCreditMultiplier(new BigDecimal("1.0"));
-            } else if (((getCreditScore() >= 600L))) {
+            } else if (((creditScore() >= 600L))) {
                 applyCreditMultiplier(new BigDecimal("0.8"));
             } else {
                 applyCreditMultiplier(new BigDecimal("0.5"));
             }
-            if (((getFraudHistory() == 0L))) {
+            if (((fraudHistory() == 0L))) {
                 applyFraudPenalty(new BigDecimal("1.0"));
-            } else if (((getFraudHistory() == 1L))) {
+            } else if (((fraudHistory() == 1L))) {
                 applyFraudPenalty(new BigDecimal("0.7"));
-            } else if (((getFraudHistory() <= 3L))) {
+            } else if (((fraudHistory() <= 3L))) {
                 applyFraudPenalty(new BigDecimal("0.4"));
             } else {
                 applyFraudPenalty(new BigDecimal("0.1"));
             }
-            if (((getCurrentVelocity() > 20L))) {
+            if (((currentVelocity() > 20L))) {
                 applyVelocityFactor(new BigDecimal("0.6"));
-            } else if (((getCurrentVelocity() > 10L))) {
+            } else if (((currentVelocity() > 10L))) {
                 applyVelocityFactor(new BigDecimal("0.8"));
             } else {
                 applyVelocityFactor(new BigDecimal("1.0"));

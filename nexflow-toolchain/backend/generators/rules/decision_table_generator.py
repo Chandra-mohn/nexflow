@@ -20,6 +20,7 @@ from backend.generators.rules.utils import (
     get_common_imports,
     get_logging_imports,
     get_collection_imports,
+    get_runtime_imports,
 )
 from backend.generators.rules.decision_table_rows import DecisionTableRowsMixin
 
@@ -47,7 +48,10 @@ class DecisionTableGeneratorMixin(DecisionTableRowsMixin):
         input_type = class_name + "Input"
         output_type = self._get_output_type(table)
 
-        imports = self._collect_decision_table_imports(table)
+        # Derive package prefix for runtime imports (remove .rules suffix)
+        package_prefix = package.rsplit('.', 1)[0] if '.rules' in package else package
+
+        imports = self._collect_decision_table_imports(table, package_prefix)
 
         lines = [
             self.generate_java_header(
@@ -234,9 +238,15 @@ class DecisionTableGeneratorMixin(DecisionTableRowsMixin):
 
     def _collect_decision_table_imports(
         self,
-        table: ast.DecisionTableDef
+        table: ast.DecisionTableDef,
+        package_prefix: str = None
     ) -> Set[str]:
-        """Collect imports for decision table class."""
+        """Collect imports for decision table class.
+
+        Args:
+            table: DecisionTableDef AST node
+            package_prefix: Package prefix for runtime imports (e.g., 'nexflow.flink')
+        """
         imports = set()
         imports.update(get_collection_imports())
         imports.update(get_common_imports())
@@ -244,6 +254,10 @@ class DecisionTableGeneratorMixin(DecisionTableRowsMixin):
 
         imports.update(self.get_condition_imports())
         imports.update(self.get_action_imports())
+
+        # Add static import for NexflowRuntime built-in functions
+        if package_prefix:
+            imports.update(get_runtime_imports(package_prefix))
 
         return imports
 

@@ -70,10 +70,10 @@ class TestSchemaGeneratorBasic:
 
         content = product_file.content
 
-        # Verify class structure
-        assert 'class Product' in content
-        assert 'private' in content  # Has private fields
-        assert 'getSku' in content or 'sku' in content.lower()  # Has getters
+        # Verify record structure (Java Records instead of POJOs)
+        assert 'record Product' in content
+        assert 'implements Serializable' in content
+        assert 'sku' in content.lower()  # Has fields as record components
 
     def test_builder_generation(self):
         """Test that builder class is generated."""

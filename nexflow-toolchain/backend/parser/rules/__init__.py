@@ -12,6 +12,8 @@ from .action_visitor import RulesActionVisitorMixin
 from .procedural_visitor import RulesProceduralVisitorMixin
 from .expression_visitor import RulesExpressionVisitorMixin
 from .literal_visitor import RulesLiteralVisitorMixin
+from .services_visitor import RulesServicesVisitorMixin
+from .actions_visitor import RulesActionsVisitorMixin
 
 __all__ = [
     'RulesHelpersVisitorMixin',
@@ -22,4 +24,6 @@ __all__ = [
     'RulesProceduralVisitorMixin',
     'RulesExpressionVisitorMixin',
     'RulesLiteralVisitorMixin',
+    'RulesServicesVisitorMixin',
+    'RulesActionsVisitorMixin',
 ]

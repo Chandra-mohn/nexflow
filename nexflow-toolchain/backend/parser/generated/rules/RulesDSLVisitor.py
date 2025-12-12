@@ -1,4 +1,4 @@
-# Generated from /Users/chandramohn/workspace/nexflow/nexflow-toolchain/grammar/RulesDSL.g4 by ANTLR 4.13.2
+# Generated from grammar/RulesDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .RulesDSLParser import RulesDSLParser
@@ -11,6 +11,131 @@ class RulesDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RulesDSLParser#program.
     def visitProgram(self, ctx:RulesDSLParser.ProgramContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#servicesBlock.
+    def visitServicesBlock(self, ctx:RulesDSLParser.ServicesBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceDecl.
+    def visitServiceDecl(self, ctx:RulesDSLParser.ServiceDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceName.
+    def visitServiceName(self, ctx:RulesDSLParser.ServiceNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceClassName.
+    def visitServiceClassName(self, ctx:RulesDSLParser.ServiceClassNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceMethodName.
+    def visitServiceMethodName(self, ctx:RulesDSLParser.ServiceMethodNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceType.
+    def visitServiceType(self, ctx:RulesDSLParser.ServiceTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceParamList.
+    def visitServiceParamList(self, ctx:RulesDSLParser.ServiceParamListContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceParam.
+    def visitServiceParam(self, ctx:RulesDSLParser.ServiceParamContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceReturnType.
+    def visitServiceReturnType(self, ctx:RulesDSLParser.ServiceReturnTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceOptions.
+    def visitServiceOptions(self, ctx:RulesDSLParser.ServiceOptionsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#serviceOption.
+    def visitServiceOption(self, ctx:RulesDSLParser.ServiceOptionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#duration.
+    def visitDuration(self, ctx:RulesDSLParser.DurationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#durationUnit.
+    def visitDurationUnit(self, ctx:RulesDSLParser.DurationUnitContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionsBlock.
+    def visitActionsBlock(self, ctx:RulesDSLParser.ActionsBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionDecl.
+    def visitActionDecl(self, ctx:RulesDSLParser.ActionDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionDeclName.
+    def visitActionDeclName(self, ctx:RulesDSLParser.ActionDeclNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionParamList.
+    def visitActionParamList(self, ctx:RulesDSLParser.ActionParamListContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionParam.
+    def visitActionParam(self, ctx:RulesDSLParser.ActionParamContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#actionTarget.
+    def visitActionTarget(self, ctx:RulesDSLParser.ActionTargetContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#emitTarget.
+    def visitEmitTarget(self, ctx:RulesDSLParser.EmitTargetContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#stateTarget.
+    def visitStateTarget(self, ctx:RulesDSLParser.StateTargetContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#stateOperation.
+    def visitStateOperation(self, ctx:RulesDSLParser.StateOperationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#stateOperationArg.
+    def visitStateOperationArg(self, ctx:RulesDSLParser.StateOperationArgContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#auditTarget.
+    def visitAuditTarget(self, ctx:RulesDSLParser.AuditTargetContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#callTarget.
+    def visitCallTarget(self, ctx:RulesDSLParser.CallTargetContext):
         return self.visitChildren(ctx)
 
 

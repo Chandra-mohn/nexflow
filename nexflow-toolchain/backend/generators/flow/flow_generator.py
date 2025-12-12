@@ -24,6 +24,7 @@ from backend.generators.flow.operator_generator import OperatorGeneratorMixin
 from backend.generators.flow.window_generator import WindowGeneratorMixin
 from backend.generators.flow.sink_generator import SinkGeneratorMixin
 from backend.generators.flow.state_generator import StateGeneratorMixin
+from backend.generators.flow.state_context_generator import StateContextGeneratorMixin
 from backend.generators.flow.resilience_generator import ResilienceGeneratorMixin
 from backend.generators.flow.job_generator import JobGeneratorMixin
 from backend.generators.flow.flow_process_function import FlowProcessFunctionMixin
@@ -35,6 +36,7 @@ class FlowGenerator(
     WindowGeneratorMixin,
     SinkGeneratorMixin,
     StateGeneratorMixin,
+    StateContextGeneratorMixin,
     ResilienceGeneratorMixin,
     JobGeneratorMixin,
     FlowProcessFunctionMixin,
@@ -91,6 +93,15 @@ class FlowGenerator(
             self.result.add_file(
                 java_src_path / f"{class_name}ProcessFunction.java",
                 process_func_content,
+                "java"
+            )
+
+        # Generate ProcessContext if there's state (L1 State Accessors)
+        if process.state and (process.state.locals or process.state.buffers):
+            context_content = self.generate_process_context(process, package)
+            self.result.add_file(
+                java_src_path / f"{class_name}Context.java",
+                context_content,
                 "java"
             )
 

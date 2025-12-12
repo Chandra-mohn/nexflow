@@ -35,7 +35,9 @@ def to_pascal_case(name: str) -> str:
 
 
 def to_getter(field_name: str) -> str:
-    """Convert field name to getter method call.
+    """Convert field name to getter method call (POJO pattern).
+
+    DEPRECATED: Use to_record_accessor() for Java Records.
 
     Args:
         field_name: Field name (e.g., 'user_name')
@@ -49,8 +51,27 @@ def to_getter(field_name: str) -> str:
     return f"get{camel[0].upper()}{camel[1:]}()"
 
 
+def to_record_accessor(field_name: str) -> str:
+    """Convert field name to Java Record accessor method call.
+
+    Java Records use fieldName() instead of getFieldName().
+
+    Args:
+        field_name: Field name (e.g., 'user_name')
+
+    Returns:
+        Record accessor call string (e.g., 'userName()')
+    """
+    camel = to_camel_case(field_name)
+    if not camel:
+        return "()"
+    return f"{camel}()"
+
+
 def to_setter(field_name: str) -> str:
-    """Convert field name to setter method name.
+    """Convert field name to setter method name (POJO pattern).
+
+    DEPRECATED: Java Records are immutable. Use withField() pattern instead.
 
     Args:
         field_name: Field name (e.g., 'user_name')
@@ -62,3 +83,20 @@ def to_setter(field_name: str) -> str:
     if not camel:
         return "set"
     return f"set{camel[0].upper()}{camel[1:]}"
+
+
+def to_with_method(field_name: str) -> str:
+    """Convert field name to Java Record withField method name.
+
+    Java Records are immutable. Use withField() to create modified copies.
+
+    Args:
+        field_name: Field name (e.g., 'user_name')
+
+    Returns:
+        With method name (e.g., 'withUserName')
+    """
+    camel = to_camel_case(field_name)
+    if not camel:
+        return "with"
+    return f"with{camel[0].upper()}{camel[1:]}"

@@ -10,13 +10,17 @@ from .lookup_generator import LookupGeneratorMixin
 from .emit_generator import EmitGeneratorMixin
 from .execute_generator import ExecuteGeneratorMixin
 from .pojo_generator import RulesPojoGeneratorMixin
+from .services_generator import ServicesGeneratorMixin
+from .action_methods_generator import ActionMethodsGeneratorMixin
 
 # Shared utilities
 from .utils import (
     to_camel_case,
     to_pascal_case,
     to_getter,
+    to_record_accessor,
     to_setter,
+    to_with_method,
     get_java_type,
     generate_literal,
     generate_value_expr,
@@ -30,6 +34,7 @@ from .utils import (
     get_collection_imports,
     get_time_imports,
     get_concurrent_imports,
+    get_runtime_imports,
     DEFAULT_CACHE_TTL_SECONDS,
 )
 
@@ -45,11 +50,15 @@ __all__ = [
     'EmitGeneratorMixin',
     'ExecuteGeneratorMixin',
     'RulesPojoGeneratorMixin',
+    'ServicesGeneratorMixin',
+    'ActionMethodsGeneratorMixin',
     # Utilities
     'to_camel_case',
     'to_pascal_case',
     'to_getter',
+    'to_record_accessor',
     'to_setter',
+    'to_with_method',
     'get_java_type',
     'generate_literal',
     'generate_value_expr',
@@ -63,5 +72,6 @@ __all__ = [
     'get_collection_imports',
     'get_time_imports',
     'get_concurrent_imports',
+    'get_runtime_imports',
     'DEFAULT_CACHE_TTL_SECONDS',
 ]

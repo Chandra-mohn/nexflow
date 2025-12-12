@@ -16,6 +16,8 @@ from .rules import (
     RulesProceduralVisitorMixin,
     RulesExpressionVisitorMixin,
     RulesLiteralVisitorMixin,
+    RulesServicesVisitorMixin,
+    RulesActionsVisitorMixin,
 )
 
 
@@ -28,6 +30,8 @@ class RulesASTBuilder(
     RulesProceduralVisitorMixin,
     RulesExpressionVisitorMixin,
     RulesLiteralVisitorMixin,
+    RulesServicesVisitorMixin,
+    RulesActionsVisitorMixin,
     RulesDSLVisitor
 ):
     """Visitor that builds AST from ANTLR parse tree for L4 Rules DSL.
@@ -41,6 +45,8 @@ class RulesASTBuilder(
     - RulesProceduralVisitorMixin: Procedural rules and blocks
     - RulesExpressionVisitorMixin: Boolean and value expressions
     - RulesLiteralVisitorMixin: Literal value parsing
+    - RulesServicesVisitorMixin: External service declarations
+    - RulesActionsVisitorMixin: Action method declarations (RFC Solution 5)
     """
     pass
 

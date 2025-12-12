@@ -207,7 +207,7 @@ class StreamingGeneratorMixin:
 
     def _generate_streaming_methods(self: BaseGenerator,
                                      schema: ast.SchemaDefinition) -> str:
-        """Generate streaming utility methods.
+        """Generate streaming utility methods (POJO pattern with getField()).
 
         Returns Java methods for streaming configuration access.
         """
@@ -229,6 +229,66 @@ class StreamingGeneratorMixin:
      */
     public long getEventTimestamp() {{
         Object ts = {getter_name}();
+        if (ts == null) return System.currentTimeMillis();
+        if (ts instanceof Long) return (Long) ts;
+        if (ts instanceof java.time.Instant) return ((java.time.Instant) ts).toEpochMilli();
+        if (ts instanceof java.util.Date) return ((java.util.Date) ts).getTime();
+        return System.currentTimeMillis();
+    }}''')
+
+        # isIdle method if idle configuration exists
+        if streaming.idle_timeout:
+            methods.append('''    /**
+     * Check if this record's source should be considered idle.
+     * @param lastEventTime Last event timestamp in milliseconds
+     * @param currentTime Current processing time in milliseconds
+     */
+    public static boolean isSourceIdle(long lastEventTime, long currentTime) {
+        return (currentTime - lastEventTime) > IDLE_TIMEOUT_MS;
+    }''')
+
+        # isLate method if allowed lateness exists
+        if streaming.allowed_lateness:
+            methods.append('''    /**
+     * Check if this record would be considered late.
+     * @param eventTime Event timestamp in milliseconds
+     * @param watermark Current watermark in milliseconds
+     */
+    public static boolean isLate(long eventTime, long watermark) {
+        return eventTime < (watermark - ALLOWED_LATENESS_MS);
+    }''')
+
+        if not methods:
+            return ""
+
+        return '\n\n'.join(methods)
+
+    def _generate_streaming_methods_record(self: BaseGenerator,
+                                            schema: ast.SchemaDefinition) -> str:
+        """Generate streaming utility methods (Record pattern with field()).
+
+        Returns Java methods for streaming configuration access.
+        Uses record accessor pattern: fieldName() instead of getFieldName()
+        """
+        if not schema.streaming:
+            return ""
+
+        streaming = schema.streaming
+        methods = []
+
+        # getTimestampField method if time_field is specified
+        if streaming.time_field:
+            time_field_parts = streaming.time_field.parts if hasattr(streaming.time_field, 'parts') else [str(streaming.time_field)]
+            field_name = time_field_parts[-1] if time_field_parts else 'timestamp'
+            # Record accessor pattern: fieldName() instead of getFieldName()
+            accessor_name = self.to_java_field_name(field_name)
+
+            methods.append(f'''    /**
+     * Get the timestamp value for event time processing.
+     * Configured time field: {'.'.join(time_field_parts)}
+     */
+    public long getEventTimestamp() {{
+        Object ts = {accessor_name}();
         if (ts == null) return System.currentTimeMillis();
         if (ts instanceof Long) return (Long) ts;
         if (ts instanceof java.time.Instant) return ((java.time.Instant) ts).toEpochMilli();

@@ -14,15 +14,23 @@ class RulesCoreVisitorMixin:
     def visitProgram(self, ctx: RulesDSLParser.ProgramContext) -> ast.Program:
         decision_tables = []
         procedural_rules = []
+        services = None
+        actions = None
 
         for child in ctx.getChildren():
             if isinstance(child, RulesDSLParser.DecisionTableDefContext):
                 decision_tables.append(self.visitDecisionTableDef(child))
             elif isinstance(child, RulesDSLParser.ProceduralRuleDefContext):
                 procedural_rules.append(self.visitProceduralRuleDef(child))
+            elif isinstance(child, RulesDSLParser.ServicesBlockContext):
+                services = self.visitServicesBlock(child)
+            elif isinstance(child, RulesDSLParser.ActionsBlockContext):
+                actions = self.visitActionsBlock(child)
 
         return ast.Program(
             decision_tables=decision_tables,
             procedural_rules=procedural_rules,
+            services=services,
+            actions=actions,
             location=self._get_location(ctx)
         )

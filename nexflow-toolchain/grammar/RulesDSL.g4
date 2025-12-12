@@ -35,7 +35,134 @@ grammar RulesDSL;
 // ----------------------------------------------------------------------------
 
 program
-    : (decisionTableDef | proceduralRuleDef)+ EOF
+    : servicesBlock? actionsBlock? (decisionTableDef | proceduralRuleDef)+ EOF
+    ;
+
+// ----------------------------------------------------------------------------
+// Services Block (External Service Declarations)
+// ----------------------------------------------------------------------------
+
+servicesBlock
+    : SERVICES LBRACE serviceDecl+ RBRACE
+    ;
+
+serviceDecl
+    : serviceName COLON serviceType serviceClassName DOT serviceMethodName
+      LPAREN serviceParamList? RPAREN ARROW serviceReturnType
+      serviceOptions?
+    ;
+
+serviceName
+    : IDENTIFIER
+    ;
+
+serviceClassName
+    : IDENTIFIER
+    ;
+
+serviceMethodName
+    : IDENTIFIER
+    | LOOKUP          // Allow 'lookup' as method name
+    | EMIT            // Allow 'emit' as method name
+    | MATCHES         // Allow 'matches' as method name
+    | CONTAINS        // Allow 'contains' as method name
+    ;
+
+serviceType
+    : SYNC
+    | ASYNC
+    | CACHED LPAREN duration RPAREN
+    ;
+
+serviceParamList
+    : serviceParam (COMMA serviceParam)*
+    ;
+
+serviceParam
+    : IDENTIFIER COLON paramType
+    ;
+
+serviceReturnType
+    : paramType
+    ;
+
+serviceOptions
+    : serviceOption+
+    ;
+
+serviceOption
+    : TIMEOUT COLON duration
+    | FALLBACK COLON literal
+    | RETRY COLON INTEGER
+    ;
+
+duration
+    : INTEGER durationUnit
+    ;
+
+durationUnit
+    : MS
+    | S
+    | M
+    | H
+    ;
+
+// ----------------------------------------------------------------------------
+// Actions Block (Action Method Declarations)
+// RFC REFERENCE: See docs/RFC-Method-Implementation-Strategy.md (Solution 5)
+// ----------------------------------------------------------------------------
+
+actionsBlock
+    : ACTIONS LBRACE actionDecl+ RBRACE
+    ;
+
+actionDecl
+    : actionDeclName LPAREN actionParamList? RPAREN ARROW actionTarget
+    ;
+
+actionDeclName
+    : IDENTIFIER
+    ;
+
+actionParamList
+    : actionParam (COMMA actionParam)*
+    ;
+
+actionParam
+    : IDENTIFIER COLON paramType
+    ;
+
+actionTarget
+    : emitTarget        // -> emit to output_name
+    | stateTarget       // -> state state_name.operation(...)
+    | auditTarget       // -> audit
+    | callTarget        // -> call ServiceName.method
+    ;
+
+emitTarget
+    : EMIT TO IDENTIFIER
+    ;
+
+stateTarget
+    : STATE IDENTIFIER DOT stateOperation
+    ;
+
+stateOperation
+    : IDENTIFIER                                    // Simple operation like 'add', 'clear'
+    | IDENTIFIER LPAREN stateOperationArg RPAREN    // Operation with argument like 'add(flag)'
+    ;
+
+stateOperationArg
+    : IDENTIFIER
+    | DQUOTED_STRING
+    ;
+
+auditTarget
+    : AUDIT
+    ;
+
+callTarget
+    : CALL IDENTIFIER DOT IDENTIFIER
     ;
 
 // ----------------------------------------------------------------------------
@@ -597,6 +724,36 @@ EMIT    : 'emit' ;
 TO      : 'to' ;
 DEFAULT : 'default' ;
 AS_OF   : 'as_of' ;
+
+// ----------------------------------------------------------------------------
+// Keywords - Services
+// ----------------------------------------------------------------------------
+
+SERVICES : 'services' ;
+SYNC     : 'sync' ;
+ASYNC    : 'async' ;
+CACHED   : 'cached' ;
+TIMEOUT  : 'timeout' ;
+FALLBACK : 'fallback' ;
+RETRY    : 'retry' ;
+
+// ----------------------------------------------------------------------------
+// Keywords - Actions
+// ----------------------------------------------------------------------------
+
+ACTIONS  : 'actions' ;
+STATE    : 'state' ;
+AUDIT    : 'audit' ;
+CALL     : 'call' ;
+
+// ----------------------------------------------------------------------------
+// Duration Units
+// ----------------------------------------------------------------------------
+
+MS : 'ms' ;
+S  : 's' ;
+M  : 'm' ;
+H  : 'h' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Types

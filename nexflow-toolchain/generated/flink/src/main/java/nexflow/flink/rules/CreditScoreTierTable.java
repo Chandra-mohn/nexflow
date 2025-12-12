@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static nexflow.flink.runtime.NexflowRuntime.*;
 
 public class CreditScoreTierTable {
 
@@ -47,7 +48,7 @@ public class CreditScoreTierTable {
     }
 
     private boolean matchRow1(CreditScoreTierTableInput input) {
-        return ((input.getCreditScore() != null && input.getCreditScore().compareTo(750L) >= 0 && input.getCreditScore().compareTo(850L) <= 0));
+        return ((input.getCreditScore() != null && input.getCreditScore() >= 750L && input.getCreditScore() <= 850L));
     }
 
     private String getRow1Result(CreditScoreTierTableInput input) {
@@ -55,7 +56,7 @@ public class CreditScoreTierTable {
     }
 
     private boolean matchRow2(CreditScoreTierTableInput input) {
-        return ((input.getCreditScore() != null && input.getCreditScore().compareTo(700L) >= 0 && input.getCreditScore().compareTo(749L) <= 0));
+        return ((input.getCreditScore() != null && input.getCreditScore() >= 700L && input.getCreditScore() <= 749L));
     }
 
     private String getRow2Result(CreditScoreTierTableInput input) {
@@ -63,7 +64,7 @@ public class CreditScoreTierTable {
     }
 
     private boolean matchRow3(CreditScoreTierTableInput input) {
-        return ((input.getCreditScore() != null && input.getCreditScore().compareTo(650L) >= 0 && input.getCreditScore().compareTo(699L) <= 0));
+        return ((input.getCreditScore() != null && input.getCreditScore() >= 650L && input.getCreditScore() <= 699L));
     }
 
     private String getRow3Result(CreditScoreTierTableInput input) {
@@ -71,7 +72,7 @@ public class CreditScoreTierTable {
     }
 
     private boolean matchRow4(CreditScoreTierTableInput input) {
-        return ((input.getCreditScore() != null && input.getCreditScore().compareTo(600L) >= 0 && input.getCreditScore().compareTo(649L) <= 0));
+        return ((input.getCreditScore() != null && input.getCreditScore() >= 600L && input.getCreditScore() <= 649L));
     }
 
     private String getRow4Result(CreditScoreTierTableInput input) {

@@ -199,3 +199,83 @@ class ConstraintsBlock:
     """Constraints block for business rule validation."""
     constraints: List[ConstraintDecl]
     location: Optional[SourceLocation] = None
+
+
+# =============================================================================
+# Computed Block (Derived Fields)
+# =============================================================================
+
+@dataclass
+class ComputedExpression:
+    """Base class for computed field expressions."""
+    pass  # No fields - subclasses define their own
+
+
+@dataclass
+class BinaryExpression(ComputedExpression):
+    """Binary arithmetic or logical expression."""
+    left: 'ComputedExpression'
+    operator: str  # +, -, *, /, and, or, ==, !=, <, >, <=, >=
+    right: 'ComputedExpression'
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class UnaryExpression(ComputedExpression):
+    """Unary expression (e.g., 'not')."""
+    operator: str  # 'not'
+    operand: 'ComputedExpression'
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class FieldRefExpression(ComputedExpression):
+    """Reference to another field."""
+    field_path: FieldPath
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class LiteralExpression(ComputedExpression):
+    """Literal value in expression."""
+    value: 'Literal'
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class FunctionCallExpression(ComputedExpression):
+    """Function call in expression."""
+    function_name: str
+    arguments: List['ComputedExpression'] = field(default_factory=list)
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class WhenBranch:
+    """Single when/then branch in conditional."""
+    condition: ComputedExpression
+    result: ComputedExpression
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class WhenExpression(ComputedExpression):
+    """When/then/else conditional expression."""
+    branches: List[WhenBranch]
+    else_result: ComputedExpression
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ComputedFieldDecl:
+    """Computed field declaration."""
+    name: str
+    expression: ComputedExpression
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ComputedBlock:
+    """Computed fields block for derived properties."""
+    fields: List[ComputedFieldDecl]
+    location: Optional[SourceLocation] = None

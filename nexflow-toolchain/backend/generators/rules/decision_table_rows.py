@@ -43,6 +43,14 @@ class DecisionTableRowsMixin:
         given_params = getattr(given, 'params', None) if given else []
         given_fields = [getattr(p, 'name', '') for p in given_params]
 
+        # Build field type mapping for type-aware comparisons
+        field_types = {}
+        for p in given_params:
+            field_name = getattr(p, 'name', '')
+            field_type = getattr(p, 'param_type', None)
+            if field_name and field_type:
+                field_types[field_name] = field_type
+
         return_spec = getattr(table, 'return_spec', None)
         return_params = getattr(return_spec, 'params', None) if return_spec else []
         return_fields = [getattr(p, 'name', '') for p in return_params]
@@ -63,7 +71,7 @@ class DecisionTableRowsMixin:
 
             # Generate match method
             lines.append(self._generate_row_match_method(
-                row_num, row, headers, given_fields, input_type
+                row_num, row, headers, given_fields, input_type, field_types
             ))
             lines.append("")
 
@@ -81,13 +89,24 @@ class DecisionTableRowsMixin:
         row,
         headers: List,
         given_fields: List[str],
-        input_type: str
+        input_type: str,
+        field_types: dict = None
     ) -> str:
-        """Generate method to check if row matches input."""
+        """Generate method to check if row matches input.
+
+        Args:
+            row_num: Row number (1-indexed)
+            row: Row AST node
+            headers: List of header AST nodes
+            given_fields: List of field names from given block
+            input_type: Java type name for input class
+            field_types: Mapping of field name to AST type for type-aware comparisons
+        """
         lines = [
             f"    private boolean matchRow{row_num}({input_type} input) {{",
         ]
 
+        field_types = field_types or {}
         conditions = []
         cells = getattr(row, 'cells', None) or []
         for j, cell in enumerate(cells):
@@ -95,7 +114,8 @@ class DecisionTableRowsMixin:
                 header_name = getattr(headers[j], 'name', '')
                 if header_name in given_fields:
                     content = getattr(cell, 'content', None)
-                    cond = self.generate_condition(content, "input", header_name)
+                    field_type = field_types.get(header_name)
+                    cond = self.generate_condition(content, "input", header_name, field_type)
                     conditions.append(cond)
 
         if conditions:

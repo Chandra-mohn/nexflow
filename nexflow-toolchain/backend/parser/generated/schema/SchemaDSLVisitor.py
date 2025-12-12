@@ -1,4 +1,4 @@
-# Generated from /Users/chandramohn/workspace/nexflow/nexflow-toolchain/grammar/SchemaDSL.g4 by ANTLR 4.13.2
+# Generated from grammar/SchemaDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .SchemaDSLParser import SchemaDSLParser
@@ -201,6 +201,26 @@ class SchemaDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SchemaDSLParser#nestedObjectBlock.
     def visitNestedObjectBlock(self, ctx:SchemaDSLParser.NestedObjectBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#computedBlock.
+    def visitComputedBlock(self, ctx:SchemaDSLParser.ComputedBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#computedField.
+    def visitComputedField(self, ctx:SchemaDSLParser.ComputedFieldContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#computedExpression.
+    def visitComputedExpression(self, ctx:SchemaDSLParser.ComputedExpressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#computedWhenExpression.
+    def visitComputedWhenExpression(self, ctx:SchemaDSLParser.ComputedWhenExpressionContext):
         return self.visitChildren(ctx)
 
 

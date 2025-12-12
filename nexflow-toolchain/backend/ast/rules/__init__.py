@@ -56,6 +56,16 @@ from .actions import (
     CallAction,
     EmitAction,
     Action,
+    # Action declarations (RFC Solution 5)
+    ActionTargetType,
+    ActionDeclParam,
+    EmitTarget,
+    StateOperation,
+    StateTarget,
+    AuditTarget,
+    CallTarget,
+    ActionDecl,
+    ActionsBlock,
 )
 
 # Expressions
@@ -100,6 +110,17 @@ from .procedural import (
     ProceduralRuleDef,
 )
 
+# Services
+from .services import (
+    ServiceType,
+    DurationUnit,
+    Duration,
+    ServiceParam,
+    ServiceOptions,
+    ServiceDecl,
+    ServicesBlock,
+)
+
 # Program
 from .program import (
     Program,
@@ -118,6 +139,9 @@ __all__ = [
     'PatternCondition', 'NullCondition', 'ComparisonCondition', 'ExpressionCondition', 'Condition',
     # Actions
     'NoAction', 'AssignAction', 'CalculateAction', 'LookupAction', 'ActionArg', 'CallAction', 'EmitAction', 'Action',
+    # Action declarations (RFC Solution 5)
+    'ActionTargetType', 'ActionDeclParam', 'EmitTarget', 'StateOperation', 'StateTarget',
+    'AuditTarget', 'CallTarget', 'ActionDecl', 'ActionsBlock',
     # Expressions
     'FunctionCall', 'UnaryExpr', 'BinaryExpr', 'ParenExpr', 'ValueExpr',
     'ComparisonExpr', 'BooleanFactor', 'BooleanTerm', 'BooleanExpr',
@@ -127,6 +151,9 @@ __all__ = [
     # Procedural
     'ActionCallStmt', 'ActionSequence', 'ReturnStatement', 'SetStatement', 'LetStatement',
     'Block', 'ElseIfBranch', 'RuleStep', 'BlockItem', 'ProceduralRuleDef',
+    # Services
+    'ServiceType', 'DurationUnit', 'Duration', 'ServiceParam', 'ServiceOptions',
+    'ServiceDecl', 'ServicesBlock',
     # Program
     'Program',
 ]

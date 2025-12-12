@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static nexflow.flink.runtime.NexflowRuntime.*;
 
 public class VelocityAlertTable {
 
@@ -50,7 +51,7 @@ public class VelocityAlertTable {
     }
 
     private String getRow1Result(VelocityAlertTableInput input) {
-        return "high_frequency";
+        return null;
     }
 
     private boolean matchRow2(VelocityAlertTableInput input) {
@@ -58,23 +59,23 @@ public class VelocityAlertTable {
     }
 
     private String getRow2Result(VelocityAlertTableInput input) {
-        return "daily_limit";
+        return null;
     }
 
     private boolean matchRow3(VelocityAlertTableInput input) {
-        return (true) && (true) && ((input.getCurrentAmount() > 5000L));
+        return (true) && (true) && ((input.getCurrentAmount() != null && input.getCurrentAmount().compareTo(new BigDecimal("5000")) > 0));
     }
 
     private String getRow3Result(VelocityAlertTableInput input) {
-        return "unusual_amount";
+        return null;
     }
 
     private boolean matchRow4(VelocityAlertTableInput input) {
-        return ((input.getVelocity1h() > 5L)) && ((input.getVelocity24h() > 30L)) && ((input.getCurrentAmount() > 3000L));
+        return ((input.getVelocity1h() > 5L)) && ((input.getVelocity24h() > 30L)) && ((input.getCurrentAmount() != null && input.getCurrentAmount().compareTo(new BigDecimal("3000")) > 0));
     }
 
     private String getRow4Result(VelocityAlertTableInput input) {
-        return "combined_risk";
+        return null;
     }
 
 

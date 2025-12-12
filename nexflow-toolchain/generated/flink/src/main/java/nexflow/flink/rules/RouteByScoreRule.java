@@ -19,10 +19,10 @@ public class RouteByScoreRule {
      * Execute rule: route_by_score
      */
     public void execute(Object context) {
-        if (((getScore() >= 750L))) {
+        if (((score() >= 750L))) {
             routeToPremium();
-        } else if (((getScore() >= 650L) && ((getScore() < 750L)))) {
-            if (((getStatus() == "active"))) {
+        } else if (((score() >= 650L) && ((score() < 750L)))) {
+            if (((status() == "active"))) {
                 routeToStandard();
             } else {
                 routeToReview();

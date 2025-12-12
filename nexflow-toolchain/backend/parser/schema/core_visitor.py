@@ -90,6 +90,10 @@ class CoreVisitorMixin:
         for nested_ctx in ctx.nestedObjectBlock():
             nested_objects.append(self.visitNestedObjectBlock(nested_ctx))
 
+        computed = None
+        if ctx.computedBlock():
+            computed = self.visitComputedBlock(ctx.computedBlock())
+
         state_machine = None
         if ctx.stateMachineBlock():
             state_machine = self.visitStateMachineBlock(ctx.stateMachineBlock())
@@ -139,6 +143,7 @@ class CoreVisitorMixin:
             streaming=streaming,
             fields=fields,
             nested_objects=nested_objects,
+            computed=computed,
             constraints=constraints,
             immutable=immutable,
             state_machine=state_machine,
@@ -344,3 +349,175 @@ class CoreVisitorMixin:
         if ctx.BOOLEAN():
             return ctx.BOOLEAN().getText().lower() == 'true'
         return False
+
+    # =========================================================================
+    # Computed Block (Derived Fields)
+    # =========================================================================
+
+    def visitComputedBlock(self, ctx: SchemaDSLParser.ComputedBlockContext) -> ast.ComputedBlock:
+        """Visit computed block containing derived field definitions."""
+        fields = []
+        for field_ctx in ctx.computedField():
+            fields.append(self.visitComputedField(field_ctx))
+        return ast.ComputedBlock(
+            fields=fields,
+            location=self._get_location(ctx)
+        )
+
+    def visitComputedField(self, ctx: SchemaDSLParser.ComputedFieldContext) -> ast.ComputedFieldDecl:
+        """Visit computed field: field_name = expression."""
+        name = self._get_text(ctx.fieldName())
+        expression = self.visitComputedExpression(ctx.computedExpression())
+        return ast.ComputedFieldDecl(
+            name=name,
+            expression=expression,
+            location=self._get_location(ctx)
+        )
+
+    def visitComputedExpression(self, ctx: SchemaDSLParser.ComputedExpressionContext) -> ast.ComputedExpression:
+        """Visit computed expression - handles all expression types."""
+        # Handle when/then/else expression
+        if ctx.computedWhenExpression():
+            return self.visitComputedWhenExpression(ctx.computedWhenExpression())
+
+        # Handle parenthesized expression
+        if ctx.getChildCount() >= 3:
+            first_child = ctx.getChild(0)
+            if hasattr(first_child, 'getText') and first_child.getText() == '(':
+                # Parenthesized: ( expression )
+                return self.visitComputedExpression(ctx.computedExpression(0))
+
+        # Handle unary NOT expression
+        if ctx.getChildCount() >= 2:
+            first_child = ctx.getChild(0)
+            if hasattr(first_child, 'getText') and first_child.getText() == 'not':
+                operand = self.visitComputedExpression(ctx.computedExpression(0))
+                return ast.UnaryExpression(
+                    operator='not',
+                    operand=operand,
+                    location=self._get_location(ctx)
+                )
+
+        # Handle binary expressions (arithmetic, logical, comparison)
+        if ctx.getChildCount() == 3 and len(ctx.computedExpression()) == 2:
+            left = self.visitComputedExpression(ctx.computedExpression(0))
+            right = self.visitComputedExpression(ctx.computedExpression(1))
+
+            # Determine operator
+            operator_ctx = ctx.getChild(1)
+            operator = operator_ctx.getText() if hasattr(operator_ctx, 'getText') else str(operator_ctx)
+
+            # Handle comparison operators from comparisonOp rule
+            if ctx.comparisonOp():
+                operator = self._get_text(ctx.comparisonOp())
+
+            return ast.BinaryExpression(
+                left=left,
+                operator=operator,
+                right=right,
+                location=self._get_location(ctx)
+            )
+
+        # Handle function call
+        if ctx.functionCall():
+            return self.visitComputedFunctionCall(ctx.functionCall())
+
+        # Handle field path reference
+        if ctx.fieldPath():
+            field_path = self.visitFieldPath(ctx.fieldPath())
+            return ast.FieldRefExpression(
+                field_path=field_path,
+                location=self._get_location(ctx)
+            )
+
+        # Handle literal
+        if ctx.literal():
+            literal = self.visitLiteral(ctx.literal())
+            return ast.LiteralExpression(
+                value=literal,
+                location=self._get_location(ctx)
+            )
+
+        # Fallback: treat as field reference
+        return ast.FieldRefExpression(
+            field_path=ast.FieldPath(parts=[self._get_text(ctx)]),
+            location=self._get_location(ctx)
+        )
+
+    def visitComputedWhenExpression(self, ctx: SchemaDSLParser.ComputedWhenExpressionContext) -> ast.WhenExpression:
+        """Visit when/then/else expression."""
+        branches = []
+        expressions = ctx.computedExpression()
+
+        # Process when/then pairs
+        # Grammar: 'when' expr 'then' expr ('when' expr 'then' expr)* 'else' expr
+        # Expressions are: condition1, result1, condition2, result2, ..., else_result
+        num_branches = (len(expressions) - 1) // 2
+
+        for i in range(num_branches):
+            condition = self.visitComputedExpression(expressions[i * 2])
+            result = self.visitComputedExpression(expressions[i * 2 + 1])
+            branches.append(ast.WhenBranch(
+                condition=condition,
+                result=result,
+                location=self._get_location(ctx)
+            ))
+
+        # Last expression is the else result
+        else_result = self.visitComputedExpression(expressions[-1])
+
+        return ast.WhenExpression(
+            branches=branches,
+            else_result=else_result,
+            location=self._get_location(ctx)
+        )
+
+    def visitComputedFunctionCall(self, ctx: SchemaDSLParser.FunctionCallContext) -> ast.FunctionCallExpression:
+        """Visit function call in computed expression."""
+        function_name = ctx.IDENTIFIER().getText()
+        arguments = []
+
+        # Visit each argument expression
+        for expr_ctx in ctx.expression():
+            # Convert regular expression to computed expression
+            # This is a simplified conversion - for full support we'd need
+            # to handle all expression types
+            arg = self._expression_to_computed(expr_ctx)
+            arguments.append(arg)
+
+        return ast.FunctionCallExpression(
+            function_name=function_name,
+            arguments=arguments,
+            location=self._get_location(ctx)
+        )
+
+    def _expression_to_computed(self, expr_ctx) -> ast.ComputedExpression:
+        """Convert a regular expression context to a ComputedExpression.
+
+        This handles the existing expression grammar used in function calls.
+        """
+        # Handle literal
+        if hasattr(expr_ctx, 'literal') and expr_ctx.literal():
+            literal = self.visitLiteral(expr_ctx.literal())
+            return ast.LiteralExpression(value=literal)
+
+        # Handle field path
+        if hasattr(expr_ctx, 'fieldPath') and expr_ctx.fieldPath():
+            field_path = self.visitFieldPath(expr_ctx.fieldPath())
+            return ast.FieldRefExpression(field_path=field_path)
+
+        # Handle nested function call
+        if hasattr(expr_ctx, 'functionCall') and expr_ctx.functionCall():
+            return self.visitComputedFunctionCall(expr_ctx.functionCall())
+
+        # Handle binary expression
+        if hasattr(expr_ctx, 'expression') and len(expr_ctx.expression()) == 2:
+            left = self._expression_to_computed(expr_ctx.expression(0))
+            right = self._expression_to_computed(expr_ctx.expression(1))
+            operator = expr_ctx.operator().getText() if expr_ctx.operator() else '+'
+            return ast.BinaryExpression(left=left, operator=operator, right=right)
+
+        # Fallback
+        return ast.FieldRefExpression(
+            field_path=ast.FieldPath(parts=[self._get_text(expr_ctx)])
+        )

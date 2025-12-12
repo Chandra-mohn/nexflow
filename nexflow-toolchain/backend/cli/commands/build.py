@@ -142,12 +142,32 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
     Returns:
         BuildResult with generated files and any errors
     """
-    from ...generators import get_generator, GeneratorConfig
+    from ...generators import get_generator, GeneratorConfig, RuntimeGenerator
 
     result = BuildResult(success=True)
 
     # Create generator config from project settings
     package_prefix = project.get_package_prefix(target)
+
+    # Generate L0 Runtime Library (once per project)
+    runtime_config = GeneratorConfig(
+        package_prefix=package_prefix,
+        output_dir=output_path,
+    )
+    runtime_gen = RuntimeGenerator(runtime_config)
+    try:
+        runtime_result = runtime_gen.generate()
+        for gen_file in runtime_result.files:
+            full_path = output_path / gen_file.path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text(gen_file.content)
+            result.files.append(str(full_path))
+            if verbose:
+                print(f"    → {gen_file.path} (Runtime Library)")
+    except Exception as e:
+        result.errors.append(f"Runtime library generation failed: {e}")
+        result.success = False
+        return result
 
     for lang, file_asts in asts.items():
         if not file_asts:

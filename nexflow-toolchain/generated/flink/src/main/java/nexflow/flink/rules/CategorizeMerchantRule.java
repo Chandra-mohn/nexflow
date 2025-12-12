@@ -19,30 +19,30 @@ public class CategorizeMerchantRule {
      * Execute rule: categorize_merchant
      */
     public void execute(Object context) {
-        if (((getMerchantId() != null))) {
-            extractMcc(getMerchantId());
-            if ((Arrays.asList("5411", "5412", "5499").contains(getMcc()))) {
+        if (((merchantId() != null))) {
+            extractMcc(merchantId());
+            if ((Arrays.asList("5411", "5412", "5499").contains(mcc()))) {
                 setCategory("grocery");
-            } else if ((Arrays.asList("5812", "5813", "5814").contains(getMcc()))) {
+            } else if ((Arrays.asList("5812", "5813", "5814").contains(mcc()))) {
                 setCategory("restaurant");
-            } else if ((Arrays.asList("5541", "5542").contains(getMcc()))) {
+            } else if ((Arrays.asList("5541", "5542").contains(mcc()))) {
                 setCategory("gas_station");
-            } else if ((Arrays.asList("5311", "5331", "5399").contains(getMcc()))) {
+            } else if ((Arrays.asList("5311", "5331", "5399").contains(mcc()))) {
                 setCategory("retail");
-            } else if ((Arrays.asList("4111", "4112", "4121").contains(getMcc()))) {
+            } else if ((Arrays.asList("4111", "4112", "4121").contains(mcc()))) {
                 setCategory("transportation");
-            } else if ((Arrays.asList("7011", "7012").contains(getMcc()))) {
+            } else if ((Arrays.asList("7011", "7012").contains(mcc()))) {
                 setCategory("lodging");
-            } else if ((Arrays.asList("4511", "4582").contains(getMcc()))) {
+            } else if ((Arrays.asList("4511", "4582").contains(mcc()))) {
                 setCategory("airline");
             } else {
                 setCategory("other");
             }
-            if (((getCategory() == "other") && ((getAvgTransaction() > 500L)))) {
+            if (((category() == "other") && ((avgTransaction() > 500L)))) {
                 setRisk("high");
-            } else if (((getTransactionCount() < 10L) && ((getAvgTransaction() > 1000L)))) {
+            } else if (((transactionCount() < 10L) && ((avgTransaction() > 1000L)))) {
                 setRisk("high");
-            } else if ((Arrays.asList("grocery", "gas_station").contains(getCategory()))) {
+            } else if ((Arrays.asList("grocery", "gas_station").contains(category()))) {
                 setRisk("low");
             } else {
                 setRisk("medium");

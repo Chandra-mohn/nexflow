@@ -31,6 +31,7 @@ from backend.generators.schema.statemachine_generator import StateMachineGenerat
 from backend.generators.schema.parameters_generator import ParametersGeneratorMixin
 from backend.generators.schema.entries_generator import EntriesGeneratorMixin
 from backend.generators.schema.rule_generator import RuleGeneratorMixin
+from backend.generators.schema.computed_generator import ComputedGeneratorMixin
 
 
 class SchemaGenerator(
@@ -43,6 +44,7 @@ class SchemaGenerator(
     ParametersGeneratorMixin,
     EntriesGeneratorMixin,
     RuleGeneratorMixin,
+    ComputedGeneratorMixin,
     BaseGenerator
 ):
     """
