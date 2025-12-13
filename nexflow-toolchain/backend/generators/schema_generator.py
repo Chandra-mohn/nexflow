@@ -2,14 +2,14 @@
 Schema Generator Module
 
 Orchestrates Java code generation from L2 Schema DSL definitions.
-Uses mixin classes for modular generation of POJOs, Builders, and PII helpers.
+Uses mixin classes for modular generation of Records, Builders, and PII helpers.
 
 COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
 ─────────────────────────────────────────────────────────────────────
-L2 generates: POJOs, builders, validators
+L2 generates: Java Records, builders, validators
 L2 NEVER generates: Processing logic, business rules
 
-Generated POJOs must:
+Generated Records must:
 - Compile independently
 - Include all fields with correct Java types
 - Be complete and production-ready
@@ -22,7 +22,7 @@ from typing import List, Optional, Set
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator, GeneratorConfig, GenerationResult
 from backend.generators.voltage import VoltageProfilesConfig
-from backend.generators.schema.pojo_generator import PojoGeneratorMixin
+from backend.generators.schema.record_generator import RecordGeneratorMixin
 from backend.generators.schema.builder_generator import BuilderGeneratorMixin
 from backend.generators.schema.pii_helper_generator import PiiHelperGeneratorMixin
 from backend.generators.schema.streaming_generator import StreamingGeneratorMixin
@@ -35,7 +35,7 @@ from backend.generators.schema.computed_generator import ComputedGeneratorMixin
 
 
 class SchemaGenerator(
-    PojoGeneratorMixin,
+    RecordGeneratorMixin,
     BuilderGeneratorMixin,
     PiiHelperGeneratorMixin,
     StreamingGeneratorMixin,
@@ -51,7 +51,7 @@ class SchemaGenerator(
     Generator for L2 Schema DSL.
 
     Generates:
-    - Java POJO classes with getters/setters
+    - Java Record classes (immutable with accessors)
     - Builder pattern for immutable construction
     - Voltage SDK encryption/decryption methods for PII fields
     """
@@ -73,9 +73,9 @@ class SchemaGenerator(
         package = f"{self.config.package_prefix}.schema"
         java_src_path = Path("src/main/java") / self.get_package_path(package)
 
-        # Generate main POJO class
-        pojo_content = self.generate_pojo(schema, class_name, package)
-        self.result.add_file(java_src_path / f"{class_name}.java", pojo_content, "java")
+        # Generate main Record class
+        record_content = self.generate_record(schema, class_name, package)
+        self.result.add_file(java_src_path / f"{class_name}.java", record_content, "java")
 
         # Generate builder class
         builder_content = self.generate_builder(schema, class_name, package)

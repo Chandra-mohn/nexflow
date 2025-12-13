@@ -1,6 +1,6 @@
 # Nexflow Toolchain - L1-L6 Code Generation Status
 
-**Date**: December 12, 2025 (Updated)
+**Date**: December 13, 2025 (Updated)
 **Project**: nexflow-toolchain
 **Purpose**: Comprehensive status of DSL-to-Java code generation capabilities
 
@@ -12,9 +12,9 @@ The Nexflow toolchain implements a **6-layer DSL architecture** (L1-L6) designed
 
 | Layer | DSL Name | Extension | Purpose | Code Generation Status |
 |-------|----------|-----------|---------|------------------------|
-| **L1** | ProcDSL | `.proc` | Process Orchestration (the "railroad") | ⚠️ Partial - operators wired, inline route needs work |
+| **L1** | ProcDSL | `.proc` | Process Orchestration (the "railroad") | ✅ Working - all operators complete |
 | **L2** | SchemaDSL | `.schema` | Schema Registry (data structures) | ✅ Working - Java Records |
-| **L3** | TransformDSL | `.xform` | Transform Catalog (transformations) | ✅ Working - with collections |
+| **L3** | TransformDSL | `.xform` | Transform Catalog (transformations) | ✅ Working - with collections + Voltage |
 | **L4** | RulesDSL | `.rules` | Business Rules (decision logic) | ✅ Working - decision tables + rules |
 | **L5** | Infrastructure | `.infra` (YAML) | Infrastructure Binding | ❌ Specification only |
 | **L6** | Compilation | N/A | Compilation Pipeline | ❌ Not implemented |
@@ -111,7 +111,7 @@ process fraud_detection
 end
 ```
 
-**Current Status**: ⚠️ **Partial** (Updated Dec 12, 2025)
+**Current Status**: ✅ **Working** (Updated Dec 13, 2025)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -122,10 +122,10 @@ end
 | Checkpoint config | ✅ | Exactly-once semantics |
 | Enrich operator | ✅ | Generates AsyncDataStream.unorderedWait() |
 | Route using | ✅ | Generates `.process(new RulesClass())` |
-| Route when (inline) | ⚠️ | TODO: condition evaluation |
+| Route when (inline) | ✅ | Compiles DSL conditions to Java (Record accessors) |
 | Aggregate operator | ✅ | Generates `.aggregate(new AggregatorClass())` |
 | Merge operator | ✅ | Generates stream union |
-| Window operator | ⚠️ | Basic tumbling window only |
+| Window operator | ✅ | Tumbling, sliding, session windows |
 
 **Generated Example** (current state):
 ```java
@@ -140,7 +140,10 @@ SingleOutputStreamOperator<RoutedRecord> routed2Stream = transformed1Stream
     .name("route-fraud_rules");
 ```
 
-**Remaining Work**: Inline `route when <condition>` needs condition expression parsing.
+**Route When Conditions**: DSL conditions compile to Java with:
+- Logical operators: `and`→`&&`, `or`→`||`, `not`→`!`
+- Record-style accessors: `amount` → `value.amount()`, `customer.status` → `value.customer().status()`
+- String comparisons: `status == "blocked"` → `"blocked".equals(value.status())`
 
 ---
 
@@ -169,17 +172,33 @@ Generates complete POJOs with:
 **Grammar**: `TransformDSL.g4` (597 lines)
 **Extension**: `.xform`
 
-**Status**: ⚠️ **Partial**
+**Status**: ✅ **Working** (Updated Dec 13, 2025)
 
 | Transform Type | Status | Notes |
 |----------------|--------|-------|
-| Simple transform | ✅ | Compiles after recent fixes |
-| Expression-level | ✅ | Multi-input calculations work |
-| Block transform | ❌ | Missing input POJO generation |
-| Composition | ❌ | Not implemented |
-| Impure (external calls) | ❌ | Not implemented |
+| Simple transform | ✅ | Single input/output with expressions |
+| Expression-level | ✅ | Multi-input calculations, when/otherwise |
+| Block transform | ✅ | Multi-field input generates POJOs |
+| Composition | ✅ | Transform chaining with `compose` |
+| Collection operations | ✅ | RFC: any, all, filter, sum, count, etc. |
+| Voltage FPE | ✅ | encrypt, decrypt, mask, hash functions |
 
 **Generated**: `MapFunction<InputType, Map<String, Object>>` implementations
+
+**Voltage API Example**:
+```dsl
+transform protect_pii
+    input: customer_record
+    output: protected_record
+    apply
+        ssn_encrypted = encrypt(input.ssn, "ssn")
+        pan_protected = protect(input.credit_card, "pan")
+        email_encrypted = encrypt(input.email, "email")
+        phone_masked = mask(input.phone, "***-***-####")
+        customer_hash = hash(input.customer_id)
+    end
+end
+```
 
 ---
 
@@ -271,24 +290,28 @@ lookups:
 
 ## Priority Roadmap
 
-### Phase 1: L1 Compilable Pipeline (Current Focus)
+### Phase 1: L1-L4 Complete (✅ Done - Dec 13, 2025)
 - [x] Fix Kafka source with JSON deserializer
 - [x] Fix Kafka sink with JSON serializer
 - [x] Wire transform operators
-- [ ] Fix type flow through pipeline
-- [ ] Generate complete (not stub) operator wiring
+- [x] Fix type flow through pipeline
+- [x] Generate complete operator wiring
+- [x] Route when inline conditions (Record accessors)
+- [x] Block transform input POJO generation
+- [x] Decision table result generation
+- [x] Procedural rule string comparisons
+- [x] Collection operations RFC
+- [x] Voltage FPE API (encrypt, decrypt, mask, hash)
+- [x] Window operators (tumbling, sliding, session)
+- [x] Join operators (inner, left, right)
+- [x] Transform composition
 
-### Phase 2: L4 Decision Logic
-- [ ] Fix decision table result generation
-- [ ] Fix procedural rule conditions
-- [ ] Generate ProcessFunction implementations
-
-### Phase 3: L5 Infrastructure Binding
+### Phase 2: L5 Infrastructure Binding (Next Priority)
 - [ ] Implement YAML parser for `.infra` files
 - [ ] Create binding resolution in L1 generator
 - [ ] Support environment profiles
 
-### Phase 4: L6 Compilation Orchestration
+### Phase 3: L6 Compilation Orchestration
 - [ ] Implement master compiler
 - [ ] Cross-layer dependency graph
 - [ ] Complete zero-code generation
@@ -337,4 +360,4 @@ generated/flink/src/main/java/nexflow/flink/
 
 ---
 
-*Document updated December 8, 2024 - Corrected L5/L6 understanding based on spec review*
+*Document updated December 13, 2025 - L1-L4 Complete: Route when inline conditions, Block Transform POJO, Voltage FPE API*

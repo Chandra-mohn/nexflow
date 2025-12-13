@@ -4,11 +4,11 @@ Java Record Generator Module
 Generates immutable Java Record classes from Schema AST definitions.
 Records provide compact syntax with automatic accessors, equals, hashCode, and toString.
 
-Key differences from POJOs:
+Key characteristics of Java Records:
 - Immutable: no setters, use withField() methods for modified copies
 - Accessor methods: field() instead of getField()
 - Compact constructor for validation of required fields
-- 80% less boilerplate code
+- 80% less boilerplate code than traditional POJOs
 """
 
 from typing import Dict, List, Optional, Set
@@ -17,7 +17,7 @@ from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator
 
 
-class PojoGeneratorMixin:
+class RecordGeneratorMixin:
     """Mixin providing Java Record generation capabilities.
 
     Generates Java Records with:
@@ -28,8 +28,8 @@ class PojoGeneratorMixin:
     - Version metadata
     """
 
-    def generate_pojo(self: BaseGenerator, schema: ast.SchemaDefinition,
-                      class_name: str, package: str) -> str:
+    def generate_record(self: BaseGenerator, schema: ast.SchemaDefinition,
+                        class_name: str, package: str) -> str:
         """Generate Java Record class with streaming metadata."""
         self._imports: Set[str] = set()
         self._current_class_name = class_name

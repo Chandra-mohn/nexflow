@@ -44,7 +44,8 @@ def get_validator(lang: str, context: Optional[ValidationContext] = None) -> Opt
 
 def validate_project_asts(
     asts: Dict[str, Dict[Path, Any]],
-    verbose: bool = False
+    verbose: bool = False,
+    return_context: bool = False
 ) -> ValidationResult:
     """
     Validate all parsed ASTs in a project.
@@ -56,9 +57,11 @@ def validate_project_asts(
     Args:
         asts: Dictionary mapping DSL type to dict of file_path -> AST
         verbose: Enable verbose output
+        return_context: If True, attaches validation_context to result for type flow
 
     Returns:
         Combined ValidationResult for all files
+        If return_context=True, result.context contains the ValidationContext
     """
     result = ValidationResult()
     context = ValidationContext()
@@ -107,6 +110,10 @@ def validate_project_asts(
                 )
                 if verbose:
                     print(f"    ✗ Exception: {e}")
+
+    # Attach context to result for type flow in code generation
+    if return_context:
+        result.context = context
 
     return result
 

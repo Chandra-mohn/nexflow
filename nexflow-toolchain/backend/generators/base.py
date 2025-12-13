@@ -39,6 +39,10 @@ class GeneratorConfig:
     generate_pom: bool = True
     generate_tests: bool = True
 
+    # Cross-layer type resolution context
+    # Contains transforms, schemas, and rules for type flow lookup
+    validation_context: Optional[Any] = None  # ValidationContext from validators.base
+
 
 @dataclass
 class GeneratedFile:
@@ -75,10 +79,10 @@ class BaseGenerator(ABC):
     Abstract base class for all Nexflow code generators.
 
     Subclasses implement specific generators for:
-    - L2 Schema: POJO classes, Avro schemas, serializers
+    - L2 Schema: Java Records (immutable), Avro schemas, serializers
     - L1 Flow: Flink job structure, sources, sinks
     - L3 Transform: MapFunction, ProcessFunction implementations
-    - L4 Rules: CEP patterns, rule evaluation logic
+    - L4 Rules: CEP patterns, rule evaluation logic (uses POJOs for mutability)
     """
 
     def __init__(self, config: GeneratorConfig):

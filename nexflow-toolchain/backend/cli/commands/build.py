@@ -65,7 +65,7 @@ def build_project(project: Project, target: str, output: Optional[str],
 
     from ...validators import validate_project_asts
 
-    validation_result = validate_project_asts(parsed_asts, verbose)
+    validation_result = validate_project_asts(parsed_asts, verbose, return_context=True)
 
     # Add validation errors to result
     for error in validation_result.errors:
@@ -82,6 +82,9 @@ def build_project(project: Project, target: str, output: Optional[str],
 
     if verbose:
         print(f"  ✓ Validation passed ({validation_result.warning_count} warnings)")
+
+    # Store context for type flow in code generation
+    validation_context = getattr(validation_result, 'context', None)
 
     # Phase 3: Code generation
     if dry_run:
@@ -101,7 +104,8 @@ def build_project(project: Project, target: str, output: Optional[str],
             output_path.mkdir(parents=True, exist_ok=True)
 
             gen_result = generate_code(
-                parsed_asts, target_name, output_path, project, verbose
+                parsed_asts, target_name, output_path, project, verbose,
+                validation_context=validation_context
             )
             result.files.extend(gen_result.files)
             result.errors.extend(gen_result.errors)
@@ -128,7 +132,8 @@ def build_project(project: Project, target: str, output: Optional[str],
 
 
 def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
-                  output_path: Path, project: Project, verbose: bool) -> BuildResult:
+                  output_path: Path, project: Project, verbose: bool,
+                  validation_context: Optional[Any] = None) -> BuildResult:
     """
     Generate code for a specific target using actual generators.
 
@@ -138,6 +143,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
         output_path: Output directory for generated code
         project: Project configuration
         verbose: Enable verbose output
+        validation_context: Cross-layer context for type flow resolution
 
     Returns:
         BuildResult with generated files and any errors
@@ -153,6 +159,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
     runtime_config = GeneratorConfig(
         package_prefix=package_prefix,
         output_dir=output_path,
+        validation_context=validation_context,
     )
     runtime_gen = RuntimeGenerator(runtime_config)
     try:
@@ -173,10 +180,11 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
         if not file_asts:
             continue
 
-        # Create config for this DSL type
+        # Create config for this DSL type with cross-layer context
         config = GeneratorConfig(
             package_prefix=package_prefix,
             output_dir=output_path,
+            validation_context=validation_context,
         )
 
         # Get generator for this DSL type

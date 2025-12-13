@@ -58,11 +58,17 @@ class JobOperatorsMixin:
             return f"        // [UNSUPPORTED] Operator: {type(op).__name__}", input_stream, input_type
 
     def _wire_transform(self, transform: ast.TransformDecl, input_stream: str, input_type: str, idx: int) -> tuple:
-        """Wire a transform operator using MapFunction."""
+        """Wire a transform operator using MapFunction.
+
+        Type Flow: Resolves output type from transform definition if available,
+        otherwise defaults to input type preservation.
+        """
         transform_name = transform.transform_name
         transform_class = to_pascal_case(transform_name) + "Function"
         output_stream = f"transformed{idx}Stream"
-        output_type = "Map<String, Object>"
+
+        # Type Flow: Resolve output type from transform definition
+        output_type = self._resolve_transform_output_type(transform_name, input_type)
 
         code = f'''        // Transform: {transform_name}
         DataStream<{output_type}> {output_stream} = {input_stream}
@@ -70,6 +76,76 @@ class JobOperatorsMixin:
             .name("transform-{transform_name}");
 '''
         return code, output_stream, output_type
+
+    def _resolve_transform_output_type(self, transform_name: str, fallback_type: str) -> str:
+        """Resolve output type for a transform from ValidationContext.
+
+        Looks up the transform definition and extracts the output schema type.
+        Falls back to input type if transform not found or has no explicit output.
+
+        Type Resolution Priority:
+        1. Single output type (e.g., `output enriched_transaction`)
+        2. Single output field with custom_type (e.g., `output enriched: enriched_transaction`)
+        3. Multiple output fields → generate TransformNameOutput class
+        4. Fallback to input type preservation
+
+        Args:
+            transform_name: Name of the transform to look up
+            fallback_type: Type to use if resolution fails
+
+        Returns:
+            Java class name for the output type
+        """
+        # Access validation context from config (set during build)
+        context = getattr(self.config, 'validation_context', None)
+        if not context:
+            return fallback_type
+
+        # Look up transform definition
+        transform_def = context.transforms.get(transform_name)
+        if not transform_def:
+            return fallback_type
+
+        # Extract output type from transform definition
+        output_spec = getattr(transform_def, 'output', None)
+        if not output_spec:
+            return fallback_type
+
+        # Single type output (e.g., output schema_name)
+        if output_spec.single_type:
+            if output_spec.single_type.custom_type:
+                return to_pascal_case(output_spec.single_type.custom_type)
+            elif output_spec.single_type.base_type:
+                # Map base types to Java types
+                return self._base_type_to_java(output_spec.single_type.base_type)
+
+        # Check output fields
+        if output_spec.fields:
+            # Single field with custom_type → use that schema directly
+            if len(output_spec.fields) == 1:
+                field = output_spec.fields[0]
+                if field.field_type and field.field_type.custom_type:
+                    return to_pascal_case(field.field_type.custom_type)
+
+            # Multiple fields or primitive type → generate output class
+            return to_pascal_case(transform_name) + "Output"
+
+        return fallback_type
+
+    def _base_type_to_java(self, base_type) -> str:
+        """Convert DSL base type to Java type."""
+        type_map = {
+            'string': 'String',
+            'int': 'Integer',
+            'long': 'Long',
+            'decimal': 'BigDecimal',
+            'boolean': 'Boolean',
+            'timestamp': 'Instant',
+            'date': 'LocalDate',
+            'uuid': 'UUID',
+        }
+        type_name = base_type.value if hasattr(base_type, 'value') else str(base_type)
+        return type_map.get(type_name.lower(), 'Object')
 
     def _wire_enrich(self, enrich: ast.EnrichDecl, input_stream: str, input_type: str, idx: int) -> tuple:
         """Wire an enrich operator using AsyncDataStream."""
@@ -248,15 +324,18 @@ class JobOperatorsMixin:
         return ''.join(tokens)
 
     def _field_to_getter(self, field_path: str, obj_name: str) -> str:
-        """Convert a field path to a Java getter chain.
+        """Convert a field path to a Java Record accessor chain.
+
+        Uses Record-style field() accessors (not POJO-style getField()).
 
         Examples:
-        - 'amount' -> 'value.getAmount()'
-        - 'customer.status' -> 'value.getCustomer().getStatus()'
+        - 'amount' -> 'value.amount()'
+        - 'customer.status' -> 'value.customer().status()'
+        - 'risk_score' -> 'value.riskScore()'
         """
         parts = field_path.split('.')
-        getters = '.'.join(f"get{to_pascal_case(p)}()" for p in parts)
-        return f"{obj_name}.{getters}"
+        accessors = '.'.join(f"{to_camel_case(p)}()" for p in parts)
+        return f"{obj_name}.{accessors}"
 
     def _wire_aggregate(self, aggregate: ast.AggregateDecl, input_stream: str, input_type: str, idx: int) -> tuple:
         """Wire an aggregate operator using AggregateFunction."""
@@ -317,7 +396,13 @@ class JobOperatorsMixin:
         return code, output_stream, input_type
 
     def _wire_join(self, join: ast.JoinDecl, input_stream: str, input_type: str, idx: int) -> tuple:
-        """Wire a join operator for interval joins."""
+        """Wire a join operator for interval joins.
+
+        Type Safety Improvements:
+        - Resolves left/right types from validation context when available
+        - Generates typed key extractors using proper accessor pattern
+        - Creates typed JoinedRecord with explicit left/right generics
+        """
         left_stream = to_camel_case(join.left) + "Stream"
         right_stream = to_camel_case(join.right) + "Stream"
         output_stream = f"joined{idx}Stream"
@@ -325,19 +410,100 @@ class JobOperatorsMixin:
         within_ms = duration_to_ms(join.within)
         join_key_comment = ', '.join(join.on_fields)
 
-        if join_type == "inner":
-            code = self._generate_inner_join(join, left_stream, right_stream, output_stream, within_ms, join_key_comment)
-        elif join_type == "left":
-            code = self._generate_left_join(join, left_stream, right_stream, output_stream, within_ms, join_key_comment)
-        elif join_type == "right":
-            code = self._generate_right_join(join, left_stream, right_stream, output_stream, within_ms, join_key_comment)
-        else:
-            code = self._generate_full_join(join, left_stream, right_stream, output_stream, within_ms, join_key_comment)
+        # Resolve left and right types from validation context
+        left_type, right_type = self._resolve_join_types(join.left, join.right)
 
-        return code, output_stream, "JoinedRecord"
+        # Generate typed key extractors for join fields
+        key_extractor_left = self._generate_key_extractor(join.on_fields, left_type, "left")
+        key_extractor_right = self._generate_key_extractor(join.on_fields, right_type, "right")
+
+        # Output type with proper generics
+        output_type = f"JoinedRecord<{left_type}, {right_type}>"
+
+        if join_type == "inner":
+            code = self._generate_inner_join_typed(
+                join, left_stream, right_stream, output_stream, within_ms,
+                join_key_comment, left_type, right_type, key_extractor_left, key_extractor_right
+            )
+        elif join_type == "left":
+            code = self._generate_left_join_typed(
+                join, left_stream, right_stream, output_stream, within_ms,
+                join_key_comment, left_type, right_type, key_extractor_left, key_extractor_right
+            )
+        elif join_type == "right":
+            code = self._generate_right_join_typed(
+                join, left_stream, right_stream, output_stream, within_ms,
+                join_key_comment, left_type, right_type, key_extractor_left, key_extractor_right
+            )
+        else:
+            code = self._generate_full_join_typed(
+                join, left_stream, right_stream, output_stream, within_ms,
+                join_key_comment, left_type, right_type, key_extractor_left, key_extractor_right
+            )
+
+        return code, output_stream, output_type
+
+    def _resolve_join_types(self, left_name: str, right_name: str) -> tuple:
+        """Resolve Java types for left and right sides of join.
+
+        Uses validation context to look up stream types by alias.
+        Falls back to Object if types cannot be resolved.
+        """
+        left_type = "Object"
+        right_type = "Object"
+
+        context = getattr(self.config, 'validation_context', None)
+        if context:
+            # Try to resolve from registered schemas
+            if hasattr(context, 'schemas'):
+                left_schema = context.schemas.get(left_name)
+                right_schema = context.schemas.get(right_name)
+                if left_schema:
+                    left_type = to_pascal_case(left_name)
+                if right_schema:
+                    right_type = to_pascal_case(right_name)
+
+        return left_type, right_type
+
+    def _generate_key_extractor(self, on_fields: list, type_name: str, side: str) -> str:
+        """Generate key extractor lambda for join.
+
+        For single field: record -> record.field()
+        For multiple fields: record -> record.field1() + ":" + record.field2()
+        """
+        if not on_fields:
+            return f"{side} -> \"\""
+
+        if len(on_fields) == 1:
+            field = on_fields[0]
+            accessor = to_camel_case(field) + "()"
+            return f"{side} -> {side}.{accessor}"
+        else:
+            # Composite key using concatenation
+            parts = [f"{side}.{to_camel_case(f)}()" for f in on_fields]
+            key_expr = ' + ":" + '.join(parts)
+            return f"{side} -> {key_expr}"
+
+    def _generate_inner_join_typed(self, join, left_stream, right_stream, output_stream, within_ms,
+                                     join_key_comment, left_type, right_type, key_left, key_right) -> str:
+        """Generate type-safe inner join code."""
+        output_type = f"JoinedRecord<{left_type}, {right_type}>"
+        return f'''        // Join: {join.left} INNER JOIN {join.right} on [{join_key_comment}]
+        DataStream<{output_type}> {output_stream} = {left_stream}
+            .keyBy({key_left})
+            .intervalJoin({right_stream}.keyBy({key_right}))
+            .between(Time.milliseconds(-{within_ms}), Time.milliseconds({within_ms}))
+            .process(new ProcessJoinFunction<{left_type}, {right_type}, {output_type}>() {{
+                @Override
+                public void processElement({left_type} left, {right_type} right, Context ctx, Collector<{output_type}> out) {{
+                    out.collect(JoinedRecord.inner(left, right));
+                }}
+            }})
+            .name("inner-join-{join.left}-{join.right}");
+'''
 
     def _generate_inner_join(self, join, left_stream, right_stream, output_stream, within_ms, join_key_comment) -> str:
-        """Generate inner join code."""
+        """Generate inner join code (legacy - kept for backwards compatibility)."""
         return f'''        // Join: {join.left} INNER JOIN {join.right} on [{join_key_comment}]
         DataStream<JoinedRecord> {output_stream} = {left_stream}
             .keyBy(left -> left.getJoinKey())
@@ -352,8 +518,38 @@ class JobOperatorsMixin:
             .name("inner-join-{join.left}-{join.right}");
 '''
 
+    def _generate_left_join_typed(self, join, left_stream, right_stream, output_stream, within_ms,
+                                    join_key_comment, left_type, right_type, key_left, key_right) -> str:
+        """Generate type-safe left outer join code."""
+        output_type = f"JoinedRecord<{left_type}, {right_type}>"
+        return f'''        // Join: {join.left} LEFT OUTER JOIN {join.right} on [{join_key_comment}]
+        DataStream<{output_type}> {output_stream} = {left_stream}
+            .keyBy({key_left})
+            .coGroup({right_stream}.keyBy({key_right}))
+            .where({key_left})
+            .equalTo({key_right})
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<{left_type}, {right_type}, {output_type}>() {{
+                @Override
+                public void coGroup(Iterable<{left_type}> leftRecords, Iterable<{right_type}> rightRecords, Collector<{output_type}> out) {{
+                    List<{right_type}> rights = new ArrayList<>();
+                    rightRecords.forEach(rights::add);
+                    for ({left_type} left : leftRecords) {{
+                        if (rights.isEmpty()) {{
+                            out.collect(JoinedRecord.leftOuter(left, null));
+                        }} else {{
+                            for ({right_type} right : rights) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("left-join-{join.left}-{join.right}");
+'''
+
     def _generate_left_join(self, join, left_stream, right_stream, output_stream, within_ms, join_key_comment) -> str:
-        """Generate left outer join code."""
+        """Generate left outer join code (legacy)."""
         return f'''        // Join: {join.left} LEFT OUTER JOIN {join.right} on [{join_key_comment}]
         DataStream<JoinedRecord> {output_stream} = {left_stream}
             .keyBy(left -> left.getJoinKey())
@@ -380,8 +576,38 @@ class JobOperatorsMixin:
             .name("left-join-{join.left}-{join.right}");
 '''
 
+    def _generate_right_join_typed(self, join, left_stream, right_stream, output_stream, within_ms,
+                                     join_key_comment, left_type, right_type, key_left, key_right) -> str:
+        """Generate type-safe right outer join code."""
+        output_type = f"JoinedRecord<{left_type}, {right_type}>"
+        return f'''        // Join: {join.left} RIGHT OUTER JOIN {join.right} on [{join_key_comment}]
+        DataStream<{output_type}> {output_stream} = {left_stream}
+            .keyBy({key_left})
+            .coGroup({right_stream}.keyBy({key_right}))
+            .where({key_left})
+            .equalTo({key_right})
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<{left_type}, {right_type}, {output_type}>() {{
+                @Override
+                public void coGroup(Iterable<{left_type}> leftRecords, Iterable<{right_type}> rightRecords, Collector<{output_type}> out) {{
+                    List<{left_type}> lefts = new ArrayList<>();
+                    leftRecords.forEach(lefts::add);
+                    for ({right_type} right : rightRecords) {{
+                        if (lefts.isEmpty()) {{
+                            out.collect(JoinedRecord.rightOuter(null, right));
+                        }} else {{
+                            for ({left_type} left : lefts) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("right-join-{join.left}-{join.right}");
+'''
+
     def _generate_right_join(self, join, left_stream, right_stream, output_stream, within_ms, join_key_comment) -> str:
-        """Generate right outer join code."""
+        """Generate right outer join code (legacy)."""
         return f'''        // Join: {join.left} RIGHT OUTER JOIN {join.right} on [{join_key_comment}]
         DataStream<JoinedRecord> {output_stream} = {left_stream}
             .keyBy(left -> left.getJoinKey())
@@ -408,8 +634,49 @@ class JobOperatorsMixin:
             .name("right-join-{join.left}-{join.right}");
 '''
 
+    def _generate_full_join_typed(self, join, left_stream, right_stream, output_stream, within_ms,
+                                    join_key_comment, left_type, right_type, key_left, key_right) -> str:
+        """Generate type-safe full outer join code."""
+        output_type = f"JoinedRecord<{left_type}, {right_type}>"
+        return f'''        // Join: {join.left} FULL OUTER JOIN {join.right} on [{join_key_comment}]
+        DataStream<{output_type}> {output_stream} = {left_stream}
+            .keyBy({key_left})
+            .coGroup({right_stream}.keyBy({key_right}))
+            .where({key_left})
+            .equalTo({key_right})
+            .window(TumblingEventTimeWindows.of(Time.milliseconds({within_ms})))
+            .apply(new CoGroupFunction<{left_type}, {right_type}, {output_type}>() {{
+                @Override
+                public void coGroup(Iterable<{left_type}> leftRecords, Iterable<{right_type}> rightRecords, Collector<{output_type}> out) {{
+                    List<{left_type}> lefts = new ArrayList<>();
+                    List<{right_type}> rights = new ArrayList<>();
+                    leftRecords.forEach(lefts::add);
+                    rightRecords.forEach(rights::add);
+
+                    if (lefts.isEmpty() && rights.isEmpty()) {{
+                        return;
+                    }} else if (lefts.isEmpty()) {{
+                        for ({right_type} right : rights) {{
+                            out.collect(JoinedRecord.rightOuter(null, right));
+                        }}
+                    }} else if (rights.isEmpty()) {{
+                        for ({left_type} left : lefts) {{
+                            out.collect(JoinedRecord.leftOuter(left, null));
+                        }}
+                    }} else {{
+                        for ({left_type} left : lefts) {{
+                            for ({right_type} right : rights) {{
+                                out.collect(JoinedRecord.inner(left, right));
+                            }}
+                        }}
+                    }}
+                }}
+            }})
+            .name("full-outer-join-{join.left}-{join.right}");
+'''
+
     def _generate_full_join(self, join, left_stream, right_stream, output_stream, within_ms, join_key_comment) -> str:
-        """Generate full outer join code."""
+        """Generate full outer join code (legacy)."""
         return f'''        // Join: {join.left} FULL OUTER JOIN {join.right} on [{join_key_comment}]
         DataStream<JoinedRecord> {output_stream} = {left_stream}
             .keyBy(left -> left.getJoinKey())

@@ -40,13 +40,14 @@ class FunctionProcessMixin:
             "",
         ]
 
-        # Add used transforms references
-        if block.use:
-            lines.append(self._generate_use_block(block.use))
+        # Collect all transform references (deduplicated)
+        all_transform_refs = self._collect_all_transform_refs(block)
+        if all_transform_refs:
+            lines.append(self._generate_transform_fields(all_transform_refs))
             lines.append("")
 
         # Add open method for initialization
-        lines.append(self._generate_open_method(block))
+        lines.append(self._generate_open_method_with_refs(block, all_transform_refs))
         lines.append("")
 
         # Add processElement method
@@ -92,15 +93,70 @@ class FunctionProcessMixin:
 
         return '\n'.join(lines)
 
-    def _generate_use_block(self, use: ast.UseBlock) -> str:
-        """Generate field references for used transforms."""
-        lines = ["    // Referenced transforms"]
-        for transform_name in use.transforms:
-            class_name = self.to_pascal_case(transform_name) + "Function"
-            field_name = self.to_camel_case(transform_name) + "Transform"
-            lines.append(
-                f"    private transient {class_name} {field_name};"
-            )
+    def _collect_all_transform_refs(self, block: ast.TransformBlockDef) -> list:
+        """Collect all transform references from use and compose blocks (deduplicated).
+
+        Returns list of (transform_name, class_name, field_name) tuples.
+        """
+        seen = set()
+        refs = []
+
+        # Collect from use block
+        if block.use:
+            for transform_name in block.use.transforms:
+                if transform_name not in seen:
+                    seen.add(transform_name)
+                    refs.append((
+                        transform_name,
+                        self.to_pascal_case(transform_name) + "Function",
+                        self.to_camel_case(transform_name) + "Transform"
+                    ))
+
+        # Collect from compose block
+        if block.compose:
+            for ref in block.compose.refs:
+                if ref.transform_name not in seen:
+                    seen.add(ref.transform_name)
+                    refs.append((
+                        ref.transform_name,
+                        self.to_pascal_case(ref.transform_name) + "Function",
+                        self.to_camel_case(ref.transform_name) + "Transform"
+                    ))
+            # Also collect from then_refs
+            for ref in block.compose.then_refs:
+                if ref.transform_name not in seen:
+                    seen.add(ref.transform_name)
+                    refs.append((
+                        ref.transform_name,
+                        self.to_pascal_case(ref.transform_name) + "Function",
+                        self.to_camel_case(ref.transform_name) + "Transform"
+                    ))
+
+        return refs
+
+    def _generate_transform_fields(self, refs: list) -> str:
+        """Generate field declarations for all transform references."""
+        if not refs:
+            return ""
+
+        lines = ["    // Transform references"]
+        for _, class_name, field_name in refs:
+            lines.append(f"    private transient {class_name} {field_name};")
+
+        return '\n'.join(lines)
+
+    def _generate_open_method_with_refs(self, block: ast.TransformBlockDef, refs: list) -> str:
+        """Generate open method that initializes all transform references."""
+        lines = [
+            "    @Override",
+            "    public void open(Configuration parameters) throws Exception {",
+        ]
+
+        # Initialize all transform references
+        for _, class_name, field_name in refs:
+            lines.append(f"        {field_name} = new {class_name}();")
+
+        lines.append("    }")
         return '\n'.join(lines)
 
     def _generate_open_method(self, block: ast.TransformBlockDef) -> str:
@@ -116,6 +172,12 @@ class FunctionProcessMixin:
                 class_name = self.to_pascal_case(transform_name) + "Function"
                 field_name = self.to_camel_case(transform_name) + "Transform"
                 lines.append(f"        {field_name} = new {class_name}();")
+
+        # Initialize composed transforms
+        if block.compose:
+            compose_init = self.generate_compose_init(block.compose)
+            if compose_init:
+                lines.append(compose_init)
 
         lines.append("    }")
         return '\n'.join(lines)
@@ -194,6 +256,10 @@ class FunctionProcessMixin:
         if block.on_change:
             imports.add('java.util.Set')
             imports.add('java.util.Collections')
+
+        # Add compose imports (for parallel composition with CompletableFuture)
+        if block.compose:
+            imports.update(self.get_compose_imports())
 
         return imports
 

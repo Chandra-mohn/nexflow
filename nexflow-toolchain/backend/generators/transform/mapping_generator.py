@@ -180,31 +180,40 @@ class MappingGeneratorMixin:
             lines.append("        validateInput(input);")
             lines.append("")
 
-        # Generate result initialization
-        lines.append(f"        {output_type} result = new {output_type}();")
-        lines.append("")
-
-        # Add mappings
-        if block.mappings:
-            lines.append("        // Apply field mappings")
-            for mapping in block.mappings.mappings:
-                lines.append(self._generate_mapping(mapping))
+        # Check if we have compose - if so, the compose code handles result generation
+        if block.compose:
+            # Generate composition code which handles result construction
+            lines.append("        // Transform composition")
+            compose_code = self.generate_compose_code(block.compose, input_type, output_type)
+            lines.append(compose_code)
+        else:
+            # Standard mappings-based result construction
+            # Generate result initialization
+            lines.append(f"        {output_type} result = new {output_type}();")
             lines.append("")
 
-        # Add invariant checks
-        if block.invariant:
-            lines.append("        checkInvariants(result);")
-            lines.append("")
+            # Add mappings
+            if block.mappings:
+                lines.append("        // Apply field mappings")
+                for mapping in block.mappings.mappings:
+                    lines.append(self._generate_mapping(mapping))
+                lines.append("")
 
-        # Add output validation
-        if block.validate_output:
-            lines.append("        validateOutput(result);")
-            lines.append("")
+            # Add invariant checks
+            if block.invariant:
+                lines.append("        checkInvariants(result);")
+                lines.append("")
 
-        lines.extend([
-            "        return result;",
-            "    }",
-        ])
+            # Add output validation
+            if block.validate_output:
+                lines.append("        validateOutput(result);")
+                lines.append("")
+
+            lines.extend([
+                "        return result;",
+            ])
+
+        lines.append("    }")
 
         return '\n'.join(lines)
 

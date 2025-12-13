@@ -50,6 +50,16 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         "coalesce": "Objects::requireNonNullElse",
     }
 
+    # Voltage encryption/decryption functions routed to NexflowRuntime
+    VOLTAGE_FUNCTIONS = {
+        "encrypt",      # encrypt(value, profile) - Format-Preserving Encryption
+        "decrypt",      # decrypt(value, profile) - Format-Preserving Decryption
+        "protect",      # protect(value, profile) - Alias for encrypt (Voltage SDK term)
+        "access",       # access(value, profile)  - Alias for decrypt (Voltage SDK term)
+        "mask",         # mask(value, pattern)    - Data masking (non-reversible)
+        "hash",         # hash(value)             - One-way hash
+    }
+
     # Collection function names (RFC: Collection Operations Instead of Loops)
     COLLECTION_FUNCTIONS = {
         "any", "all", "none",  # Predicate functions
@@ -198,6 +208,10 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         if func.name in self.COLLECTION_FUNCTIONS:
             return self._generate_collection_function_call(func, use_map, local_vars, assigned_output_fields)
 
+        # Handle Voltage encryption/decryption functions
+        if func.name in self.VOLTAGE_FUNCTIONS:
+            return self._generate_voltage_function_call(func, use_map, local_vars, assigned_output_fields)
+
         java_name = self._map_function_name(func.name)
 
         # For numeric functions like min/max, ensure arguments are numeric
@@ -247,6 +261,53 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         """Map collection function name to NexflowRuntime method name."""
         # Direct mapping - function names match runtime method names
         return name
+
+    def _generate_voltage_function_call(
+        self,
+        func: ast.FunctionCall,
+        use_map: bool,
+        local_vars: List[str],
+        assigned_output_fields: Optional[List[str]] = None
+    ) -> str:
+        """Generate Voltage encryption/decryption function call.
+
+        Voltage Format-Preserving Encryption (FPE) functions:
+        - encrypt(value, profile) / protect(value, profile) - Encrypt sensitive data
+        - decrypt(value, profile) / access(value, profile)  - Decrypt encrypted data
+        - mask(value, pattern)                              - Mask data (non-reversible)
+        - hash(value)                                       - One-way hash
+
+        All functions route to NexflowRuntime static methods which use
+        the Voltage SDK internally.
+
+        Examples in DSL:
+            ssn_encrypted = encrypt(input.ssn, "ssn")
+            pan_protected = protect(input.pan, "pan")
+            ssn_clear = decrypt(encrypted_ssn, "ssn")
+            masked_phone = mask(input.phone, "***-***-####")
+            hashed_id = hash(input.customer_id)
+        """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+
+        # Generate arguments
+        args = []
+        for arg in func.arguments:
+            args.append(self.generate_expression(arg, use_map, local_vars, assigned_output_fields))
+
+        # Map function name to NexflowRuntime method
+        # encrypt/protect both map to encrypt, decrypt/access both map to decrypt
+        voltage_method_map = {
+            "encrypt": "encrypt",
+            "protect": "encrypt",
+            "decrypt": "decrypt",
+            "access": "decrypt",
+            "mask": "mask",
+            "hash": "hash",
+        }
+        runtime_method = voltage_method_map.get(func.name, func.name)
+
+        return f"NexflowRuntime.{runtime_method}({', '.join(args)})"
 
     def _map_function_name(self, name: str) -> str:
         """Map DSL function name to Java method."""

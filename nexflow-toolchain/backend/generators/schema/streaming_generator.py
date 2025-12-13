@@ -30,7 +30,7 @@ class StreamingGeneratorMixin:
 
     def _generate_streaming_constants(self: BaseGenerator,
                                        schema: ast.SchemaDefinition) -> str:
-        """Generate streaming configuration constants for POJO.
+        """Generate streaming configuration constants for Record.
 
         Returns Java constants block for streaming metadata.
         """
@@ -207,8 +207,9 @@ class StreamingGeneratorMixin:
 
     def _generate_streaming_methods(self: BaseGenerator,
                                      schema: ast.SchemaDefinition) -> str:
-        """Generate streaming utility methods (POJO pattern with getField()).
+        """Generate streaming utility methods (legacy POJO pattern with getField()).
 
+        DEPRECATED: Use _generate_streaming_methods_record() for Java Records.
         Returns Java methods for streaming configuration access.
         """
         if not schema.streaming:
