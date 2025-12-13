@@ -14,6 +14,7 @@ from .expression_visitor import RulesExpressionVisitorMixin
 from .literal_visitor import RulesLiteralVisitorMixin
 from .services_visitor import RulesServicesVisitorMixin
 from .actions_visitor import RulesActionsVisitorMixin
+from .collection_visitor import RulesCollectionVisitorMixin
 
 __all__ = [
     'RulesHelpersVisitorMixin',
@@ -26,4 +27,5 @@ __all__ = [
     'RulesLiteralVisitorMixin',
     'RulesServicesVisitorMixin',
     'RulesActionsVisitorMixin',
+    'RulesCollectionVisitorMixin',
 ]

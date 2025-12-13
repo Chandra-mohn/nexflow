@@ -32,6 +32,7 @@ from backend.generators.rules.execute_generator import ExecuteGeneratorMixin
 from backend.generators.rules.pojo_generator import RulesPojoGeneratorMixin
 from backend.generators.rules.services_generator import ServicesGeneratorMixin
 from backend.generators.rules.action_methods_generator import ActionMethodsGeneratorMixin
+from backend.generators.rules.collection_generator import CollectionGeneratorMixin
 
 
 class RulesGenerator(
@@ -45,6 +46,7 @@ class RulesGenerator(
     RulesPojoGeneratorMixin,
     ServicesGeneratorMixin,
     ActionMethodsGeneratorMixin,
+    CollectionGeneratorMixin,
     BaseGenerator
 ):
     """

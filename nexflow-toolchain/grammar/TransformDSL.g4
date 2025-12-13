@@ -586,6 +586,18 @@ functionName
     | 'string'      // Allow string as function name (also base type)
     | 'integer'     // Allow integer as function name (also base type)
     | 'decimal'     // Allow decimal as function name (also base type)
+    // Collection functions (RFC: Collection Operations Instead of Loops)
+    | 'any'         // any(collection, predicate) -> boolean
+    | 'all'         // all(collection, predicate) -> boolean
+    | 'none'        // none(collection, predicate) -> boolean
+    | 'sum'         // sum(collection, field) -> BigDecimal
+    | 'count'       // count(collection) or count(collection, predicate) -> int
+    | 'avg'         // avg(collection, field) -> BigDecimal
+    | 'max'         // max(collection, field) -> Optional<T>
+    | 'min'         // min(collection, field) -> Optional<T>
+    | 'filter'      // filter(collection, predicate) -> List<T>
+    | 'find'        // find(collection, predicate) -> Optional<T>
+    | 'distinct'    // distinct(collection) -> List<T>
     ;
 
 // List literal for 'in' expressions

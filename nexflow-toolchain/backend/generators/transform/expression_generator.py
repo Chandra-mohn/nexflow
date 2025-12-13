@@ -50,6 +50,13 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         "coalesce": "Objects::requireNonNullElse",
     }
 
+    # Collection function names (RFC: Collection Operations Instead of Loops)
+    COLLECTION_FUNCTIONS = {
+        "any", "all", "none",  # Predicate functions
+        "sum", "count", "avg",  # Aggregate functions
+        "filter", "find", "distinct",  # Transform functions
+    }
+
     def generate_expression(
         self,
         expr: ast.Expression,
@@ -123,6 +130,12 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         if isinstance(expr, ast.IndexExpression):
             return self._generate_index_expression(expr, use_map, local_vars, assigned_output_fields)
 
+        if isinstance(expr, ast.LambdaExpression):
+            return self._generate_lambda_expression(expr, use_map, local_vars, assigned_output_fields)
+
+        if isinstance(expr, ast.ObjectLiteral):
+            return self._generate_object_literal(expr, use_map, local_vars, assigned_output_fields)
+
         return "/* UNSUPPORTED EXPRESSION */"
 
     def _generate_field_path(
@@ -180,6 +193,11 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         """Generate Java function call."""
         if assigned_output_fields is None:
             assigned_output_fields = []
+
+        # Handle collection functions (RFC: Collection Operations Instead of Loops)
+        if func.name in self.COLLECTION_FUNCTIONS:
+            return self._generate_collection_function_call(func, use_map, local_vars, assigned_output_fields)
+
         java_name = self._map_function_name(func.name)
 
         # For numeric functions like min/max, ensure arguments are numeric
@@ -195,6 +213,41 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
             )
         return f"{java_name}({args})"
 
+    def _generate_collection_function_call(
+        self,
+        func: ast.FunctionCall,
+        use_map: bool,
+        local_vars: List[str],
+        assigned_output_fields: Optional[List[str]] = None
+    ) -> str:
+        """Generate NexflowRuntime collection function call.
+
+        RFC: Collection Operations Instead of Loops
+        Routes collection operations to NexflowRuntime static methods.
+
+        Examples:
+        - filter(items, x -> x.active)     => NexflowRuntime.filter(items, x -> x.active())
+        - any(items, x -> x.amount > 100)  => NexflowRuntime.any(items, x -> x.amount() > 100L)
+        - sum(items, x -> x.amount)        => NexflowRuntime.sum(items, x -> x.amount())
+        """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+
+        # Generate arguments
+        args = []
+        for arg in func.arguments:
+            args.append(self.generate_expression(arg, use_map, local_vars, assigned_output_fields))
+
+        # Map function name to NexflowRuntime method
+        runtime_method = self._map_collection_function(func.name)
+
+        return f"NexflowRuntime.{runtime_method}({', '.join(args)})"
+
+    def _map_collection_function(self, name: str) -> str:
+        """Map collection function name to NexflowRuntime method name."""
+        # Direct mapping - function names match runtime method names
+        return name
+
     def _map_function_name(self, name: str) -> str:
         """Map DSL function name to Java method."""
         return self.DSL_TO_JAVA_FUNCTIONS.get(name, self.to_camel_case(name))
@@ -205,7 +258,9 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
             'java.util.Arrays',
             'java.util.Optional',
             'java.util.Objects',
+            'java.util.Map',
             'java.math.BigDecimal',
             'java.time.Instant',
             'java.time.LocalDate',
+            'com.nexflow.runtime.NexflowRuntime',
         }

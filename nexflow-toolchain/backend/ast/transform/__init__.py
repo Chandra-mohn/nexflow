@@ -60,6 +60,9 @@ from .expressions import (
     InExpression,
     IsNullExpression,
     ParenExpression,
+    LambdaExpression,
+    ObjectLiteralField,
+    ObjectLiteral,
     Expression,
 )
 
@@ -119,7 +122,8 @@ __all__ = [
     # Expressions
     'FunctionCall', 'WhenBranch', 'WhenExpression', 'IndexExpression',
     'OptionalChainExpression', 'UnaryExpression', 'BinaryExpression',
-    'BetweenExpression', 'InExpression', 'IsNullExpression', 'ParenExpression', 'Expression',
+    'BetweenExpression', 'InExpression', 'IsNullExpression', 'ParenExpression',
+    'LambdaExpression', 'ObjectLiteralField', 'ObjectLiteral', 'Expression',
     # Specs
     'InputFieldDecl', 'OutputFieldDecl', 'InputSpec', 'OutputSpec',
     # Metadata

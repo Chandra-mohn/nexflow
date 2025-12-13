@@ -129,10 +129,26 @@ class ProceduralExpressionsMixin:
             return f'({left} != null)'
 
         # Standard comparison
-        right = generate_value_expr(getattr(expr, 'right', None))
+        right_expr = getattr(expr, 'right', None)
+        right = generate_value_expr(right_expr)
         operator = getattr(expr, 'operator', None)
+
+        # Use .equals() for String comparisons (EQ/NE with string literals)
+        if self._is_string_comparison(right_expr, operator):
+            if operator == ast.ComparisonOp.EQ:
+                return f'{right}.equals({left})'
+            elif operator == ast.ComparisonOp.NE:
+                return f'!{right}.equals({left})'
+
         op = self._map_comparison_op(operator)
         return f"({left} {op} {right})"
+
+    def _is_string_comparison(self, right_expr, operator) -> bool:
+        """Check if this is a string equality/inequality comparison."""
+        if operator not in (ast.ComparisonOp.EQ, ast.ComparisonOp.NE):
+            return False
+        # Check if right side is a string literal
+        return isinstance(right_expr, ast.StringLiteral)
 
     def _map_comparison_op(self, op) -> str:
         """Map comparison operator to Java."""

@@ -164,6 +164,9 @@ class RulesExpressionVisitorMixin:
             return self.visitLiteral(ctx.literal())
         elif ctx.fieldPath():
             return self.visitFieldPath(ctx.fieldPath())
+        elif ctx.collectionExpr():
+            # Collection expressions: any(), all(), sum(), filter(), etc.
+            return self.visitCollectionExpr(ctx.collectionExpr())
         elif ctx.functionCall():
             return self.visitFunctionCall(ctx.functionCall())
         elif ctx.listLiteral():

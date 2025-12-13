@@ -43,7 +43,15 @@ class ParenExpr:
     location: Optional[SourceLocation] = None
 
 
-ValueExpr = Union[Literal, FieldPath, FunctionCall, UnaryExpr, BinaryExpr, ParenExpr, ListLiteral]
+# Forward declaration for CollectionExpr (imported after definition to avoid circular imports)
+# The full union including CollectionExpr is defined below after imports
+_BaseValueExpr = Union[Literal, FieldPath, FunctionCall, UnaryExpr, BinaryExpr, ParenExpr, ListLiteral]
+
+# Import CollectionExpr - actual type union is below
+from .collections import CollectionExpr
+
+# Full ValueExpr type including collection expressions
+ValueExpr = Union[Literal, FieldPath, FunctionCall, UnaryExpr, BinaryExpr, ParenExpr, ListLiteral, CollectionExpr]
 
 
 @dataclass

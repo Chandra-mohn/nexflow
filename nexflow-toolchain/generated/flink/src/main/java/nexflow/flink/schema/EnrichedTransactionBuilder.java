@@ -92,19 +92,6 @@ public class EnrichedTransactionBuilder {
     }
 
     public EnrichedTransaction build() {
-        EnrichedTransaction instance = new EnrichedTransaction();
-        instance.setTransactionId(this.transactionId);
-        instance.setCustomerId(this.customerId);
-        instance.setAmount(this.amount);
-        instance.setNormalizedAmount(this.normalizedAmount);
-        instance.setMerchantId(this.merchantId);
-        instance.setRiskTier(this.riskTier);
-        instance.setCreditLimit(this.creditLimit);
-        instance.setAccountAge(this.accountAge);
-        instance.setVelocity24h(this.velocity24h);
-        instance.setFraudProbability(this.fraudProbability);
-        instance.setEventTimestamp(this.eventTimestamp);
-        instance.setProcessingTimestamp(this.processingTimestamp);
-        return instance;
+        return new EnrichedTransaction(this.transactionId, this.customerId, this.amount, this.normalizedAmount, this.merchantId, this.riskTier, this.creditLimit, this.accountAge, this.velocity24h, this.fraudProbability, this.eventTimestamp, this.processingTimestamp);
     }
 }

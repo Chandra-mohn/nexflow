@@ -76,6 +76,59 @@ class TestFlowParserRouting:
         result = parse(dsl, 'flow')
         assert result.success, f"Parse failed: {result.errors}"
 
+    def test_route_when_inline_condition(self):
+        """Test parsing route with inline condition expression."""
+        dsl = """
+        process conditional_routing
+            mode stream
+
+            receive transactions from kafka_transactions
+                schema transaction
+
+            route when amount > 10000 and risk_score >= 0.8
+                to high_risk_output
+                otherwise to normal_output
+
+            emit to high_risk_output
+                schema transaction
+            emit to normal_output
+                schema transaction
+        end
+        """
+        result = parse(dsl, 'flow')
+        assert result.success, f"Parse failed: {result.errors}"
+        # Verify route declaration was parsed with condition
+        process = result.ast.processes[0]
+        assert len(process.processing) >= 1
+        route_decl = process.processing[0]
+        assert route_decl.condition is not None
+        assert 'amount' in route_decl.condition
+        assert '10000' in route_decl.condition
+
+    def test_route_when_string_comparison(self):
+        """Test parsing route when with string comparison."""
+        dsl = """
+        process status_routing
+            mode stream
+
+            receive messages from kafka_messages
+                schema message
+
+            route when status == "active" and region != "blocked"
+                to active_output
+
+            emit to active_output
+                schema message
+        end
+        """
+        result = parse(dsl, 'flow')
+        assert result.success, f"Parse failed: {result.errors}"
+        process = result.ast.processes[0]
+        route_decl = process.processing[0]
+        assert route_decl.condition is not None
+        assert 'status' in route_decl.condition
+        assert '"active"' in route_decl.condition
+
 
 class TestFlowParserEnrich:
     """Flow enrichment operations tests."""

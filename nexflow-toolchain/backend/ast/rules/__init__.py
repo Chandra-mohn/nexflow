@@ -81,6 +81,21 @@ from .expressions import (
     BooleanExpr,
 )
 
+# Collection expressions (RFC: Collection Operations Instead of Loops)
+from .collections import (
+    CollectionFunctionType,
+    CollectionPredicateComparison,
+    CollectionPredicateIn,
+    CollectionPredicateNull,
+    CollectionPredicateNot,
+    CollectionPredicateAtom,
+    CollectionPredicateCompound,
+    LambdaPredicate,
+    MultiParamLambdaPredicate,
+    CollectionPredicate,
+    CollectionExpr,
+)
+
 # Decision table
 from .decision_table import (
     InputParam,
@@ -145,6 +160,11 @@ __all__ = [
     # Expressions
     'FunctionCall', 'UnaryExpr', 'BinaryExpr', 'ParenExpr', 'ValueExpr',
     'ComparisonExpr', 'BooleanFactor', 'BooleanTerm', 'BooleanExpr',
+    # Collection expressions (RFC: Collection Operations Instead of Loops)
+    'CollectionFunctionType', 'CollectionPredicateComparison', 'CollectionPredicateIn',
+    'CollectionPredicateNull', 'CollectionPredicateNot', 'CollectionPredicateAtom',
+    'CollectionPredicateCompound', 'LambdaPredicate', 'MultiParamLambdaPredicate',
+    'CollectionPredicate', 'CollectionExpr',
     # Decision table
     'InputParam', 'ReturnParam', 'GivenBlock', 'ColumnHeader', 'TableCell', 'TableRow',
     'TableMatrix', 'DecideBlock', 'ReturnSpec', 'ExecuteSpec', 'DecisionTableDef',

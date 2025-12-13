@@ -494,6 +494,46 @@ class RulesDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RulesDSLParser#collectionExpr.
+    def visitCollectionExpr(self, ctx:RulesDSLParser.CollectionExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#predicateFunction.
+    def visitPredicateFunction(self, ctx:RulesDSLParser.PredicateFunctionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#aggregateFunction.
+    def visitAggregateFunction(self, ctx:RulesDSLParser.AggregateFunctionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#transformFunction.
+    def visitTransformFunction(self, ctx:RulesDSLParser.TransformFunctionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#collectionPredicate.
+    def visitCollectionPredicate(self, ctx:RulesDSLParser.CollectionPredicateContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#collectionPredicateOr.
+    def visitCollectionPredicateOr(self, ctx:RulesDSLParser.CollectionPredicateOrContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#collectionPredicateAnd.
+    def visitCollectionPredicateAnd(self, ctx:RulesDSLParser.CollectionPredicateAndContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RulesDSLParser#collectionPredicateAtom.
+    def visitCollectionPredicateAtom(self, ctx:RulesDSLParser.CollectionPredicateAtomContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RulesDSLParser#lambdaExpression.
     def visitLambdaExpression(self, ctx:RulesDSLParser.LambdaExpressionContext):
         return self.visitChildren(ctx)

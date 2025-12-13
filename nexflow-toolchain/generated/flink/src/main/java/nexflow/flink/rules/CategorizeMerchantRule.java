@@ -38,7 +38,7 @@ public class CategorizeMerchantRule {
             } else {
                 setCategory("other");
             }
-            if (((category() == "other") && ((avgTransaction() > 500L)))) {
+            if (("other".equals(category()) && ((avgTransaction() > 500L)))) {
                 setRisk("high");
             } else if (((transactionCount() < 10L) && ((avgTransaction() > 1000L)))) {
                 setRisk("high");
@@ -50,6 +50,51 @@ public class CategorizeMerchantRule {
         }
         return;
     }
+
+    // =========================================================================
+    // Field Accessor Stubs - Implement these to provide input field values
+    // =========================================================================
+
+    /**
+     * Get value of field: avg_transaction
+     * Override this method to provide the actual field value.
+     */
+    protected Object avgTransaction() {
+        throw new UnsupportedOperationException("Field accessor avg_transaction not implemented");
+    }
+
+    /**
+     * Get value of field: category
+     * Override this method to provide the actual field value.
+     */
+    protected Object category() {
+        throw new UnsupportedOperationException("Field accessor category not implemented");
+    }
+
+    /**
+     * Get value of field: mcc
+     * Override this method to provide the actual field value.
+     */
+    protected Object mcc() {
+        throw new UnsupportedOperationException("Field accessor mcc not implemented");
+    }
+
+    /**
+     * Get value of field: merchant_id
+     * Override this method to provide the actual field value.
+     */
+    protected Object merchantId() {
+        throw new UnsupportedOperationException("Field accessor merchant_id not implemented");
+    }
+
+    /**
+     * Get value of field: transaction_count
+     * Override this method to provide the actual field value.
+     */
+    protected Object transactionCount() {
+        throw new UnsupportedOperationException("Field accessor transaction_count not implemented");
+    }
+
 
     // =========================================================================
     // Action Method Stubs - Implement these methods for rule execution

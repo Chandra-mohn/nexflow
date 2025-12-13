@@ -30,6 +30,27 @@ public class ValidateApplicationRule {
     }
 
     // =========================================================================
+    // Field Accessor Stubs - Implement these to provide input field values
+    // =========================================================================
+
+    /**
+     * Get value of field: amount
+     * Override this method to provide the actual field value.
+     */
+    protected Object amount() {
+        throw new UnsupportedOperationException("Field accessor amount not implemented");
+    }
+
+    /**
+     * Get value of field: applicant_age
+     * Override this method to provide the actual field value.
+     */
+    protected Object applicantAge() {
+        throw new UnsupportedOperationException("Field accessor applicant_age not implemented");
+    }
+
+
+    // =========================================================================
     // Action Method Stubs - Implement these methods for rule execution
     // =========================================================================
 

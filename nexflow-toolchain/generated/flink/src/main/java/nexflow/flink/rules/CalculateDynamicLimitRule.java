@@ -62,6 +62,51 @@ public class CalculateDynamicLimitRule {
     }
 
     // =========================================================================
+    // Field Accessor Stubs - Implement these to provide input field values
+    // =========================================================================
+
+    /**
+     * Get value of field: account_age
+     * Override this method to provide the actual field value.
+     */
+    protected Object accountAge() {
+        throw new UnsupportedOperationException("Field accessor account_age not implemented");
+    }
+
+    /**
+     * Get value of field: base_limit
+     * Override this method to provide the actual field value.
+     */
+    protected Object baseLimit() {
+        throw new UnsupportedOperationException("Field accessor base_limit not implemented");
+    }
+
+    /**
+     * Get value of field: credit_score
+     * Override this method to provide the actual field value.
+     */
+    protected Object creditScore() {
+        throw new UnsupportedOperationException("Field accessor credit_score not implemented");
+    }
+
+    /**
+     * Get value of field: current_velocity
+     * Override this method to provide the actual field value.
+     */
+    protected Object currentVelocity() {
+        throw new UnsupportedOperationException("Field accessor current_velocity not implemented");
+    }
+
+    /**
+     * Get value of field: fraud_history
+     * Override this method to provide the actual field value.
+     */
+    protected Object fraudHistory() {
+        throw new UnsupportedOperationException("Field accessor fraud_history not implemented");
+    }
+
+
+    // =========================================================================
     // Action Method Stubs - Implement these methods for rule execution
     // =========================================================================
 

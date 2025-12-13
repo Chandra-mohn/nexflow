@@ -1,7 +1,8 @@
 # RFC: Collection Operations Instead of Loops in L4
 
-**Status**: Proposed
+**Status**: ✅ Implemented
 **Created**: December 12, 2024
+**Implemented**: December 12, 2025
 **Authors**: Architecture Discussion
 **Relates To**: COVENANT-Code-Generation-Principles.md, RFC-Method-Implementation-Strategy.md
 
@@ -442,15 +443,15 @@ incrementRunningTotal(current.amount)
 
 ---
 
-## Implementation Priority
+## Implementation Status
 
-| Phase | Component | Effort | Impact |
-|-------|-----------|--------|--------|
-| 1 | L0 Runtime Collection Functions | Medium | High |
-| 2 | L4 Collection Expression Grammar | Medium | High |
-| 3 | L3 Collection Transforms | Medium | Medium |
+| Phase | Component | Status | Completed |
+|-------|-----------|--------|-----------|
+| 1 | L0 Runtime Collection Functions | ✅ Complete | Dec 11, 2025 |
+| 2 | L4 Collection Expression Grammar | ✅ Complete | Dec 12, 2025 |
+| 3 | L3 Collection Transforms | ✅ Complete | Dec 12, 2025 |
 
-**Recommended Start**: Phase 1 (L0 Runtime) provides immediate value and unblocks Phase 2.
+**All phases implemented.** 61 unit tests passing.
 
 ---
 

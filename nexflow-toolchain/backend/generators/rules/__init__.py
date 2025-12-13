@@ -12,6 +12,7 @@ from .execute_generator import ExecuteGeneratorMixin
 from .pojo_generator import RulesPojoGeneratorMixin
 from .services_generator import ServicesGeneratorMixin
 from .action_methods_generator import ActionMethodsGeneratorMixin
+from .collection_generator import CollectionGeneratorMixin
 
 # Shared utilities
 from .utils import (
@@ -52,6 +53,7 @@ __all__ = [
     'RulesPojoGeneratorMixin',
     'ServicesGeneratorMixin',
     'ActionMethodsGeneratorMixin',
+    'CollectionGeneratorMixin',
     # Utilities
     'to_camel_case',
     'to_pascal_case',

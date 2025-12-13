@@ -135,6 +135,12 @@ class TransformExpressionVisitorMixin:
             return self.visitIndexExpression(ctx.indexExpression())
         elif ctx.optionalChainExpression():
             return self.visitOptionalChainExpression(ctx.optionalChainExpression())
+        elif ctx.objectLiteral():
+            return self.visitObjectLiteral(ctx.objectLiteral())
+        elif ctx.lambdaExpression():
+            return self.visitLambdaExpression(ctx.lambdaExpression())
+        elif ctx.listLiteral():
+            return self.visitListLiteral(ctx.listLiteral())
 
         return ast.FieldPath(parts=[self._get_text(ctx)])
 
@@ -237,3 +243,47 @@ class TransformExpressionVisitorMixin:
         for expr_ctx in ctx.expression():
             values.append(self.visitExpression(expr_ctx))
         return ast.ListLiteral(values=values)
+
+    # =========================================================================
+    # Lambda Expressions (RFC: Collection Operations Instead of Loops)
+    # =========================================================================
+
+    def visitLambdaExpression(self, ctx: TransformDSLParser.LambdaExpressionContext) -> ast.LambdaExpression:
+        """Parse lambda expression: x -> expr or (x, y) -> expr."""
+        parameters = []
+        for id_token in ctx.IDENTIFIER():
+            parameters.append(id_token.getText())
+
+        body = self.visitExpression(ctx.expression())
+
+        return ast.LambdaExpression(
+            parameters=parameters,
+            body=body,
+            location=self._get_location(ctx)
+        )
+
+    # =========================================================================
+    # Object Literals
+    # =========================================================================
+
+    def visitObjectLiteral(self, ctx: TransformDSLParser.ObjectLiteralContext) -> ast.ObjectLiteral:
+        """Parse object literal: { field: value, ... }."""
+        fields = []
+        for field_ctx in ctx.objectField():
+            fields.append(self.visitObjectField(field_ctx))
+
+        return ast.ObjectLiteral(
+            fields=fields,
+            location=self._get_location(ctx)
+        )
+
+    def visitObjectField(self, ctx: TransformDSLParser.ObjectFieldContext) -> ast.ObjectLiteralField:
+        """Parse object literal field: name: value."""
+        name = self._get_text(ctx.objectFieldName())
+        value = self.visitExpression(ctx.expression())
+
+        return ast.ObjectLiteralField(
+            name=name,
+            value=value,
+            location=self._get_location(ctx)
+        )

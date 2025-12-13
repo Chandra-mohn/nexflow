@@ -65,6 +65,12 @@ class ProceduralGeneratorMixin(ProceduralExpressionsMixin):
         lines.append(self._generate_execute_method(rule))
         lines.append("")
 
+        # Generate field accessor stubs for fields referenced in conditions
+        field_stubs = self._generate_field_accessor_stubs(rule)
+        if field_stubs:
+            lines.append(field_stubs)
+            lines.append("")
+
         action_stubs = self._generate_action_stubs(rule)
         if action_stubs:
             lines.append(action_stubs)
@@ -130,6 +136,162 @@ class ProceduralGeneratorMixin(ProceduralExpressionsMixin):
                     args = getattr(action, 'arguments', None) or []
                     if name:
                         actions.add((name, len(args)))
+
+    def _generate_field_accessor_stubs(self, rule: ast.ProceduralRuleDef) -> str:
+        """Generate stub accessor methods for fields referenced in conditions.
+
+        Procedural rules reference fields directly (e.g., base_limit, credit_score)
+        without a defined input schema. These generate as method calls like baseLimit().
+        We generate protected abstract-like stubs that can be implemented by subclasses
+        to provide actual field values.
+        """
+        fields = set()
+        self._collect_field_references(getattr(rule, 'items', None) or [], fields)
+
+        if not fields:
+            return ""
+
+        lines = [
+            "    // =========================================================================",
+            "    // Field Accessor Stubs - Implement these to provide input field values",
+            "    // =========================================================================",
+            "",
+        ]
+
+        for field_name in sorted(fields):
+            method_name = to_camel_case(field_name)
+            lines.extend([
+                f"    /**",
+                f"     * Get value of field: {field_name}",
+                f"     * Override this method to provide the actual field value.",
+                f"     */",
+                f"    protected Object {method_name}() {{",
+                f'        throw new UnsupportedOperationException("Field accessor {field_name} not implemented");',
+                f"    }}",
+                "",
+            ])
+
+        return '\n'.join(lines)
+
+    def _collect_field_references(self, items, fields: set):
+        """Recursively collect all field references from rule items."""
+        for item in items:
+            if isinstance(item, ast.RuleStep):
+                # Collect from condition
+                condition = getattr(item, 'condition', None)
+                if condition:
+                    self._collect_fields_from_expr(condition, fields)
+
+                # Collect from then block
+                then_block = getattr(item, 'then_block', None)
+                if then_block:
+                    self._collect_field_references(getattr(then_block, 'items', None) or [], fields)
+
+                # Collect from elseif branches
+                elseif_branches = getattr(item, 'elseif_branches', None) or []
+                for branch in elseif_branches:
+                    branch_condition = getattr(branch, 'condition', None)
+                    if branch_condition:
+                        self._collect_fields_from_expr(branch_condition, fields)
+                    branch_block = getattr(branch, 'block', None)
+                    if branch_block:
+                        self._collect_field_references(getattr(branch_block, 'items', None) or [], fields)
+
+                # Collect from else block
+                else_block = getattr(item, 'else_block', None)
+                if else_block:
+                    self._collect_field_references(getattr(else_block, 'items', None) or [], fields)
+
+            elif isinstance(item, ast.SetStatement):
+                value = getattr(item, 'value', None)
+                if value:
+                    self._collect_fields_from_expr(value, fields)
+
+            elif isinstance(item, ast.LetStatement):
+                value = getattr(item, 'value', None)
+                if value:
+                    self._collect_fields_from_expr(value, fields)
+
+    def _collect_fields_from_expr(self, expr, fields: set):
+        """Recursively collect field references from an expression."""
+        if expr is None:
+            return
+
+        # FieldPath is a simple field reference
+        if isinstance(expr, ast.FieldPath):
+            parts = getattr(expr, 'parts', None) or []
+            # Only track single-part field paths (direct field references)
+            # Multi-part paths like "order.customer.id" assume the root object exists
+            if len(parts) == 1:
+                fields.add(parts[0])
+            return
+
+        # BooleanExpr: terms with operators
+        if isinstance(expr, ast.BooleanExpr):
+            terms = getattr(expr, 'terms', None) or []
+            for term in terms:
+                self._collect_fields_from_expr(term, fields)
+            return
+
+        # BooleanTerm: factor with optional negation
+        if isinstance(expr, ast.BooleanTerm):
+            factor = getattr(expr, 'factor', None)
+            self._collect_fields_from_expr(factor, fields)
+            return
+
+        # BooleanFactor: comparison, nested expr, or function call
+        if isinstance(expr, ast.BooleanFactor):
+            comparison = getattr(expr, 'comparison', None)
+            if comparison:
+                self._collect_fields_from_expr(comparison, fields)
+            nested_expr = getattr(expr, 'nested_expr', None)
+            if nested_expr:
+                self._collect_fields_from_expr(nested_expr, fields)
+            function_call = getattr(expr, 'function_call', None)
+            if function_call:
+                self._collect_fields_from_expr(function_call, fields)
+            return
+
+        # ComparisonExpr: left and right sides
+        if isinstance(expr, ast.ComparisonExpr):
+            left = getattr(expr, 'left', None)
+            if left:
+                self._collect_fields_from_expr(left, fields)
+            right = getattr(expr, 'right', None)
+            if right:
+                self._collect_fields_from_expr(right, fields)
+            return
+
+        # BinaryExpr: left and right
+        if isinstance(expr, ast.BinaryExpr):
+            left = getattr(expr, 'left', None)
+            if left:
+                self._collect_fields_from_expr(left, fields)
+            right = getattr(expr, 'right', None)
+            if right:
+                self._collect_fields_from_expr(right, fields)
+            return
+
+        # UnaryExpr: operand
+        if isinstance(expr, ast.UnaryExpr):
+            operand = getattr(expr, 'operand', None)
+            if operand:
+                self._collect_fields_from_expr(operand, fields)
+            return
+
+        # ParenExpr: inner expression
+        if isinstance(expr, ast.ParenExpr):
+            inner = getattr(expr, 'inner', None)
+            if inner:
+                self._collect_fields_from_expr(inner, fields)
+            return
+
+        # FunctionCall: collect from arguments
+        if isinstance(expr, ast.FunctionCall):
+            arguments = getattr(expr, 'arguments', None) or []
+            for arg in arguments:
+                self._collect_fields_from_expr(arg, fields)
+            return
 
     def _generate_execute_method(self, rule: ast.ProceduralRuleDef) -> str:
         """Generate main execute method for procedural rule."""

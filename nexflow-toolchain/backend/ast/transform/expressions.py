@@ -104,6 +104,41 @@ class ParenExpression:
     location: Optional[SourceLocation] = None
 
 
+@dataclass
+class LambdaExpression:
+    """Lambda expression for functional operations.
+
+    Examples:
+    - Single param: x -> x.amount > 100
+    - Multi param: (x, y) -> x + y
+
+    RFC: Collection Operations Instead of Loops
+    """
+    parameters: List[str]
+    body: 'Expression'
+    location: Optional[SourceLocation] = None
+
+    @property
+    def is_single_param(self) -> bool:
+        """Check if this is a single-parameter lambda."""
+        return len(self.parameters) == 1
+
+
+@dataclass
+class ObjectLiteralField:
+    """A field in an object literal."""
+    name: str
+    value: 'Expression'
+    location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ObjectLiteral:
+    """Object literal expression: { field: value, ... }"""
+    fields: List[ObjectLiteralField] = field(default_factory=list)
+    location: Optional[SourceLocation] = None
+
+
 Expression = Union[
     Literal,
     FieldPath,
@@ -116,5 +151,7 @@ Expression = Union[
     BetweenExpression,
     InExpression,
     IsNullExpression,
-    ParenExpression
+    ParenExpression,
+    LambdaExpression,
+    ObjectLiteral
 ]

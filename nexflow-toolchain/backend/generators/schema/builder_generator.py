@@ -1,7 +1,8 @@
 """
 Builder Generator Module
 
-Generates Java Builder classes for immutable object construction.
+Generates Java Builder classes for immutable Java Record construction.
+Uses the canonical constructor pattern compatible with Java Records.
 """
 
 from backend.ast import schema_ast as ast
@@ -9,11 +10,24 @@ from backend.generators.base import BaseGenerator
 
 
 class BuilderGeneratorMixin:
-    """Mixin providing Builder pattern generation capabilities."""
+    """Mixin providing Builder pattern generation capabilities for Java Records.
+
+    Java Records are immutable and have:
+    - Canonical constructor with all fields
+    - Accessor methods: field() (not getField())
+    - No setters (immutable)
+
+    The builder collects field values and passes them to the canonical constructor.
+    """
 
     def generate_builder(self: BaseGenerator, schema: ast.SchemaDefinition,
                          class_name: str, package: str) -> str:
-        """Generate builder class for immutable construction."""
+        """Generate builder class for immutable Record construction.
+
+        The generated builder uses the canonical constructor pattern:
+        - Collects field values via fluent setter methods
+        - build() passes all values to the Record's canonical constructor
+        """
         header = self.generate_java_header(
             f"{class_name}Builder", f"Builder for {class_name}"
         )
@@ -31,7 +45,7 @@ class BuilderGeneratorMixin:
         # Field declarations
         field_declarations = []
         builder_methods = []
-        build_assignments = []
+        constructor_args = []
 
         for field_decl in all_fields:
             field_name = self.to_java_field_name(field_decl.name)
@@ -47,14 +61,12 @@ class BuilderGeneratorMixin:
     }}'''
             )
 
-            setter_name = f"set{field_name[0].upper()}{field_name[1:]}"
-            build_assignments.append(
-                f"        instance.{setter_name}(this.{field_name});"
-            )
+            # For canonical constructor, just pass the field values
+            constructor_args.append(f"this.{field_name}")
 
         fields_block = '\n'.join(field_declarations)
         methods_block = '\n\n'.join(builder_methods)
-        assignments_block = '\n'.join(build_assignments)
+        args_str = ', '.join(constructor_args)
 
         return f'''{header}
 {package_decl}
@@ -67,9 +79,7 @@ public class {class_name}Builder {{
 {methods_block}
 
     public {class_name} build() {{
-        {class_name} instance = new {class_name}();
-{assignments_block}
-        return instance;
+        return new {class_name}({args_str});
     }}
 }}
 '''

@@ -18,6 +18,7 @@ from .rules import (
     RulesLiteralVisitorMixin,
     RulesServicesVisitorMixin,
     RulesActionsVisitorMixin,
+    RulesCollectionVisitorMixin,
 )
 
 
@@ -32,6 +33,7 @@ class RulesASTBuilder(
     RulesLiteralVisitorMixin,
     RulesServicesVisitorMixin,
     RulesActionsVisitorMixin,
+    RulesCollectionVisitorMixin,
     RulesDSLVisitor
 ):
     """Visitor that builds AST from ANTLR parse tree for L4 Rules DSL.

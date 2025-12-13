@@ -22,7 +22,7 @@ public class RouteByScoreRule {
         if (((score() >= 750L))) {
             routeToPremium();
         } else if (((score() >= 650L) && ((score() < 750L)))) {
-            if (((status() == "active"))) {
+            if (("active".equals(status()))) {
                 routeToStandard();
             } else {
                 routeToReview();
@@ -31,6 +31,27 @@ public class RouteByScoreRule {
             routeToManualReview();
         }
     }
+
+    // =========================================================================
+    // Field Accessor Stubs - Implement these to provide input field values
+    // =========================================================================
+
+    /**
+     * Get value of field: score
+     * Override this method to provide the actual field value.
+     */
+    protected Object score() {
+        throw new UnsupportedOperationException("Field accessor score not implemented");
+    }
+
+    /**
+     * Get value of field: status
+     * Override this method to provide the actual field value.
+     */
+    protected Object status() {
+        throw new UnsupportedOperationException("Field accessor status not implemented");
+    }
+
 
     // =========================================================================
     // Action Method Stubs - Implement these methods for rule execution

@@ -7,14 +7,12 @@ Generates Java boolean expressions from L4 Rules boolean AST nodes.
 import logging
 from typing import TYPE_CHECKING
 
+from backend.ast import rules_ast as ast
 from backend.generators.rules.utils import (
     to_camel_case,
     generate_value_expr,
     generate_unsupported_comment,
 )
-
-if TYPE_CHECKING:
-    from backend.ast import rules_ast as ast
 
 LOG = logging.getLogger(__name__)
 
@@ -179,7 +177,23 @@ class BooleanExpressionMixin:
             return f'({left} != null)'
 
         # Standard comparison
-        right = generate_value_expr(getattr(expr, 'right', None))
+        right_expr = getattr(expr, 'right', None)
+        right = generate_value_expr(right_expr)
         operator = getattr(expr, 'operator', None)
+
+        # Use .equals() for String comparisons (EQ/NE with string literals)
+        if self._is_string_comparison(right_expr, operator):
+            if operator == ast.ComparisonOp.EQ:
+                return f'{right}.equals({left})'
+            elif operator == ast.ComparisonOp.NE:
+                return f'!{right}.equals({left})'
+
         op = self._map_comparison_op(operator)
         return f'({left} {op} {right})'
+
+    def _is_string_comparison(self, right_expr, operator) -> bool:
+        """Check if this is a string equality/inequality comparison."""
+        if operator not in (ast.ComparisonOp.EQ, ast.ComparisonOp.NE):
+            return False
+        # Check if right side is a string literal
+        return isinstance(right_expr, ast.StringLiteral)

@@ -881,6 +881,78 @@ class RulesDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RulesDSLParser#collectionExpr.
+    def enterCollectionExpr(self, ctx:RulesDSLParser.CollectionExprContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#collectionExpr.
+    def exitCollectionExpr(self, ctx:RulesDSLParser.CollectionExprContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#predicateFunction.
+    def enterPredicateFunction(self, ctx:RulesDSLParser.PredicateFunctionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#predicateFunction.
+    def exitPredicateFunction(self, ctx:RulesDSLParser.PredicateFunctionContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#aggregateFunction.
+    def enterAggregateFunction(self, ctx:RulesDSLParser.AggregateFunctionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#aggregateFunction.
+    def exitAggregateFunction(self, ctx:RulesDSLParser.AggregateFunctionContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#transformFunction.
+    def enterTransformFunction(self, ctx:RulesDSLParser.TransformFunctionContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#transformFunction.
+    def exitTransformFunction(self, ctx:RulesDSLParser.TransformFunctionContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#collectionPredicate.
+    def enterCollectionPredicate(self, ctx:RulesDSLParser.CollectionPredicateContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#collectionPredicate.
+    def exitCollectionPredicate(self, ctx:RulesDSLParser.CollectionPredicateContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#collectionPredicateOr.
+    def enterCollectionPredicateOr(self, ctx:RulesDSLParser.CollectionPredicateOrContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#collectionPredicateOr.
+    def exitCollectionPredicateOr(self, ctx:RulesDSLParser.CollectionPredicateOrContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#collectionPredicateAnd.
+    def enterCollectionPredicateAnd(self, ctx:RulesDSLParser.CollectionPredicateAndContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#collectionPredicateAnd.
+    def exitCollectionPredicateAnd(self, ctx:RulesDSLParser.CollectionPredicateAndContext):
+        pass
+
+
+    # Enter a parse tree produced by RulesDSLParser#collectionPredicateAtom.
+    def enterCollectionPredicateAtom(self, ctx:RulesDSLParser.CollectionPredicateAtomContext):
+        pass
+
+    # Exit a parse tree produced by RulesDSLParser#collectionPredicateAtom.
+    def exitCollectionPredicateAtom(self, ctx:RulesDSLParser.CollectionPredicateAtomContext):
+        pass
+
+
     # Enter a parse tree produced by RulesDSLParser#lambdaExpression.
     def enterLambdaExpression(self, ctx:RulesDSLParser.LambdaExpressionContext):
         pass

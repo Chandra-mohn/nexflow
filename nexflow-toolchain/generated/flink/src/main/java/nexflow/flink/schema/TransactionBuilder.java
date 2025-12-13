@@ -98,20 +98,6 @@ public class TransactionBuilder {
     }
 
     public Transaction build() {
-        Transaction instance = new Transaction();
-        instance.setTransactionId(this.transactionId);
-        instance.setCustomerId(this.customerId);
-        instance.setAmount(this.amount);
-        instance.setCurrency(this.currency);
-        instance.setMerchantId(this.merchantId);
-        instance.setMerchantName(this.merchantName);
-        instance.setCategory(this.category);
-        instance.setEventTimestamp(this.eventTimestamp);
-        instance.setProcessingTimestamp(this.processingTimestamp);
-        instance.setStatus(this.status);
-        instance.setRiskScore(this.riskScore);
-        instance.setIpAddress(this.ipAddress);
-        instance.setDeviceFingerprint(this.deviceFingerprint);
-        return instance;
+        return new Transaction(this.transactionId, this.customerId, this.amount, this.currency, this.merchantId, this.merchantName, this.category, this.eventTimestamp, this.processingTimestamp, this.status, this.riskScore, this.ipAddress, this.deviceFingerprint);
     }
 }

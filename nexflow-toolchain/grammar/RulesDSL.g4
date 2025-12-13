@@ -573,11 +573,67 @@ factor
 atom
     : literal
     | fieldPath
+    | collectionExpr       // Collection operations (any, all, sum, filter, etc.)
     | functionCall
     | listLiteral
     | objectLiteral
     | lambdaExpression
     | LPAREN valueExpr RPAREN
+    ;
+
+// ----------------------------------------------------------------------------
+// Collection Expressions (RFC: Collection Operations Instead of Loops)
+// ----------------------------------------------------------------------------
+
+collectionExpr
+    : predicateFunction LPAREN valueExpr COMMA collectionPredicate RPAREN      // any(items, amount > 100)
+    | aggregateFunction LPAREN valueExpr (COMMA fieldPath)? RPAREN             // sum(items, price) or count(items)
+    | transformFunction LPAREN valueExpr COMMA collectionPredicate RPAREN      // filter(items, active = true)
+    ;
+
+predicateFunction
+    : ANY
+    | ALL
+    | NONE
+    ;
+
+aggregateFunction
+    : SUM
+    | COUNT
+    | AVG
+    | MAX_FN
+    | MIN_FN
+    ;
+
+transformFunction
+    : FILTER
+    | FIND
+    | DISTINCT
+    ;
+
+// Collection predicate - inline condition for collection operations
+// Supports: field comparisons, set membership, compound conditions, lambdas
+collectionPredicate
+    : lambdaExpression                                           // Full lambda: t -> t.amount > 1000
+    | collectionPredicateOr                                      // Inline predicate: amount > 1000
+    ;
+
+collectionPredicateOr
+    : collectionPredicateAnd (OR collectionPredicateAnd)*
+    ;
+
+collectionPredicateAnd
+    : collectionPredicateAtom (AND collectionPredicateAtom)*
+    ;
+
+collectionPredicateAtom
+    : NOT collectionPredicateAtom                                // not active
+    | fieldPath comparisonOp valueExpr                           // amount > 1000
+    | fieldPath IN LPAREN valueList RPAREN                       // type in ("A", "B")
+    | fieldPath NOT IN LPAREN valueList RPAREN                   // type not in ("X")
+    | fieldPath IS NULL                                          // description is null
+    | fieldPath IS NOT NULL                                      // value is not null
+    | LPAREN collectionPredicateOr RPAREN                        // (amount > 100 and active)
     ;
 
 // Lambda expression: x -> expression or (x, y) -> expression
@@ -745,6 +801,22 @@ ACTIONS  : 'actions' ;
 STATE    : 'state' ;
 AUDIT    : 'audit' ;
 CALL     : 'call' ;
+
+// ----------------------------------------------------------------------------
+// Keywords - Collection Functions (RFC: Collection Operations)
+// ----------------------------------------------------------------------------
+
+ANY      : 'any' ;
+ALL      : 'all' ;
+NONE     : 'none' ;
+SUM      : 'sum' ;
+COUNT    : 'count' ;
+AVG      : 'avg' ;
+MAX_FN   : 'max' ;
+MIN_FN   : 'min' ;
+FILTER   : 'filter' ;
+FIND     : 'find' ;
+DISTINCT : 'distinct' ;
 
 // ----------------------------------------------------------------------------
 // Duration Units

@@ -1,6 +1,6 @@
 # Nexflow Toolchain - L1-L6 Code Generation Status
 
-**Date**: December 8, 2024 (Updated)
+**Date**: December 12, 2025 (Updated)
 **Project**: nexflow-toolchain
 **Purpose**: Comprehensive status of DSL-to-Java code generation capabilities
 
@@ -12,10 +12,10 @@ The Nexflow toolchain implements a **6-layer DSL architecture** (L1-L6) designed
 
 | Layer | DSL Name | Extension | Purpose | Code Generation Status |
 |-------|----------|-----------|---------|------------------------|
-| **L1** | ProcDSL | `.proc` | Process Orchestration (the "railroad") | ⚠️ Partial - stubs instead of wiring |
-| **L2** | SchemaDSL | `.schema` | Schema Registry (data structures) | ✅ Working - POJOs |
-| **L3** | TransformDSL | `.xform` | Transform Catalog (transformations) | ⚠️ Partial - simple transforms work |
-| **L4** | RulesDSL | `.rules` | Business Rules (decision logic) | ⚠️ Broken - null results |
+| **L1** | ProcDSL | `.proc` | Process Orchestration (the "railroad") | ⚠️ Partial - operators wired, inline route needs work |
+| **L2** | SchemaDSL | `.schema` | Schema Registry (data structures) | ✅ Working - Java Records |
+| **L3** | TransformDSL | `.xform` | Transform Catalog (transformations) | ✅ Working - with collections |
+| **L4** | RulesDSL | `.rules` | Business Rules (decision logic) | ✅ Working - decision tables + rules |
 | **L5** | Infrastructure | `.infra` (YAML) | Infrastructure Binding | ❌ Specification only |
 | **L6** | Compilation | N/A | Compilation Pipeline | ❌ Not implemented |
 
@@ -111,33 +111,36 @@ process fraud_detection
 end
 ```
 
-**Current Status**: ⚠️ **Partial**
+**Current Status**: ⚠️ **Partial** (Updated Dec 12, 2025)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Job class structure | ✅ | Main class, constants, env setup |
 | Kafka source | ✅ | With JSON deserializer |
 | Kafka sink | ✅ | With JSON serializer |
-| Transform wiring | ⚠️ | Generates call but L3 function must exist |
+| Transform wiring | ✅ | Generates `map(new TransformClass())` |
 | Checkpoint config | ✅ | Exactly-once semantics |
-| Enrich operator | ❌ | Generates `[STUB]` comment |
-| Route operator | ❌ | Generates `[STUB]` comment |
-| Window operator | ❌ | Generates `[STUB]` comment |
-| Aggregate operator | ❌ | Generates `[STUB]` comment |
+| Enrich operator | ✅ | Generates AsyncDataStream.unorderedWait() |
+| Route using | ✅ | Generates `.process(new RulesClass())` |
+| Route when (inline) | ⚠️ | TODO: condition evaluation |
+| Aggregate operator | ✅ | Generates `.aggregate(new AggregatorClass())` |
+| Merge operator | ✅ | Generates stream union |
+| Window operator | ⚠️ | Basic tumbling window only |
 
 **Generated Example** (current state):
 ```java
-// Transform: normalize_amount (WORKING)
-DataStream<Map<String, Object>> transformed1Stream = enriched0Stream
-    .map(new NormalizeAmountFunction())
+// Transform: normalize_amount
+DataStream<TransformResult> transformed1Stream = enrichedStream
+    .map(new NormalizeAmountTransform())
     .name("transform-normalize_amount");
 
-// [STUB] Route: fraud_rules (SHOULD BE COMPLETE)
-// Requires: FraudRulesRouter implementing ProcessFunction
-DataStream<Map<String, Object>> routed2Stream = transformed1Stream;
+// Route: using fraud_rules (L4 wired)
+SingleOutputStreamOperator<RoutedRecord> routed2Stream = transformed1Stream
+    .process(new FraudRulesRules())
+    .name("route-fraud_rules");
 ```
 
-**Required Fix**: L1 generator should wire complete L4-generated `FraudRulesRouter` class, not generate a stub.
+**Remaining Work**: Inline `route when <condition>` needs condition expression parsing.
 
 ---
 
@@ -187,21 +190,23 @@ Generates complete POJOs with:
 **Grammar**: `RulesDSL.g4` (622 lines)
 **Extension**: `.rules`
 
-**Status**: ❌ **Broken**
+**Status**: ✅ **Working** (Dec 12, 2025)
 
-| Component | Issue |
-|-----------|-------|
+| Component | Status |
+|-----------|--------|
 | Decision table structure | ✅ Generates correctly |
 | Row matching logic | ✅ Generates correctly |
-| Result values | ❌ All return `null` |
-| Procedural conditions | ❌ All evaluate to `true` |
+| Result values | ✅ Returns action values correctly |
+| Procedural conditions | ✅ String comparison uses `.equals()` |
+| Collection operations | ✅ RFC implemented |
 
-**Critical Bug**: Decision tables generate `null` instead of action values:
-```java
-private String getRow1Result(FraudCheckTableInput input) {
-    return null;  // BUG: Should return "block"
-}
-```
+**Recent Fixes**:
+- Decision table result values now return correctly (e.g., `"low"`, `"high"`, `"medium"`)
+- Procedural rule string comparisons now use `.equals()` instead of `==`
+  ```java
+  // Before (bug): status() == "pending"
+  // After (fixed): "pending".equals(status())
+  ```
 
 ---
 
