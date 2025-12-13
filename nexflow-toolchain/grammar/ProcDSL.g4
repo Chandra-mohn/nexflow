@@ -728,6 +728,30 @@ emitClause
     | connectorClause
     | emitOptions
     | fanoutDecl
+    | persistClause
+    ;
+
+// L5 Integration: Persist to MongoDB async
+persistClause
+    : PERSIST TO persistTarget persistOption*
+    ;
+
+persistTarget
+    : IDENTIFIER
+    ;
+
+persistOption
+    : ASYNC                             // async write (non-blocking)
+    | SYNC                              // sync write (blocking)
+    | BATCH SIZE INTEGER                // batch size override
+    | FLUSH INTERVAL duration           // flush interval override
+    | ON ERROR persistErrorAction       // error handling
+    ;
+
+persistErrorAction
+    : CONTINUE                          // ignore errors
+    | FAIL                              // fail pipeline on error
+    | EMIT TO sinkName                  // send failed records to DLQ
     ;
 
 fanoutDecl
@@ -1213,6 +1237,13 @@ FANOUT        : 'fanout' ;
 BROADCAST     : 'broadcast' ;
 ROUND_ROBIN   : 'round_robin' ;
 REASON        : 'reason' ;
+PERSIST       : 'persist' ;
+ASYNC         : 'async' ;
+SYNC          : 'sync' ;
+FLUSH         : 'flush' ;
+FAIL          : 'fail' ;
+SIZE          : 'size' ;
+INTERVAL      : 'interval' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Connectors

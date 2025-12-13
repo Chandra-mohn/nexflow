@@ -2,6 +2,11 @@
 Build Command Implementation
 
 Full pipeline: parse → validate → generate → verify (optional).
+
+L6 INTEGRATION:
+When .infra files are present, uses L6 MasterCompiler for infrastructure-aware
+compilation that resolves logical stream names to physical Kafka topics and
+generates MongoDB async sinks for persist clauses.
 """
 
 import subprocess
@@ -17,9 +22,17 @@ def build_project(project: Project, target: str, output: Optional[str],
                   dry_run: bool, verbose: bool, verify: bool = False) -> BuildResult:
     """
     Build project - full pipeline: parse → validate → generate.
+
+    If .infra files are present, uses L6 MasterCompiler for infrastructure-aware
+    code generation. Otherwise uses the standard pipeline.
     """
     from ...parser import parse as parse_dsl, PARSERS
     from ..project import DSL_EXTENSIONS
+
+    # Check if we should use L6 MasterCompiler (when .infra files exist)
+    infra_files = list(project.src_dir.rglob("*.infra"))
+    if infra_files and not dry_run:
+        return _build_with_l6_compiler(project, target, output, verbose, verify)
 
     result = BuildResult(success=True)
     all_files = project.get_all_source_files()
@@ -360,3 +373,77 @@ def extract_compilation_errors(output: str) -> list:
 
     # Limit to first 10 errors
     return errors[:10]
+
+
+def _build_with_l6_compiler(
+    project: Project,
+    target: str,
+    output: Optional[str],
+    verbose: bool,
+    verify: bool
+) -> BuildResult:
+    """
+    Build using L6 MasterCompiler for infrastructure-aware compilation.
+
+    This is used when .infra files are present in the project.
+    The L6 compiler properly orders compilation phases and passes
+    infrastructure bindings to the L1 FlowGenerator.
+    """
+    from ...compiler import MasterCompiler, CompilationPhase
+
+    result = BuildResult(success=True)
+
+    # Determine output path
+    output_path = Path(output) if output else project.get_output_path(target)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Get package prefix for target
+    package_prefix = project.get_package_prefix(target)
+
+    # Determine environment from project config or target
+    environment = getattr(project, 'environment', None) or target
+
+    if verbose:
+        print(f"  Using L6 MasterCompiler (infrastructure-aware compilation)")
+        print(f"  Environment: {environment}")
+
+    # Create and run L6 compiler
+    compiler = MasterCompiler(
+        src_dir=project.src_dir,
+        output_dir=output_path,
+        package_prefix=package_prefix,
+        environment=environment,
+        verbose=verbose,
+    )
+
+    compilation_result = compiler.compile()
+
+    # Convert L6 result to BuildResult
+    result.success = compilation_result.success
+    result.files = compilation_result.generated_files
+    result.errors = compilation_result.errors
+
+    # Show phase summary in verbose mode
+    if verbose:
+        print("\n  Compilation Summary:")
+        for phase, layer_result in compilation_result.layers.items():
+            status = "✓" if layer_result.success else "✗"
+            print(f"    {status} {phase.name}: {layer_result.files_parsed} parsed, "
+                  f"{layer_result.files_generated} generated")
+
+    # Generate pom.xml
+    if result.success and result.files:
+        pom_result = generate_pom_file(output_path, project, target, verbose)
+        if pom_result:
+            result.files.append(pom_result)
+
+    # Maven verification
+    if verify and result.success:
+        if verbose:
+            print("  Running Maven compilation verification...")
+        verify_result = verify_maven_compilation(output_path, verbose)
+        result.errors.extend(verify_result.errors)
+        if not verify_result.success:
+            result.success = False
+
+    return result

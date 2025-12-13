@@ -11,14 +11,23 @@ L1 is the "RAILROAD" - it orchestrates data flow, NOT business logic.
 L1 generates: Pipeline DAG, operator wiring, source/sink connections
 L1 NEVER generates: Business logic, transformation code, rule evaluation
 ─────────────────────────────────────────────────────────────────────
+
+L5 INTEGRATION:
+When an InfraConfig is provided, the generator uses BindingResolver to:
+- Resolve logical stream names to physical Kafka topics
+- Use configured broker servers, security settings
+- Generate MongoDB async sinks when persist clause is present
+─────────────────────────────────────────────────────────────────────
 """
 
 from pathlib import Path
-from typing import Set
+from typing import Optional, Set
 
 from backend.ast import proc_ast as ast
+from backend.ast.infra import InfraConfig
 from backend.generators.base import BaseGenerator, GeneratorConfig, GenerationResult
 from backend.generators.scaffold_generator import ScaffoldGenerator
+from backend.generators.infra import BindingResolver
 from backend.generators.flow.source_generator import SourceGeneratorMixin
 from backend.generators.flow.operator_generator import OperatorGeneratorMixin
 from backend.generators.flow.window_generator import WindowGeneratorMixin
@@ -28,6 +37,7 @@ from backend.generators.flow.state_context_generator import StateContextGenerato
 from backend.generators.flow.resilience_generator import ResilienceGeneratorMixin
 from backend.generators.flow.job_generator import JobGeneratorMixin
 from backend.generators.flow.flow_process_function import FlowProcessFunctionMixin
+from backend.generators.flow.mongo_sink_generator import MongoSinkGeneratorMixin
 
 
 class FlowGenerator(
@@ -40,6 +50,7 @@ class FlowGenerator(
     ResilienceGeneratorMixin,
     JobGeneratorMixin,
     FlowProcessFunctionMixin,
+    MongoSinkGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -52,11 +63,14 @@ class FlowGenerator(
     - Windowing and aggregation
     - State management with TTL
     - Checkpointing and error handling
+    - MongoDB async sinks (L5 integration)
     """
 
-    def __init__(self, config: GeneratorConfig):
+    def __init__(self, config: GeneratorConfig, infra_config: Optional[InfraConfig] = None):
         super().__init__(config)
         self._current_schema_class = "Object"
+        self._infra_config = infra_config
+        self._binding_resolver = BindingResolver(infra_config)
 
     def generate(self, program: ast.Program) -> GenerationResult:
         """Generate Flink code from Process AST."""

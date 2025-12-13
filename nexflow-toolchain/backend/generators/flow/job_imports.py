@@ -22,6 +22,7 @@ class JobImportsMixin:
         imports.extend(self._get_transform_imports(process))
         imports.extend(self._get_correlation_imports(process))
         imports.extend(self._get_completion_imports(process))
+        imports.extend(self._get_persistence_imports(process))
 
         # Remove duplicates and sort
         imports = sorted(set(imports))
@@ -217,5 +218,37 @@ class JobImportsMixin:
             completion_package = f"{self.config.package_prefix}.completion"
             if process.completion.on_commit or process.completion.on_commit_failure:
                 imports.append(f"{completion_package}.CompletionEvent")
+
+        return imports
+
+    def _get_persistence_imports(self, process: ast.ProcessDefinition) -> list:
+        """Get MongoDB persistence imports (L5 integration)."""
+        imports = []
+
+        # Check if any emit has persist clause
+        has_persist = False
+        if process.emits:
+            for emit in process.emits:
+                if isinstance(emit, ast.EmitDecl) and emit.persist:
+                    has_persist = True
+                    break
+
+        if has_persist:
+            imports.extend([
+                "com.mongodb.client.model.WriteConcern",
+                "org.apache.flink.connector.mongodb.sink.MongoSink",
+                "org.apache.flink.connector.mongodb.sink.config.MongoWriteOptions",
+                "java.util.Arrays",
+            ])
+
+            # Add serializer imports for each persist target
+            serializer_package = f"{self.config.package_prefix}.serializer"
+            for emit in process.emits:
+                if isinstance(emit, ast.EmitDecl) and emit.persist:
+                    if emit.schema and emit.schema.schema_name:
+                        schema_class = to_pascal_case(emit.schema.schema_name)
+                    else:
+                        schema_class = to_pascal_case(emit.target)
+                    imports.append(f"{serializer_package}.{schema_class}MongoSerializer")
 
         return imports

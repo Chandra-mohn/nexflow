@@ -22,6 +22,7 @@ DSL_EXTENSIONS = {
     ".xform": "transform",  # L3 - Transform Catalog
     ".transform": "transform",  # L3 - Transform Catalog (alternate)
     ".rules": "rules",      # L4 - Business Rules
+    ".infra": "infra",      # L5 - Infrastructure Binding
 }
 
 # Default directory structure
@@ -30,6 +31,7 @@ DEFAULT_SRC_DIRS = {
     "schema": "src/schema",
     "transform": "src/transform",
     "rules": "src/rules",
+    "infra": "src/infra",   # L5 - Infrastructure files
 }
 
 
@@ -169,9 +171,10 @@ class Project:
     def file_counts(self) -> Dict[str, int]:
         """Count DSL files by type."""
         counts = {}
-        # Use shorthand extensions: .proc, .xform
+        # Use shorthand extensions: .proc, .xform, .infra
         for lang, ext in [("flow", ".proc"), ("schema", ".schema"),
-                          ("transform", ".xform"), ("rules", ".rules")]:
+                          ("transform", ".xform"), ("rules", ".rules"),
+                          ("infra", ".infra")]:
             src_config = self.sources.get(lang)
             if src_config:
                 src_path = self.root_dir / src_config.path
@@ -191,7 +194,8 @@ class Project:
 
         # Map language to file extension (using shorthand extensions)
         ext_map = {"flow": ".proc", "schema": ".schema",
-                   "transform": ".xform", "rules": ".rules"}
+                   "transform": ".xform", "rules": ".rules",
+                   "infra": ".infra"}
         ext = ext_map.get(lang)
         if not ext:
             return []

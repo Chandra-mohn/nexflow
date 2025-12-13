@@ -2,6 +2,11 @@
 Job Sinks Mixin
 
 Generates Flink sink wiring code (emit, late data, completion callbacks).
+
+L5 INTEGRATION:
+When emit has a persist clause, generates both:
+1. Kafka sink for the emit target (message backbone)
+2. MongoDB async sink for the persist target (system of record)
 """
 
 from backend.ast import proc_ast as ast
@@ -12,26 +17,50 @@ class JobSinksMixin:
     """Mixin for generating Flink sink wiring code."""
 
     def _generate_sink_with_json(self, emit: ast.EmitDecl, input_stream: str, input_type: str) -> str:
-        """Generate Kafka sink with JSON serialization."""
+        """Generate Kafka sink with JSON serialization, plus optional MongoDB persistence."""
+        lines = []
+
+        # 1. Generate Kafka sink (always)
+        lines.append(self._generate_kafka_sink(emit, input_stream, input_type))
+
+        # 2. Generate MongoDB sink if persist clause is present (L5 integration)
+        if emit.persist and hasattr(self, 'generate_mongo_sink_code'):
+            mongo_code = self.generate_mongo_sink_code(emit, input_stream, input_type)
+            if mongo_code:
+                lines.append("")
+                lines.append(mongo_code)
+
+        return '\n'.join(lines)
+
+    def _generate_kafka_sink(self, emit: ast.EmitDecl, input_stream: str, input_type: str) -> str:
+        """Generate Kafka sink code."""
         target = emit.target
         sink_type = input_type
         sink_name = to_camel_case(target) + "Sink"
 
+        # Check if we have a binding resolver for resolved topic (L5)
+        topic = target
+        brokers_var = "KAFKA_BOOTSTRAP_SERVERS"
+        if hasattr(self, '_binding_resolver') and self._binding_resolver.has_config:
+            resolved = self._binding_resolver.resolve_sink(target)
+            topic = resolved.topic
+            # For production, brokers come from resolved config
+            # We'll still use the env var approach for flexibility
+
         return f'''        // Sink: {target}
         KafkaSink<{sink_type}> {sink_name} = KafkaSink
             .<{sink_type}>builder()
-            .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)
+            .setBootstrapServers({brokers_var})
             .setRecordSerializer(
                 KafkaRecordSerializationSchema.<{sink_type}>builder()
-                    .setTopic("{target}")
+                    .setTopic("{topic}")
                     .setValueSerializationSchema(new JsonSerializationSchema<{sink_type}>())
                     .build()
             )
             .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
             .build();
 
-        {input_stream}.sinkTo({sink_name}).name("sink-{target}");
-'''
+        {input_stream}.sinkTo({sink_name}).name("sink-{target}");'''
 
     def _generate_late_data_sinks(self, process: ast.ProcessDefinition) -> list:
         """Generate late data sinks for window operations."""

@@ -84,6 +84,10 @@ from .correlation import (
 
 # Output and completion blocks
 from .output import (
+    PersistMode,
+    PersistErrorAction,
+    PersistErrorHandler,
+    PersistDecl,
     FanoutDecl,
     EmitDecl,
     OutputBlock,
@@ -141,6 +145,7 @@ __all__ = [
     # Correlation
     'TimeoutAction', 'CompletionCondition', 'CompletionClause', 'AwaitDecl', 'HoldDecl',
     # Output
+    'PersistMode', 'PersistErrorAction', 'PersistErrorHandler', 'PersistDecl',
     'FanoutDecl', 'EmitDecl', 'OutputBlock', 'CorrelationDecl', 'IncludeDecl',
     'OnCommitDecl', 'OnCommitFailureDecl', 'CompletionBlock',
     # State
