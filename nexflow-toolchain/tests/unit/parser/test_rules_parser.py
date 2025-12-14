@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Unit tests for Rules DSL Parser.
 Tests validate correct parsing of L4 Rules DSL syntax.

@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Runtime Generator Module
 # Generates NexflowRuntime.java with built-in functions for L0
 

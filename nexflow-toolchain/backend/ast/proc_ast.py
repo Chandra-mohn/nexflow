@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Nexflow L1 (Flow/Process) AST Definitions
 

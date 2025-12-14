@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Generated from ProcDSL.g4 by ANTLR 4.13.2
 # encoding: utf-8
 from antlr4 import *

@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Nexflow Validators Module
 # Semantic validation for DSL constructs
 

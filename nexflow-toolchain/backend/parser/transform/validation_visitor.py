@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Validation Visitor Mixin for Transform Parser
 

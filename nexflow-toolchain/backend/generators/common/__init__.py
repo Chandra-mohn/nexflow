@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Common Generator Utilities
 # Shared utilities for all Nexflow code generators
 

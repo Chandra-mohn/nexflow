@@ -1,3 +1,6 @@
+// Nexflow DSL Toolchain
+// Author: Chandra Mohn
+
 /**
  * RulesDSL - Business Rules Domain-Specific Language
  *

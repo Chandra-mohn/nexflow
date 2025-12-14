@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # SchemaDSL (L2) generated parser
 from .SchemaDSLLexer import SchemaDSLLexer
 from .SchemaDSLParser import SchemaDSLParser

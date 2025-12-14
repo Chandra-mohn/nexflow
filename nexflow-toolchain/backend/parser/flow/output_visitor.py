@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Output and Completion Block Visitor Mixin for Flow Parser
 

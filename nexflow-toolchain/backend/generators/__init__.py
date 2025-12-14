@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Nexflow Generators Module
 # Code generators for Flink, Spark, and other targets
 

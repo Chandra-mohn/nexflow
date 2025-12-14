@@ -1,3 +1,6 @@
+// Nexflow DSL Toolchain
+// Author: Chandra Mohn
+
 /**
  * SchemaDSL - Schema Registry Domain-Specific Language
  *

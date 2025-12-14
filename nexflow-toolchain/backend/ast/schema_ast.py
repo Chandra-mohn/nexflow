@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Nexflow L2 (Schema Registry) AST Definitions
 

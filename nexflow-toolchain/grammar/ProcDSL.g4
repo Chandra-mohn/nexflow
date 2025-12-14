@@ -1,3 +1,6 @@
+// Nexflow DSL Toolchain
+// Author: Chandra Mohn
+
 /**
  * ProcDSL - Process Orchestration Domain-Specific Language
  *

@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Unit tests for Flow DSL Parser.
 Tests validate correct parsing of L1 Flow DSL syntax.

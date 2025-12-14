@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # TransformDSL (L3) generated parser
 from .TransformDSLLexer import TransformDSLLexer
 from .TransformDSLParser import TransformDSLParser

@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Input/Output Specification Visitor Mixin for Transform Parser
 

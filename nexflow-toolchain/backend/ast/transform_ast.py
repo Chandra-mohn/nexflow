@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Nexflow L3 (Transform Catalog) AST Definitions
 

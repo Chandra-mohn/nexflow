@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Generated from grammar/SchemaDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:

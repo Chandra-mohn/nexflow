@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Nexflow AST Module
 # Python dataclass definitions for AST nodes
 

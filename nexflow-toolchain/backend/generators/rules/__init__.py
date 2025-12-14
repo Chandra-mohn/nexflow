@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Rules Generator Module
 # Generates Java rule evaluators from L4 Rules DSL
 

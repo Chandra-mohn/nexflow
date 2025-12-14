@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Transform Generator Module
 # Generates Java transform functions from L3 Transform DSL
 

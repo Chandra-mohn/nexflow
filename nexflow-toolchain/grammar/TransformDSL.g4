@@ -1,3 +1,6 @@
+// Nexflow DSL Toolchain
+// Author: Chandra Mohn
+
 /**
  * TransformDSL - Transform Catalog Domain-Specific Language
  *

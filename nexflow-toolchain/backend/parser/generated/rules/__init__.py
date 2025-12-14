@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """Generated Rules DSL Parser module."""
 
 from .RulesDSLLexer import RulesDSLLexer

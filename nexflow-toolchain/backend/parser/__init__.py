@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Nexflow Parser Module
 # ANTLR-generated parsers and wrapper classes
 

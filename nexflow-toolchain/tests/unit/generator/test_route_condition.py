@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 """
 Unit tests for route condition compilation.
 Tests the _compile_route_condition method in JobOperatorsMixin.

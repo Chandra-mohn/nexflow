@@ -1,3 +1,6 @@
+# Nexflow DSL Toolchain
+# Author: Chandra Mohn
+
 # Schema Generator Sub-modules
 # Modular components for L2 Schema code generation
 
