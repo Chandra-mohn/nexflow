@@ -1,0 +1,19 @@
+// Simple Order Processing Pipeline
+// Demonstrates: receive -> transform -> emit
+
+process order_processing
+    parallelism hint 2
+    partition by customer_id
+    time by timestamp
+        watermark delay 5 seconds
+    mode stream
+
+    receive orders from input_orders
+        schema Order
+
+    transform using enrich_order
+
+    emit to processed_orders
+        schema EnrichedOrder
+
+end

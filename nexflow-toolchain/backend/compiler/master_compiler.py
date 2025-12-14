@@ -338,7 +338,7 @@ class MasterCompiler:
             return result
 
         # Generate code for each AST
-        all_files = GenerationResult()
+        all_files = GenerationResult(success=True)
 
         for file_path, ast in parsed_asts.items():
             if ast is None:

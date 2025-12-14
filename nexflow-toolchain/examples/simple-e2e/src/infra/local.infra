@@ -1,0 +1,30 @@
+# Local Docker Infrastructure Configuration
+# For end-to-end testing with Docker Compose stack
+
+version: "1.0"
+environment: local
+
+kafka:
+  brokers: localhost:9093
+  security_protocol: PLAINTEXT
+
+mongodb:
+  uri: mongodb://nexflow:nexflow_dev@localhost:27017
+  auth_source: admin
+
+streams:
+  input_orders:
+    topic: orders.input
+    parallelism: 2
+    consumer_group: order-processing
+    start_offset: earliest
+
+  processed_orders:
+    topic: orders.processed
+    parallelism: 2
+
+resources:
+  job_parallelism: 2
+  task_slots: 2
+  checkpoint_interval: 30s
+  state_backend: rocksdb

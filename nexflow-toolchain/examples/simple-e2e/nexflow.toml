@@ -1,0 +1,19 @@
+# Nexflow Project Configuration
+# Simple E2E Example
+
+[project]
+name = "simple-e2e"
+version = "1.0.0"
+
+[source]
+root = "src"
+
+[output]
+directory = "generated"
+
+[target.flink]
+package = "com.nexflow.examples.orders"
+java_version = "11"
+
+[build]
+verify = true

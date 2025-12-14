@@ -1,0 +1,17 @@
+// Order Enrichment Transform
+// Calculates total and adds processing timestamp
+
+transform enrich_order
+    input order: Order
+    output EnrichedOrder
+
+    order_id = order.order_id
+    customer_id = order.customer_id
+    product = order.product
+    quantity = order.quantity
+    price = order.price
+    total = order.quantity * order.price
+    status = "processed"
+    timestamp = order.timestamp
+    processed_at = now()
+end
