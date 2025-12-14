@@ -598,6 +598,14 @@ functionName
     | 'filter'      // filter(collection, predicate) -> List<T>
     | 'find'        // find(collection, predicate) -> Optional<T>
     | 'distinct'    // distinct(collection) -> List<T>
+    // Calendar functions (Business Date Operations)
+    | 'current_business_date'     // current_business_date() -> bizdate
+    | 'previous_business_date'    // previous_business_date() -> bizdate
+    | 'next_business_date'        // next_business_date() -> bizdate
+    | 'add_business_days'         // add_business_days(date, n) -> bizdate
+    | 'is_business_day'           // is_business_day(date) -> boolean
+    | 'is_holiday'                // is_holiday(date) -> boolean
+    | 'business_days_between'     // business_days_between(start, end) -> integer
     ;
 
 // List literal for 'in' expressions

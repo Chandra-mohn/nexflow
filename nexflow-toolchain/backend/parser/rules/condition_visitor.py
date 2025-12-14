@@ -2,6 +2,8 @@
 Condition Visitor Mixin for Rules Parser
 
 Handles parsing of condition types: range, set, pattern, null, comparison, expression.
+
+Extended in v0.6.0+ for marker state conditions.
 """
 
 from backend.ast import rules_ast as ast
@@ -29,6 +31,8 @@ class RulesConditionVisitorMixin:
             return self.visitComparisonCondition(ctx.comparisonCondition())
         elif ctx.expressionCondition():
             return self.visitExpressionCondition(ctx.expressionCondition())
+        elif ctx.markerStateCondition():
+            return self.visitMarkerStateCondition(ctx.markerStateCondition())
 
         return ast.WildcardCondition(location=self._get_location(ctx))
 
@@ -115,5 +119,42 @@ class RulesConditionVisitorMixin:
         expr = self.visitBooleanExpr(ctx.booleanExpr())
         return ast.ExpressionCondition(
             expression=expr,
+            location=self._get_location(ctx)
+        )
+
+    def visitMarkerStateCondition(self, ctx: RulesDSLParser.MarkerStateConditionContext) -> ast.MarkerStateCondition:
+        """Parse marker state condition (v0.6.0+).
+
+        Examples:
+            marker eod_1 fired
+            marker eod_1 pending
+            between eod_1 and eod_2
+        """
+        identifiers = ctx.IDENTIFIER()
+
+        if ctx.FIRED():
+            return ast.MarkerStateCondition(
+                state_type=ast.MarkerStateType.FIRED,
+                marker_name=identifiers[0].getText(),
+                location=self._get_location(ctx)
+            )
+        elif ctx.PENDING():
+            return ast.MarkerStateCondition(
+                state_type=ast.MarkerStateType.PENDING,
+                marker_name=identifiers[0].getText(),
+                location=self._get_location(ctx)
+            )
+        elif ctx.BETWEEN_MARKERS():
+            return ast.MarkerStateCondition(
+                state_type=ast.MarkerStateType.BETWEEN,
+                marker_name=identifiers[0].getText(),
+                end_marker=identifiers[1].getText(),
+                location=self._get_location(ctx)
+            )
+
+        # Fallback - shouldn't reach here with valid grammar
+        return ast.MarkerStateCondition(
+            state_type=ast.MarkerStateType.PENDING,
+            marker_name="unknown",
             location=self._get_location(ctx)
         )

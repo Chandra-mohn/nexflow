@@ -299,6 +299,11 @@ class RulesDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RulesDSLParser#markerStateCondition.
+    def visitMarkerStateCondition(self, ctx:RulesDSLParser.MarkerStateConditionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RulesDSLParser#action.
     def visitAction(self, ctx:RulesDSLParser.ActionContext):
         return self.visitChildren(ctx)

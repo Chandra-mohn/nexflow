@@ -13,6 +13,7 @@ from .enums import (
     ErrorActionType,
     QualifierType,
     BaseType,
+    CalendarFunction,
     UnaryOp,
     ArithmeticOp,
     ComparisonOp,
@@ -111,7 +112,7 @@ from .program import (
 __all__ = [
     # Enums
     'CompatibilityMode', 'ComposeType', 'SeverityLevel', 'LogLevel', 'ErrorActionType',
-    'QualifierType', 'BaseType', 'UnaryOp', 'ArithmeticOp', 'ComparisonOp', 'LogicalOp',
+    'QualifierType', 'BaseType', 'CalendarFunction', 'UnaryOp', 'ArithmeticOp', 'ComparisonOp', 'LogicalOp',
     # Common
     'SourceLocation', 'Duration', 'FieldPath', 'RangeSpec', 'LengthSpec',
     # Literals

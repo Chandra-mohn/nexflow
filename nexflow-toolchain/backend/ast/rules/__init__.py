@@ -12,6 +12,8 @@ from .enums import (
     ComparisonOp,
     PatternMatchType,
     LogicalOp,
+    MarkerStateType,
+    CalendarFunction,
 )
 
 # Common types
@@ -43,6 +45,7 @@ from .conditions import (
     NullCondition,
     ComparisonCondition,
     ExpressionCondition,
+    MarkerStateCondition,
     Condition,
 )
 
@@ -144,6 +147,7 @@ from .program import (
 __all__ = [
     # Enums
     'HitPolicyType', 'ExecuteType', 'BaseType', 'ComparisonOp', 'PatternMatchType', 'LogicalOp',
+    'MarkerStateType', 'CalendarFunction',
     # Common
     'SourceLocation', 'FieldPath',
     # Literals
@@ -151,7 +155,8 @@ __all__ = [
     'PercentageLiteral', 'BooleanLiteral', 'NullLiteral', 'ListLiteral', 'Literal',
     # Conditions
     'WildcardCondition', 'ExactMatchCondition', 'RangeCondition', 'SetCondition',
-    'PatternCondition', 'NullCondition', 'ComparisonCondition', 'ExpressionCondition', 'Condition',
+    'PatternCondition', 'NullCondition', 'ComparisonCondition', 'ExpressionCondition',
+    'MarkerStateCondition', 'Condition',
     # Actions
     'NoAction', 'AssignAction', 'CalculateAction', 'LookupAction', 'ActionArg', 'CallAction', 'EmitAction', 'Action',
     # Action declarations (RFC Solution 5)

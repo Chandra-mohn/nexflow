@@ -1,7 +1,7 @@
-# RulesDSL (L4) generated parser
+"""Generated Rules DSL Parser module."""
+
 from .RulesDSLLexer import RulesDSLLexer
 from .RulesDSLParser import RulesDSLParser
-from .RulesDSLListener import RulesDSLListener
 from .RulesDSLVisitor import RulesDSLVisitor
 
-__all__ = ['RulesDSLLexer', 'RulesDSLParser', 'RulesDSLListener', 'RulesDSLVisitor']
+__all__ = ['RulesDSLLexer', 'RulesDSLParser', 'RulesDSLVisitor']

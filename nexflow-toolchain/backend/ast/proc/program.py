@@ -5,6 +5,8 @@ Top-level program and process definition dataclasses.
 
 Updated for grammar v0.5.0+ which uses bodyContent for flexible ordering
 instead of separate inputBlock/outputBlock.
+
+Extended for EOD markers and phases (v0.6.0+).
 """
 
 from dataclasses import dataclass, field
@@ -18,6 +20,7 @@ from .correlation import AwaitDecl, HoldDecl
 from .output import EmitDecl, CompletionBlock
 from .state import StateBlock
 from .resilience import ResilienceBlock
+from .markers import MarkersBlock, PhaseBlock, BusinessDateDecl
 
 
 # Type alias for processing operations
@@ -31,9 +34,18 @@ class ProcessDefinition:
 
     v0.5.0+: Uses lists for receives, emits, correlations, completions
     instead of single inputBlock/outputBlock containers.
+
+    v0.6.0+: Extended for EOD markers and phases:
+    - business_date: Calendar reference for business date resolution
+    - markers: EOD marker definitions
+    - phases: Phase blocks containing statements
     """
     name: str
     execution: Optional[ExecutionBlock] = None
+    # Business date and markers (v0.6.0+)
+    business_date: Optional[BusinessDateDecl] = None
+    markers: Optional[MarkersBlock] = None
+    phases: List[PhaseBlock] = field(default_factory=list)
     # v0.5.0+: Direct lists instead of block containers
     receives: List[ReceiveDecl] = field(default_factory=list)
     processing: List[ProcessingOp] = field(default_factory=list)
@@ -64,6 +76,27 @@ class ProcessDefinition:
     def completion(self):
         """Backward compatibility: returns first completion or None."""
         return self.completions[0] if self.completions else None
+
+    # Helper methods for markers and phases (v0.6.0+)
+    def has_markers(self) -> bool:
+        """Check if process has markers defined."""
+        return self.markers is not None and len(self.markers.markers) > 0
+
+    def has_phases(self) -> bool:
+        """Check if process uses phase-based execution."""
+        return len(self.phases) > 0
+
+    def has_business_date(self) -> bool:
+        """Check if process references a business calendar."""
+        return self.business_date is not None
+
+    def is_phase_based(self) -> bool:
+        """Check if process uses phase-based execution model.
+
+        A process is phase-based if it has either markers or phases defined.
+        Non-phase-based processes use the traditional statement model.
+        """
+        return self.has_markers() or self.has_phases()
 
 
 @dataclass

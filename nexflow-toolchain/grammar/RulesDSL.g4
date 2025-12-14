@@ -244,6 +244,7 @@ baseType
     | BOOLEAN_TYPE
     | DATE_TYPE
     | TIMESTAMP_TYPE
+    | BIZDATE_TYPE       // v0.6.0+: Business date type
     ;
 
 inlineComment
@@ -318,6 +319,7 @@ condition
     | nullCondition                           // is null, is not null
     | comparisonCondition                     // > 1000, >= 700, != "closed"
     | expressionCondition                     // Complex boolean expression
+    | markerStateCondition                    // v0.6.0+: marker eod_1 fired
     ;
 
 exactMatch
@@ -354,6 +356,13 @@ comparisonCondition
 
 expressionCondition
     : LPAREN booleanExpr RPAREN
+    ;
+
+// v0.6.0+: Marker state condition for phase-aware rules
+markerStateCondition
+    : MARKER IDENTIFIER FIRED                     // marker eod_1 fired
+    | MARKER IDENTIFIER PENDING                   // marker eod_1 pending
+    | BETWEEN_MARKERS IDENTIFIER AND IDENTIFIER   // between eod_1 and eod_2
     ;
 
 // ----------------------------------------------------------------------------
@@ -838,6 +847,16 @@ DATE_TYPE       : 'date' ;
 TIMESTAMP_TYPE  : 'timestamp' ;
 MONEY_TYPE      : 'money' ;
 PERCENTAGE_TYPE : 'percentage' ;
+BIZDATE_TYPE    : 'bizdate' ;  // v0.6.0+: Business date type
+
+// ----------------------------------------------------------------------------
+// Keywords - Markers (v0.6.0+)
+// ----------------------------------------------------------------------------
+
+MARKER          : 'marker' ;
+FIRED           : 'fired' ;
+PENDING         : 'pending' ;
+BETWEEN_MARKERS : 'between' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Other

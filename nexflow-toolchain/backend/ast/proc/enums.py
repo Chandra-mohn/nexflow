@@ -84,3 +84,22 @@ class CompletionConditionType(Enum):
     COUNT = "count"
     MARKER = "marker"
     RULE = "rule"
+
+
+class PhaseType(Enum):
+    """Phase execution types for EOD markers."""
+    BEFORE = "before"       # Run until marker fires
+    BETWEEN = "between"     # Run between two markers
+    AFTER = "after"         # Run after marker fires
+    ANYTIME = "anytime"     # Run continuously, ignoring markers
+
+
+class MarkerConditionType(Enum):
+    """Types of marker completion conditions."""
+    SIGNAL = "signal"                # External signal received
+    MARKER_REF = "marker_ref"        # Another marker completed
+    STREAM_DRAINED = "stream_drained"  # Stream has no pending messages
+    COUNT_THRESHOLD = "count_threshold"  # Message count reached
+    TIME_BASED = "time_based"        # Time threshold reached
+    API_CHECK = "api_check"          # External service ready
+    COMPOUND = "compound"            # AND/OR of other conditions

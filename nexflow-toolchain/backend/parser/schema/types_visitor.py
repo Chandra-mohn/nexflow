@@ -49,6 +49,7 @@ class TypesVisitorMixin:
             'timestamp': ast.BaseType.TIMESTAMP,
             'uuid': ast.BaseType.UUID,
             'bytes': ast.BaseType.BYTES,
+            'bizdate': ast.BaseType.BIZDATE,  # Business date - validated against calendar
         }
         return type_map.get(type_text, ast.BaseType.STRING)
 

@@ -28,6 +28,7 @@ try:
         FlowOutputVisitorMixin,
         FlowStateVisitorMixin,
         FlowResilienceVisitorMixin,
+        FlowMarkersVisitorMixin,
     )
 
     class FlowASTBuilder(
@@ -40,6 +41,7 @@ try:
         FlowOutputVisitorMixin,
         FlowStateVisitorMixin,
         FlowResilienceVisitorMixin,
+        FlowMarkersVisitorMixin,
         ProcDSLVisitor
     ):
         """
@@ -55,6 +57,7 @@ try:
         - FlowOutputVisitorMixin: Output and completion blocks
         - FlowStateVisitorMixin: State management (uses, local, buffer)
         - FlowResilienceVisitorMixin: Error handling, checkpoint, backpressure
+        - FlowMarkersVisitorMixin: Business date, EOD markers, phases (v0.6.0+)
         """
         pass
 

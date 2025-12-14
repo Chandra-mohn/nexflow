@@ -45,6 +45,112 @@ class WriteConcern(Enum):
     UNACKNOWLEDGED = "unacknowledged"
 
 
+class CalendarFallbackStrategy(Enum):
+    """Calendar API fallback strategies."""
+    LAST_KNOWN = "last_known"
+    FAIL_FAST = "fail_fast"
+    DEFAULT_TODAY = "default_today"
+
+
+@dataclass
+class CalendarCacheConfig:
+    """Calendar API cache configuration.
+
+    Attributes:
+        ttl: Cache time-to-live (e.g., "300s", "5m")
+        refresh_on_phase: Whether to refresh cache after phase transitions
+    """
+    ttl: str = "300s"
+    refresh_on_phase: bool = True
+
+    def ttl_seconds(self) -> int:
+        """Convert ttl to seconds."""
+        ttl = self.ttl.strip().lower()
+        if ttl.endswith("ms"):
+            return int(ttl[:-2]) // 1000
+        elif ttl.endswith("s"):
+            return int(ttl[:-1])
+        elif ttl.endswith("m"):
+            return int(ttl[:-1]) * 60
+        elif ttl.endswith("h"):
+            return int(ttl[:-1]) * 3600
+        else:
+            return int(ttl)
+
+
+@dataclass
+class CalendarFallbackConfig:
+    """Calendar API fallback configuration.
+
+    Attributes:
+        strategy: Fallback strategy when API is unavailable
+        max_stale: Maximum staleness allowed for cached values
+        alert_channel: Alert channel for fallback activation
+    """
+    strategy: CalendarFallbackStrategy = CalendarFallbackStrategy.LAST_KNOWN
+    max_stale: str = "1h"
+    alert_channel: Optional[str] = None
+
+    def max_stale_seconds(self) -> int:
+        """Convert max_stale to seconds."""
+        stale = self.max_stale.strip().lower()
+        if stale.endswith("s"):
+            return int(stale[:-1])
+        elif stale.endswith("m"):
+            return int(stale[:-1]) * 60
+        elif stale.endswith("h"):
+            return int(stale[:-1]) * 3600
+        elif stale.endswith("d"):
+            return int(stale[:-1]) * 86400
+        else:
+            return int(stale)
+
+
+@dataclass
+class CalendarConfig:
+    """Calendar service configuration for business date resolution.
+
+    Business date is resolved via external Calendar Service API.
+    L5 only stores API endpoint and cache configuration.
+
+    Attributes:
+        name: Calendar name (e.g., "trading_calendar", "settlement_calendar")
+        service: Service discovery name (for K8s/service mesh)
+        endpoint: Direct API endpoint or env var reference
+        cache: Cache configuration for reducing API calls
+        fallback: Fallback configuration for API failures
+        timeout: API call timeout (e.g., "5s")
+        retry_attempts: Number of retry attempts
+        properties: Additional properties for the calendar client
+    """
+    name: str
+    service: Optional[str] = None
+    endpoint: str = "${CALENDAR_API_URL:http://calendar-api:8080}"
+    cache: CalendarCacheConfig = field(default_factory=CalendarCacheConfig)
+    fallback: CalendarFallbackConfig = field(default_factory=CalendarFallbackConfig)
+    timeout: str = "5s"
+    retry_attempts: int = 3
+    properties: Dict[str, str] = field(default_factory=dict)
+
+    def timeout_ms(self) -> int:
+        """Convert timeout to milliseconds."""
+        timeout = self.timeout.strip().lower()
+        if timeout.endswith("ms"):
+            return int(timeout[:-2])
+        elif timeout.endswith("s"):
+            return int(timeout[:-1]) * 1000
+        elif timeout.endswith("m"):
+            return int(timeout[:-1]) * 60 * 1000
+        else:
+            return int(timeout) * 1000
+
+    def get_endpoint(self) -> str:
+        """Get the resolved endpoint (service takes priority)."""
+        if self.service:
+            return f"http://{self.service}"
+        return self.endpoint
+
+
 @dataclass
 class KafkaConfig:
     """Kafka cluster configuration.
@@ -223,6 +329,7 @@ class InfraConfig:
         environment: Environment name (dev/staging/prod)
         kafka: Kafka cluster configuration
         mongodb: MongoDB cluster configuration
+        calendar: Calendar service configuration (for business date)
         streams: Stream definitions by logical name
         persistence: Persistence targets by logical name
         resources: Flink job resource configuration
@@ -232,6 +339,7 @@ class InfraConfig:
     environment: str = "default"
     kafka: Optional[KafkaConfig] = None
     mongodb: Optional[MongoDBConfig] = None
+    calendar: Optional[CalendarConfig] = None
     streams: Dict[str, StreamDefinition] = field(default_factory=dict)
     persistence: Dict[str, PersistenceTarget] = field(default_factory=dict)
     resources: ResourceConfig = field(default_factory=ResourceConfig)
@@ -302,6 +410,26 @@ class InfraConfig:
     def has_persistence(self) -> bool:
         """Check if any persistence targets are defined."""
         return bool(self.persistence)
+
+    def has_calendar(self) -> bool:
+        """Check if calendar service is configured."""
+        return self.calendar is not None
+
+    def get_calendar(self, name: str) -> CalendarConfig:
+        """Get calendar configuration by name.
+
+        Raises:
+            InfraValidationError: If calendar not found or name doesn't match
+        """
+        if not self.calendar:
+            raise InfraValidationError(
+                f"Calendar '{name}' not configured. No calendar defined in infrastructure config."
+            )
+        if self.calendar.name != name:
+            raise InfraValidationError(
+                f"Calendar '{name}' not found. Available calendar: {self.calendar.name}"
+            )
+        return self.calendar
 
     def source_streams(self) -> Dict[str, StreamDefinition]:
         """Get all source streams (those with consumer groups)."""

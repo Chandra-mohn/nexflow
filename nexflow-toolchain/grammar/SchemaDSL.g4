@@ -536,6 +536,7 @@ baseType
     | 'timestamp'
     | 'uuid'
     | 'bytes'
+    | 'bizdate'      // Business date - validated against calendar
     ;
 
 collectionType

@@ -19,6 +19,10 @@ from backend.ast.infra import (
     InfraConfig,
     KafkaConfig,
     MongoDBConfig,
+    CalendarConfig,
+    CalendarCacheConfig,
+    CalendarFallbackConfig,
+    CalendarFallbackStrategy,
     StreamDefinition,
     PersistenceTarget,
     ResourceConfig,
@@ -172,6 +176,10 @@ class InfraParser:
         if "mongodb" in data:
             config.mongodb = self._parse_mongodb_config(data["mongodb"])
 
+        # Calendar configuration
+        if "calendar" in data:
+            config.calendar = self._parse_calendar_config(data["calendar"])
+
         # Stream definitions
         if "streams" in data:
             for name, stream_data in data["streams"].items():
@@ -241,6 +249,64 @@ class InfraParser:
             auth_mechanism=data.get("auth_mechanism"),
             tls_enabled=data.get("tls_enabled", False),
             tls_ca_file=data.get("tls_ca_file"),
+            properties=data.get("properties", {}),
+        )
+
+    def _parse_calendar_config(self, data: Dict[str, Any]) -> CalendarConfig:
+        """Parse calendar service configuration.
+
+        Example YAML:
+            calendar:
+              name: trading_calendar
+              service: calendar-service      # K8s service name (optional)
+              endpoint: ${CALENDAR_API_URL:http://calendar-api:8080}
+              cache:
+                ttl: 300s
+                refresh_on_phase: true
+              fallback:
+                strategy: last_known
+                max_stale: 1h
+                alert_channel: ops-critical
+              timeout: 5s
+              retry_attempts: 3
+        """
+        name = data.get("name")
+        if not name:
+            raise InfraParseError("Calendar configuration requires 'name' field")
+
+        # Parse cache config
+        cache_data = data.get("cache", {})
+        cache_config = CalendarCacheConfig(
+            ttl=cache_data.get("ttl", "300s"),
+            refresh_on_phase=cache_data.get("refresh_on_phase", True),
+        )
+
+        # Parse fallback config
+        fallback_data = data.get("fallback", {})
+        fallback_strategy_str = fallback_data.get("strategy", "last_known").lower()
+        try:
+            fallback_strategy = CalendarFallbackStrategy(fallback_strategy_str)
+        except ValueError:
+            valid_strategies = [s.value for s in CalendarFallbackStrategy]
+            raise InfraParseError(
+                f"Invalid fallback strategy: {fallback_strategy_str}. "
+                f"Valid values: {', '.join(valid_strategies)}"
+            )
+
+        fallback_config = CalendarFallbackConfig(
+            strategy=fallback_strategy,
+            max_stale=fallback_data.get("max_stale", "1h"),
+            alert_channel=fallback_data.get("alert_channel"),
+        )
+
+        return CalendarConfig(
+            name=name,
+            service=data.get("service"),
+            endpoint=data.get("endpoint", "${CALENDAR_API_URL:http://calendar-api:8080}"),
+            cache=cache_config,
+            fallback=fallback_config,
+            timeout=data.get("timeout", "5s"),
+            retry_attempts=data.get("retry_attempts", 3),
             properties=data.get("properties", {}),
         )
 

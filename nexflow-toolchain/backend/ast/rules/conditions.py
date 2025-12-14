@@ -2,13 +2,15 @@
 Rules AST Condition Types
 
 Condition types for decision table matching.
+
+Extended in v0.6.0+ for marker-based conditions.
 """
 
 from dataclasses import dataclass
 from typing import Optional, List, Union, TYPE_CHECKING
 
 from .common import SourceLocation
-from .enums import PatternMatchType, ComparisonOp
+from .enums import PatternMatchType, ComparisonOp, MarkerStateType
 from .literals import Literal, IntegerLiteral, DecimalLiteral, MoneyLiteral
 
 if TYPE_CHECKING:
@@ -74,6 +76,21 @@ class ExpressionCondition:
     location: Optional[SourceLocation] = None
 
 
+@dataclass
+class MarkerStateCondition:
+    """Marker state condition for phase-aware rules (v0.6.0+).
+
+    Examples:
+        - when marker eod_1 fired
+        - when marker eod_1 pending
+        - when between eod_1 and eod_2
+    """
+    state_type: MarkerStateType
+    marker_name: str
+    end_marker: Optional[str] = None  # For BETWEEN state type
+    location: Optional[SourceLocation] = None
+
+
 Condition = Union[
     WildcardCondition,
     ExactMatchCondition,
@@ -82,5 +99,6 @@ Condition = Union[
     PatternCondition,
     NullCondition,
     ComparisonCondition,
-    ExpressionCondition
+    ExpressionCondition,
+    MarkerStateCondition,
 ]

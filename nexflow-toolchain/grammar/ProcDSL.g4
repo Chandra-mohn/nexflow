@@ -54,11 +54,19 @@ program
 processDefinition
     : PROCESS processName
         executionBlock?
+        businessDateDecl?           // v0.6.0+: business_date from calendar
+        markersBlock?               // v0.6.0+: EOD marker definitions
         stateMachineDecl?
-        bodyContent*
+        processBodyOrPhases         // v0.6.0+: either statements or phase blocks
         stateBlock?
         processTailBlocks?
       END
+    ;
+
+// v0.6.0+: Process body can be traditional statements OR phase blocks
+processBodyOrPhases
+    : bodyContent*                  // Traditional: interleaved statements
+    | phaseBlock+                   // Phase-based: explicit phase blocks
     ;
 
 // Allow metrics and resilience blocks in any order
@@ -101,6 +109,7 @@ processingBlock
     | scheduleStatement
     | setStatement
     | lookupStatement
+    | signalStatement         // v0.6.0+: signal emission
     ;
 
 // ----------------------------------------------------------------------------
@@ -149,6 +158,68 @@ modeType
     : STREAM
     | BATCH
     | MICRO_BATCH duration
+    ;
+
+// ----------------------------------------------------------------------------
+// Business Date and Markers (v0.6.0+)
+// ----------------------------------------------------------------------------
+
+// Business date calendar reference
+businessDateDecl
+    : BUSINESS_DATE FROM IDENTIFIER     // business_date from trading_calendar
+    ;
+
+// Markers block - EOD marker definitions
+markersBlock
+    : MARKERS
+        markerDef+
+      END
+    ;
+
+markerDef
+    : IDENTIFIER COLON WHEN markerCondition
+    ;
+
+// Marker completion conditions
+markerCondition
+    : markerCondition AND markerCondition                       // Compound AND
+    | markerCondition OR markerCondition                        // Compound OR
+    | IDENTIFIER                                                // Signal name or marker reference
+    | IDENTIFIER DOT DRAINED                                    // stream.drained
+    | IDENTIFIER DOT COUNT comparisonOp INTEGER                 // stream.count >= 1000
+    | AFTER timeSpec                                            // Time-based: after 18:00
+    | API DOT IDENTIFIER DOT IDENTIFIER                         // api.service.ready
+    | LPAREN markerCondition RPAREN                             // Parenthesized
+    ;
+
+timeSpec
+    : TIME_LITERAL                                              // "18:00", "23:59"
+    | END_OF_DAY                                                // end_of_day keyword
+    ;
+
+// Phase block - statements that execute within a phase
+phaseBlock
+    : PHASE phaseSpec
+        bodyContent*                                            // Same statements as traditional body
+        onCompleteClause*
+      END
+    ;
+
+phaseSpec
+    : BEFORE IDENTIFIER                                         // phase before eod_1
+    | BETWEEN IDENTIFIER AND IDENTIFIER                         // phase between eod_1 and eod_2
+    | AFTER IDENTIFIER                                          // phase after eod_3
+    | ANYTIME                                                   // phase anytime
+    ;
+
+// Signal emission on phase completion
+onCompleteClause
+    : ON COMPLETE (WHEN expression)? SIGNAL IDENTIFIER (TO IDENTIFIER)?
+    ;
+
+// Standalone signal statement (for rollover, etc.)
+signalStatement
+    : SIGNAL IDENTIFIER TO IDENTIFIER
     ;
 
 // ----------------------------------------------------------------------------
@@ -1213,6 +1284,25 @@ STREAM        : 'stream' ;
 BATCH         : 'batch' ;
 MICRO_BATCH   : 'micro_batch' ;
 EVENTS        : 'events' ;
+
+// ----------------------------------------------------------------------------
+// Keywords - Business Date and Markers (v0.6.0+)
+// ----------------------------------------------------------------------------
+
+BUSINESS_DATE : 'business_date' ;
+MARKERS       : 'markers' ;
+PHASE         : 'phase' ;
+BEFORE        : 'before' ;
+BETWEEN       : 'between' ;
+// Note: AFTER, COMPLETE, COUNT already defined in other sections
+ANYTIME       : 'anytime' ;
+SIGNAL        : 'signal' ;
+DRAINED       : 'drained' ;
+API           : 'api' ;
+END_OF_DAY    : 'end_of_day' ;
+
+// Time literal for marker conditions: "18:00", "23:59"
+TIME_LITERAL  : '"' [0-2] [0-9] ':' [0-5] [0-9] '"' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - State Machine

@@ -19,6 +19,11 @@ class ProcDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by ProcDSLParser#processBodyOrPhases.
+    def visitProcessBodyOrPhases(self, ctx:ProcDSLParser.ProcessBodyOrPhasesContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by ProcDSLParser#processTailBlocks.
     def visitProcessTailBlocks(self, ctx:ProcDSLParser.ProcessTailBlocksContext):
         return self.visitChildren(ctx)
@@ -81,6 +86,51 @@ class ProcDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by ProcDSLParser#modeType.
     def visitModeType(self, ctx:ProcDSLParser.ModeTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#businessDateDecl.
+    def visitBusinessDateDecl(self, ctx:ProcDSLParser.BusinessDateDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#markersBlock.
+    def visitMarkersBlock(self, ctx:ProcDSLParser.MarkersBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#markerDef.
+    def visitMarkerDef(self, ctx:ProcDSLParser.MarkerDefContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#markerCondition.
+    def visitMarkerCondition(self, ctx:ProcDSLParser.MarkerConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#timeSpec.
+    def visitTimeSpec(self, ctx:ProcDSLParser.TimeSpecContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#phaseBlock.
+    def visitPhaseBlock(self, ctx:ProcDSLParser.PhaseBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#phaseSpec.
+    def visitPhaseSpec(self, ctx:ProcDSLParser.PhaseSpecContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#onCompleteClause.
+    def visitOnCompleteClause(self, ctx:ProcDSLParser.OnCompleteClauseContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#signalStatement.
+    def visitSignalStatement(self, ctx:ProcDSLParser.SignalStatementContext):
         return self.visitChildren(ctx)
 
 
@@ -556,6 +606,26 @@ class ProcDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by ProcDSLParser#emitClause.
     def visitEmitClause(self, ctx:ProcDSLParser.EmitClauseContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#persistClause.
+    def visitPersistClause(self, ctx:ProcDSLParser.PersistClauseContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#persistTarget.
+    def visitPersistTarget(self, ctx:ProcDSLParser.PersistTargetContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#persistOption.
+    def visitPersistOption(self, ctx:ProcDSLParser.PersistOptionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#persistErrorAction.
+    def visitPersistErrorAction(self, ctx:ProcDSLParser.PersistErrorActionContext):
         return self.visitChildren(ctx)
 
 

@@ -70,6 +70,7 @@ class BaseType(Enum):
     TIMESTAMP = "timestamp"
     UUID = "uuid"
     BYTES = "bytes"
+    BIZDATE = "bizdate"  # Business date - validated against calendar
 
 
 class FieldQualifierType(Enum):
