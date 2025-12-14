@@ -67,6 +67,14 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         "filter", "find", "distinct",  # Transform functions
     }
 
+    # Date context functions (v0.7.0+) routed to NexflowRuntime
+    # These require process-level context for calendar resolution
+    DATE_CONTEXT_FUNCTIONS = {
+        "processing_date",      # processing_date() - System time when record is processed
+        "business_date",        # business_date()   - Business date from calendar context
+        "business_date_offset", # business_date_offset(n) - Business date +/- n days
+    }
+
     def generate_expression(
         self,
         expr: ast.Expression,
@@ -212,6 +220,10 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         if func.name in self.VOLTAGE_FUNCTIONS:
             return self._generate_voltage_function_call(func, use_map, local_vars, assigned_output_fields)
 
+        # Handle date context functions (v0.7.0+)
+        if func.name in self.DATE_CONTEXT_FUNCTIONS:
+            return self._generate_date_context_function_call(func, use_map, local_vars, assigned_output_fields)
+
         java_name = self._map_function_name(func.name)
 
         # For numeric functions like min/max, ensure arguments are numeric
@@ -308,6 +320,60 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         runtime_method = voltage_method_map.get(func.name, func.name)
 
         return f"NexflowRuntime.{runtime_method}({', '.join(args)})"
+
+    def _generate_date_context_function_call(
+        self,
+        func: ast.FunctionCall,
+        use_map: bool,
+        local_vars: List[str],
+        assigned_output_fields: Optional[List[str]] = None
+    ) -> str:
+        """Generate date context function call (v0.7.0+).
+
+        Date context functions provide access to process-level date information:
+        - processing_date() - Returns the system time when the record is being processed
+        - business_date()   - Returns the business date from calendar context
+        - business_date_offset(n) - Returns the business date +/- n days
+
+        These functions return LocalDate or Instant.
+
+        Examples in DSL:
+            posting_date = processing_date()
+            settlement_date = business_date()
+            is_same_day = business_date() == transaction.date
+            t_plus_2 = business_date_offset(2)
+
+        Generated Java:
+            NexflowRuntime.processingDate(context)
+            NexflowRuntime.businessDate(context)
+            NexflowRuntime.businessDateOffset(context, 2)
+
+        The context parameter provides access to the process execution context
+        which includes the business calendar and system time configuration.
+        """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+
+        # Map DSL function name to NexflowRuntime method name
+        date_method_map = {
+            "processing_date": "processingDate",
+            "business_date": "businessDate",
+            "business_date_offset": "businessDateOffset",
+        }
+        runtime_method = date_method_map.get(func.name, func.name)
+
+        # Date context functions receive the execution context as first parameter
+        # The context is available as 'context' in the generated code
+        if func.arguments:
+            # Functions with additional arguments (like business_date_offset)
+            args = ", ".join(
+                self.generate_expression(a, use_map, local_vars, assigned_output_fields)
+                for a in func.arguments
+            )
+            return f"NexflowRuntime.{runtime_method}(context, {args})"
+        else:
+            # Functions with no arguments (just context)
+            return f"NexflowRuntime.{runtime_method}(context)"
 
     def _map_function_name(self, name: str) -> str:
         """Map DSL function name to Java method."""

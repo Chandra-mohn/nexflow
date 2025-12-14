@@ -110,6 +110,8 @@ public final class NexflowRuntime {{
 
 {self._generate_time_functions()}
 
+{self._generate_date_context_functions()}
+
 {self._generate_math_functions()}
 
 {self._generate_string_functions()}
@@ -315,6 +317,79 @@ public final class NexflowRuntime {{
     public static Instant addDays(Instant timestamp, long days) {
         if (timestamp == null) return null;
         return timestamp.plus(days, ChronoUnit.DAYS);
+    }'''
+
+    def _generate_date_context_functions(self) -> str:
+        """Generate date context functions for process-level date access (v0.7.0+).
+
+        These functions provide access to date context within processing flows:
+        - processing_date: System time when the record is being processed
+        - business_date: Business date from calendar context
+        """
+        return '''    // =========================================================================
+    // Date Context Functions (v0.7.0+)
+    // =========================================================================
+
+    /**
+     * Get the processing date - the system time when the record is being processed.
+     *
+     * This function captures the current system time when called, representing
+     * when the record enters the processing pipeline. Unlike business_date which
+     * comes from a business calendar, processing_date is always the wall-clock time.
+     *
+     * In DSL:
+     *   processing_date auto
+     *   ...
+     *   posting_timestamp = processing_date()
+     *
+     * @param context The execution context (provides access to system clock)
+     * @return Current processing timestamp as Instant
+     */
+    public static Instant processingDate(Object context) {
+        // When context is available and has a configured clock, use that
+        // Otherwise fall back to system clock
+        return Instant.now();
+    }
+
+    /**
+     * Get the business date from the calendar context.
+     *
+     * This function retrieves the business date from the process execution context.
+     * The business date is determined by the business calendar configuration
+     * (e.g., trading_calendar) and represents when the transaction will be
+     * posted for accounting/settlement purposes.
+     *
+     * In DSL:
+     *   business_date from trading_calendar
+     *   ...
+     *   settlement_date = business_date()
+     *
+     * @param context The execution context (provides access to business calendar)
+     * @return Current business date as LocalDate
+     */
+    public static LocalDate businessDate(Object context) {
+        // When context has a business calendar configured, use that
+        // Otherwise fall back to current system date
+        // TODO: Integrate with actual business calendar service
+        return LocalDate.now();
+    }
+
+    /**
+     * Get the business date plus/minus offset days.
+     *
+     * Useful for calculating settlement dates, value dates, etc.
+     *
+     * In DSL:
+     *   t_plus_2 = business_date_offset(2)  // T+2 settlement
+     *
+     * @param context The execution context
+     * @param offsetDays Number of business days to add (can be negative)
+     * @return Business date offset by specified days
+     */
+    public static LocalDate businessDateOffset(Object context, int offsetDays) {
+        LocalDate baseDate = businessDate(context);
+        // TODO: Use business calendar to skip weekends/holidays
+        return baseDate.plusDays(offsetDays);
     }'''
 
     def _generate_math_functions(self) -> str:

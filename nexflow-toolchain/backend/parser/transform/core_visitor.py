@@ -6,6 +6,7 @@ and transform block definitions.
 """
 
 from backend.ast import transform_ast as ast
+from backend.ast.common import ImportStatement
 from backend.parser.generated.transform import TransformDSLParser
 
 
@@ -15,18 +16,29 @@ class TransformCoreVisitorMixin:
     def visitProgram(self, ctx: TransformDSLParser.ProgramContext) -> ast.Program:
         transforms = []
         transform_blocks = []
+        imports = []
 
         for child in ctx.getChildren():
             if isinstance(child, TransformDSLParser.TransformDefContext):
                 transforms.append(self.visitTransformDef(child))
             elif isinstance(child, TransformDSLParser.TransformBlockDefContext):
                 transform_blocks.append(self.visitTransformBlockDef(child))
+            elif isinstance(child, TransformDSLParser.ImportStatementContext):
+                imports.append(self.visitImportStatement(child))
 
         return ast.Program(
             transforms=transforms,
             transform_blocks=transform_blocks,
+            imports=imports,
             location=self._get_location(ctx)
         )
+
+    def visitImportStatement(self, ctx: TransformDSLParser.ImportStatementContext) -> ImportStatement:
+        """Parse an import statement."""
+        path = ctx.importPath().getText()
+        line = ctx.start.line if ctx.start else 0
+        column = ctx.start.column if ctx.start else 0
+        return ImportStatement(path=path, line=line, column=column)
 
     def visitTransformDef(self, ctx: TransformDSLParser.TransformDefContext) -> ast.TransformDef:
         name = self._get_text(ctx.transformName())

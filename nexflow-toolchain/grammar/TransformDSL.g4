@@ -32,7 +32,27 @@ grammar TransformDSL;
 // ----------------------------------------------------------------------------
 
 program
-    : (transformDef | transformBlockDef)+ EOF
+    : importStatement* (transformDef | transformBlockDef)+ EOF
+    ;
+
+// ----------------------------------------------------------------------------
+// Import Statement (v0.7.0+)
+// ----------------------------------------------------------------------------
+
+importStatement
+    : IMPORT importPath
+    ;
+
+importPath
+    : importPathSegment+ importFileExtension  // Path ends with file extension
+    ;
+
+importPathSegment
+    : DOTDOT | DOT | SLASH | IDENTIFIER | UPPER_IDENTIFIER | MINUS  // Allow: ./path, ../path, /abs/path, PascalCase, path-with-hyphens
+    ;
+
+importFileExtension
+    : DOT ('schema' | 'transform' | 'flow' | 'rules')  // File extension marks end of import
     ;
 
 // ----------------------------------------------------------------------------
@@ -725,6 +745,10 @@ BOOLEAN
     ;
 
 // Keywords that must be recognized before IDENTIFIER
+
+// Import (v0.7.0+)
+IMPORT : 'import' ;
+
 DEFAULT_KW
     : 'default'
     ;
@@ -747,6 +771,7 @@ STRING
 
 COLON : ':' ;
 COMMA : ',' ;
+DOTDOT : '..' ;                          // Must come before DOT for correct lexing
 DOT : '.' ;
 LBRACKET : '[' ;
 RBRACKET : ']' ;
@@ -766,7 +791,6 @@ MINUS : '-' ;
 STAR : '*' ;
 SLASH : '/' ;
 PERCENT : '%' ;
-DOTDOT : '..' ;
 ARROW : '->' ;                           // Lambda arrow
 OPTIONAL_CHAIN : '?.' ;
 COALESCE : '??' ;

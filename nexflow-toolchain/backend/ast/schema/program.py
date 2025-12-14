@@ -5,9 +5,12 @@ Top-level program and schema definition dataclasses.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from .common import SourceLocation, Duration
+
+if TYPE_CHECKING:
+    from backend.ast.common import ImportStatement
 from .enums import MutationPattern
 from .types import IdentityBlock, FieldsBlock, NestedObjectBlock, TypeAliasBlock
 from .blocks import (
@@ -44,4 +47,5 @@ class Program:
     """Top-level program containing schema definitions and type aliases."""
     schemas: List[SchemaDefinition] = field(default_factory=list)
     type_aliases: List[TypeAliasBlock] = field(default_factory=list)
+    imports: List['ImportStatement'] = field(default_factory=list)  # v0.7.0+
     location: Optional[SourceLocation] = None

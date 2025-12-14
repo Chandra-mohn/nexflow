@@ -1,8 +1,9 @@
 """
 Markers Visitor Mixin for Flow Parser
 
-Handles parsing of EOD markers, phases, and business date declarations.
+Handles parsing of EOD markers, phases, business date, and processing date declarations.
 Added in v0.6.0+ for phase-based execution control.
+Extended in v0.7.0+ for processing date support.
 """
 
 from typing import List, Optional
@@ -19,6 +20,18 @@ class FlowMarkersVisitorMixin:
         calendar_name = ctx.IDENTIFIER().getText()
         return ast.BusinessDateDecl(
             calendar_name=calendar_name,
+            location=self._get_location(ctx)
+        )
+
+    def visitProcessingDateDecl(self, ctx: ProcDSLParser.ProcessingDateDeclContext) -> ast.ProcessingDateDecl:
+        """Parse: processing_date auto
+
+        The processing_date declaration indicates that the system clock time
+        should be captured when each record is processed.
+        """
+        # Currently only 'auto' mode is supported
+        return ast.ProcessingDateDecl(
+            mode="auto",
             location=self._get_location(ctx)
         )
 

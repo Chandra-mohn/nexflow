@@ -228,3 +228,16 @@ class BusinessDateDecl:
     """
     calendar_name: str
     location: Optional[SourceLocation] = None
+
+
+@dataclass
+class ProcessingDateDecl:
+    """Processing date declaration - system time when record is processed.
+
+    Example: processing_date auto
+
+    The processing date is automatically set to the system clock time
+    when each record is processed by the streaming pipeline.
+    """
+    mode: str = "auto"  # Currently only 'auto' is supported
+    location: Optional[SourceLocation] = None

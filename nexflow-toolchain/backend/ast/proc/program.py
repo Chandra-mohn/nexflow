@@ -10,9 +10,12 @@ Extended for EOD markers and phases (v0.6.0+).
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, TYPE_CHECKING
 
 from .common import SourceLocation
+
+if TYPE_CHECKING:
+    from backend.ast.common import ImportStatement
 from .execution import ExecutionBlock
 from .input import ReceiveDecl
 from .processing import EnrichDecl, TransformDecl, RouteDecl, AggregateDecl, WindowDecl, JoinDecl, MergeDecl
@@ -20,7 +23,7 @@ from .correlation import AwaitDecl, HoldDecl
 from .output import EmitDecl, CompletionBlock
 from .state import StateBlock
 from .resilience import ResilienceBlock
-from .markers import MarkersBlock, PhaseBlock, BusinessDateDecl
+from .markers import MarkersBlock, PhaseBlock, BusinessDateDecl, ProcessingDateDecl
 
 
 # Type alias for processing operations
@@ -39,11 +42,15 @@ class ProcessDefinition:
     - business_date: Calendar reference for business date resolution
     - markers: EOD marker definitions
     - phases: Phase blocks containing statements
+
+    v0.7.0+: Extended for processing date:
+    - processing_date: System time when record is processed (auto mode)
     """
     name: str
     execution: Optional[ExecutionBlock] = None
-    # Business date and markers (v0.6.0+)
+    # Business date, processing date, and markers (v0.6.0+, v0.7.0+)
     business_date: Optional[BusinessDateDecl] = None
+    processing_date: Optional[ProcessingDateDecl] = None  # v0.7.0+: system time
     markers: Optional[MarkersBlock] = None
     phases: List[PhaseBlock] = field(default_factory=list)
     # v0.5.0+: Direct lists instead of block containers
@@ -90,6 +97,10 @@ class ProcessDefinition:
         """Check if process references a business calendar."""
         return self.business_date is not None
 
+    def has_processing_date(self) -> bool:
+        """Check if process uses processing date (v0.7.0+)."""
+        return self.processing_date is not None
+
     def is_phase_based(self) -> bool:
         """Check if process uses phase-based execution model.
 
@@ -103,4 +114,5 @@ class ProcessDefinition:
 class Program:
     """Top-level program containing process definitions."""
     processes: List[ProcessDefinition]
+    imports: List['ImportStatement'] = field(default_factory=list)  # v0.7.0+
     location: Optional[SourceLocation] = None

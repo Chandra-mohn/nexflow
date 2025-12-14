@@ -143,6 +143,7 @@ from .markers import (
     PhaseSpec,
     PhaseBlock,
     BusinessDateDecl,
+    ProcessingDateDecl,
 )
 
 __all__ = [
@@ -180,5 +181,5 @@ __all__ = [
     'SignalCondition', 'MarkerRefCondition', 'StreamDrainedCondition',
     'CountThresholdCondition', 'TimeBasedCondition', 'ApiCheckCondition', 'CompoundCondition',
     'AnyMarkerCondition', 'MarkerDef', 'MarkersBlock', 'OnCompleteClause',
-    'PhaseSpec', 'PhaseBlock', 'BusinessDateDecl',
+    'PhaseSpec', 'PhaseBlock', 'BusinessDateDecl', 'ProcessingDateDecl',
 ]

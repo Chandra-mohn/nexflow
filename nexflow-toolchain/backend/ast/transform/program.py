@@ -5,9 +5,12 @@ Top-level program and transform definition dataclasses.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from .common import SourceLocation
+
+if TYPE_CHECKING:
+    from backend.ast.common import ImportStatement
 from .metadata import TransformMetadata, CacheDecl
 from .specs import InputSpec, OutputSpec
 from .blocks import (
@@ -68,4 +71,5 @@ class Program:
     """Top-level program containing transform definitions."""
     transforms: List[TransformDef] = field(default_factory=list)
     transform_blocks: List[TransformBlockDef] = field(default_factory=list)
+    imports: List['ImportStatement'] = field(default_factory=list)  # v0.7.0+
     location: Optional[SourceLocation] = None

@@ -35,7 +35,27 @@ grammar RulesDSL;
 // ----------------------------------------------------------------------------
 
 program
-    : servicesBlock? actionsBlock? (decisionTableDef | proceduralRuleDef)+ EOF
+    : importStatement* servicesBlock? actionsBlock? (decisionTableDef | proceduralRuleDef)+ EOF
+    ;
+
+// ----------------------------------------------------------------------------
+// Import Statement (v0.7.0+)
+// ----------------------------------------------------------------------------
+
+importStatement
+    : IMPORT importPath
+    ;
+
+importPath
+    : importPathSegment+ importFileExtension  // Path ends with file extension
+    ;
+
+importPathSegment
+    : DOTDOT | DOT | SLASH | IDENTIFIER | MINUS  // Allow: ./path, ../path, /abs/path, path-with-hyphens
+    ;
+
+importFileExtension
+    : DOT ('schema' | 'transform' | 'flow' | 'rules')  // File extension marks end of import
     ;
 
 // ----------------------------------------------------------------------------
@@ -724,6 +744,7 @@ numberLiteral
 // Keywords - Structure
 // ----------------------------------------------------------------------------
 
+IMPORT         : 'import' ;  // v0.7.0+: For import statements
 DECISION_TABLE : 'decision_table' ;
 RULE           : 'rule' ;
 END            : 'end' ;
@@ -898,6 +919,7 @@ ARROW   : '->' ;
 PIPE     : '|' ;
 COLON    : ':' ;
 COMMA    : ',' ;
+DOTDOT   : '..' ;  // v0.7.0+: Must come before DOT for correct lexing
 DOT      : '.' ;
 LPAREN   : '(' ;
 RPAREN   : ')' ;

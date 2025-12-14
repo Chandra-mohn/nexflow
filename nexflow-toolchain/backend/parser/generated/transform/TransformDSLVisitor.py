@@ -1,4 +1,4 @@
-# Generated from grammar/TransformDSL.g4 by ANTLR 4.13.2
+# Generated from TransformDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .TransformDSLParser import TransformDSLParser
@@ -11,6 +11,26 @@ class TransformDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by TransformDSLParser#program.
     def visitProgram(self, ctx:TransformDSLParser.ProgramContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#importStatement.
+    def visitImportStatement(self, ctx:TransformDSLParser.ImportStatementContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#importPath.
+    def visitImportPath(self, ctx:TransformDSLParser.ImportPathContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#importPathSegment.
+    def visitImportPathSegment(self, ctx:TransformDSLParser.ImportPathSegmentContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by TransformDSLParser#importFileExtension.
+    def visitImportFileExtension(self, ctx:TransformDSLParser.ImportFileExtensionContext):
         return self.visitChildren(ctx)
 
 

@@ -7,11 +7,13 @@ Updated for grammar v0.5.0+ which uses bodyContent for flexible ordering
 instead of separate inputBlock/outputBlock.
 
 Extended for v0.6.0+ with business date, markers, and phases support.
+Extended for v0.7.0+ with processing date support.
 """
 
 from typing import List, Optional
 
 from backend.ast import proc_ast as ast
+from backend.ast.common import ImportStatement
 from backend.parser.generated.proc import ProcDSLParser
 
 
@@ -20,12 +22,26 @@ class FlowCoreVisitorMixin:
 
     def visitProgram(self, ctx: ProcDSLParser.ProgramContext) -> ast.Program:
         processes = []
-        for proc_ctx in ctx.processDefinition():
-            processes.append(self.visitProcessDefinition(proc_ctx))
+        imports = []
+
+        for child in ctx.getChildren():
+            if isinstance(child, ProcDSLParser.ProcessDefinitionContext):
+                processes.append(self.visitProcessDefinition(child))
+            elif isinstance(child, ProcDSLParser.ImportStatementContext):
+                imports.append(self.visitImportStatement(child))
+
         return ast.Program(
             processes=processes,
+            imports=imports,
             location=self._get_location(ctx)
         )
+
+    def visitImportStatement(self, ctx: ProcDSLParser.ImportStatementContext) -> ImportStatement:
+        """Parse an import statement."""
+        path = ctx.importPath().getText()
+        line = ctx.start.line if ctx.start else 0
+        column = ctx.start.column if ctx.start else 0
+        return ImportStatement(path=path, line=line, column=column)
 
     def visitProcessDefinition(self, ctx: ProcDSLParser.ProcessDefinitionContext) -> ast.ProcessDefinition:
         name = self._get_text(ctx.processName())
@@ -38,6 +54,11 @@ class FlowCoreVisitorMixin:
         business_date = None
         if ctx.businessDateDecl():
             business_date = self.visitBusinessDateDecl(ctx.businessDateDecl())
+
+        # v0.7.0+: processing date (system time)
+        processing_date = None
+        if ctx.processingDateDecl():
+            processing_date = self.visitProcessingDateDecl(ctx.processingDateDecl())
 
         # v0.6.0+: EOD markers block
         markers = None
@@ -85,6 +106,7 @@ class FlowCoreVisitorMixin:
             name=name,
             execution=execution,
             business_date=business_date,
+            processing_date=processing_date,
             markers=markers,
             phases=phases,
             receives=receives,

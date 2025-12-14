@@ -8,6 +8,7 @@ patterns, versions, identity blocks, fields blocks, and nested objects.
 from typing import List, Optional, Union
 
 from backend.ast import schema_ast as ast
+from backend.ast.common import ImportStatement
 from backend.parser.base import SourceLocation
 from backend.parser.generated.schema import SchemaDSLParser
 
@@ -45,18 +46,33 @@ class CoreVisitorMixin:
     def visitProgram(self, ctx: SchemaDSLParser.ProgramContext) -> ast.Program:
         schemas = []
         type_aliases = []
+        imports = []
 
         for child in ctx.getChildren():
             if isinstance(child, SchemaDSLParser.SchemaDefinitionContext):
                 schemas.append(self.visitSchemaDefinition(child))
             elif isinstance(child, SchemaDSLParser.TypeAliasBlockContext):
                 type_aliases.append(self.visitTypeAliasBlock(child))
+            elif isinstance(child, SchemaDSLParser.ImportStatementContext):
+                imports.append(self.visitImportStatement(child))
 
         return ast.Program(
             schemas=schemas,
             type_aliases=type_aliases,
+            imports=imports,
             location=self._get_location(ctx)
         )
+
+    def visitImportStatement(self, ctx: SchemaDSLParser.ImportStatementContext) -> ImportStatement:
+        """Parse an import statement."""
+        path = ctx.importPath().getText()
+        line = ctx.start.line if ctx.start else 0
+        column = ctx.start.column if ctx.start else 0
+        return ImportStatement(path=path, line=line, column=column)
+
+    def visitImportPath(self, ctx: SchemaDSLParser.ImportPathContext) -> str:
+        """Parse an import path."""
+        return ctx.getText()
 
     def visitSchemaDefinition(self, ctx: SchemaDSLParser.SchemaDefinitionContext) -> ast.SchemaDefinition:
         # v0.5.0+: schemaName can be IDENTIFIER, mutationPattern, or timeSemanticsType

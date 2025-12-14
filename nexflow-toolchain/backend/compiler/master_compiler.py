@@ -15,6 +15,12 @@ The L5 InfraConfig is passed to L1 FlowGenerator for infrastructure-aware genera
 - Sink topics resolved from L5 streams
 - MongoDB async sinks generated for persist clauses
 - Parallelism and resource configs from L5 resources
+
+IMPORT RESOLUTION (v0.7.0+):
+- Each DSL file can declare imports to other DSL files
+- ImportResolver resolves import paths and detects circular dependencies
+- Files are processed in topological order (dependencies first)
+- Resolved imports are passed to generators for type resolution
 """
 
 from dataclasses import dataclass, field
@@ -23,9 +29,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from backend.ast.infra import InfraConfig
+from backend.ast.common import ImportStatement
 from backend.parser.infra import InfraParser, InfraParseError
 from backend.generators.infra import BindingResolver
 from backend.generators.base import GeneratorConfig, GenerationResult
+from backend.resolver.import_resolver import ImportResolver, ImportError as ImportResolverError
 
 
 class CompilationPhase(Enum):
@@ -125,6 +133,9 @@ class MasterCompiler:
         self._infra_config: Optional[InfraConfig] = None
         self._binding_resolver: Optional[BindingResolver] = None
         self._validation_context: Optional[Any] = None
+        self._import_resolver: Optional[ImportResolver] = None
+        # Cache of parsed ASTs keyed by file path (for import resolution)
+        self._parsed_asts: Dict[Path, Any] = {}
 
     def compile(self) -> CompilationResult:
         """
@@ -134,6 +145,9 @@ class MasterCompiler:
             CompilationResult with all generated files and any errors
         """
         result = CompilationResult()
+
+        # Initialize import resolver for dependency tracking
+        self._import_resolver = ImportResolver(self.src_dir)
 
         # Phase 1: L5 Infrastructure
         infra_result = self._compile_infrastructure()
@@ -311,7 +325,11 @@ class MasterCompiler:
                     result.success = False
                 else:
                     parsed_asts[file_path] = parse_result.ast
+                    self._parsed_asts[file_path] = parse_result.ast  # Cache for import resolution
                     result.files_parsed += 1
+
+                    # Process imports from this file (v0.7.0+)
+                    self._process_file_imports(file_path, parse_result.ast, result)
 
             except Exception as e:
                 result.errors.append(f"{file_path}: {e}")
@@ -337,10 +355,22 @@ class MasterCompiler:
             result.warnings.append(f"No generator available for {generator_type}")
             return result
 
-        # Generate code for each AST
+        # Generate code for each AST in topological order (dependencies first)
         all_files = GenerationResult(success=True)
 
-        for file_path, ast in parsed_asts.items():
+        # Get topological order from import resolver if available
+        if self._import_resolver:
+            topo_order = self._import_resolver.get_processing_order()
+            # Filter to only include files in parsed_asts and maintain order
+            ordered_files = [f for f in topo_order if f in parsed_asts]
+            # Add any files not in the topological order (no imports)
+            remaining = [f for f in parsed_asts.keys() if f not in ordered_files]
+            ordered_files.extend(remaining)
+        else:
+            ordered_files = list(parsed_asts.keys())
+
+        for file_path in ordered_files:
+            ast = parsed_asts.get(file_path)
             if ast is None:
                 continue
 
@@ -369,6 +399,52 @@ class MasterCompiler:
         result.generation_result = all_files
         return result
 
+    def _process_file_imports(self, file_path: Path, ast: Any, result: LayerResult) -> None:
+        """Process and resolve imports from a parsed AST file.
+
+        Extracts import statements from the AST and uses ImportResolver to:
+        - Resolve relative/absolute import paths
+        - Detect circular dependencies
+        - Build dependency graph for processing order
+
+        Args:
+            file_path: Path to the source file
+            ast: Parsed AST that may contain imports
+            result: LayerResult to add any errors to
+        """
+        # Get imports from AST (different AST types store imports differently)
+        imports: List[ImportStatement] = []
+
+        # Check for imports attribute (Program-level ASTs)
+        if hasattr(ast, 'imports') and ast.imports:
+            imports = ast.imports
+
+        if not imports:
+            return
+
+        if self._import_resolver is None:
+            return
+
+        # Resolve each import
+        for import_stmt in imports:
+            try:
+                resolved_path = self._import_resolver.resolve(import_stmt.path, file_path)
+                import_stmt.resolved_path = resolved_path
+                import_stmt.source_file = file_path
+
+                # Record dependency in the graph
+                self._import_resolver.graph.add_dependency(file_path, resolved_path)
+
+                if self.verbose:
+                    rel_resolved = resolved_path.relative_to(self.src_dir) if resolved_path.is_relative_to(self.src_dir) else resolved_path
+                    print(f"    Import resolved: {import_stmt.path} -> {rel_resolved}")
+
+            except ImportResolverError as e:
+                result.errors.append(f"{file_path}:{import_stmt.line}: {e}")
+                result.success = False
+            except Exception as e:
+                result.warnings.append(f"{file_path}:{import_stmt.line}: Import warning - {e}")
+
     def _get_flow_generator(self, config: GeneratorConfig):
         """Get FlowGenerator with infrastructure bindings."""
         from backend.generators.flow import FlowGenerator
@@ -381,6 +457,11 @@ class MasterCompiler:
 
         Should be called after parsing L1 but before code generation.
 
+        Extracts:
+        - Stream sources from ReceiveDecl.source
+        - Stream sinks from EmitDecl.target
+        - Persistence targets from PersistDecl.target
+
         Returns:
             List of validation error messages (empty if valid)
         """
@@ -388,15 +469,34 @@ class MasterCompiler:
             # No config = development mode, all references allowed
             return []
 
-        errors = []
-
         # Collect all stream and persistence references from L1 ASTs
         stream_refs = set()
         persistence_refs = set()
 
-        # TODO: Extract references from parsed L1 ASTs
-        # For now, validate the configured bindings exist
-        # This will be enhanced when L1 visitor is implemented
+        # Extract references from parsed L1 (flow) ASTs
+        for file_path, ast in self._parsed_asts.items():
+            # Skip non-L1 ASTs (check if it has processes attribute)
+            if not hasattr(ast, 'processes'):
+                continue
+
+            for process in ast.processes:
+                # Extract source stream references from receives
+                for receive in process.receives:
+                    stream_refs.add(receive.source)
+
+                # Extract sink stream and persistence references from emits
+                for emit in process.emits:
+                    if hasattr(emit, 'target') and emit.target:
+                        stream_refs.add(emit.target)
+                    if hasattr(emit, 'persist') and emit.persist and emit.persist.target:
+                        persistence_refs.add(emit.persist.target)
+
+                # Extract from completion blocks
+                for completion in process.completions:
+                    if completion.on_commit and completion.on_commit.target:
+                        stream_refs.add(completion.on_commit.target)
+                    if completion.on_commit_failure and completion.on_commit_failure.target:
+                        stream_refs.add(completion.on_commit_failure.target)
 
         return self._binding_resolver.validate_bindings(
             list(stream_refs),

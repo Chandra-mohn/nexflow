@@ -48,13 +48,34 @@ grammar ProcDSL;
 // ----------------------------------------------------------------------------
 
 program
-    : processDefinition+ EOF
+    : importStatement* processDefinition+ EOF
+    ;
+
+// ----------------------------------------------------------------------------
+// Import Statement (v0.7.0+)
+// ----------------------------------------------------------------------------
+
+importStatement
+    : IMPORT importPath
+    ;
+
+importPath
+    : importPathSegment+ importFileExtension  // Path ends with file extension
+    ;
+
+importPathSegment
+    : DOTDOT | DOT | SLASH | IDENTIFIER | MINUS  // Allow: ./path, ../path, /abs/path, path-with-hyphens
+    ;
+
+importFileExtension
+    : DOT (SCHEMA | TRANSFORM | 'flow' | 'rules')  // File extension marks end of import
     ;
 
 processDefinition
     : PROCESS processName
         executionBlock?
         businessDateDecl?           // v0.6.0+: business_date from calendar
+        processingDateDecl?         // v0.7.0+: processing_date auto (system time)
         markersBlock?               // v0.6.0+: EOD marker definitions
         stateMachineDecl?
         processBodyOrPhases         // v0.6.0+: either statements or phase blocks
@@ -167,6 +188,11 @@ modeType
 // Business date calendar reference
 businessDateDecl
     : BUSINESS_DATE FROM IDENTIFIER     // business_date from trading_calendar
+    ;
+
+// Processing date - system time when record is processed (v0.7.0+)
+processingDateDecl
+    : PROCESSING_DATE AUTO              // processing_date auto (system clock)
     ;
 
 // Markers block - EOD marker definitions
@@ -1261,6 +1287,7 @@ paramField
 // Keywords - Structure
 // ----------------------------------------------------------------------------
 
+IMPORT        : 'import' ;  // v0.7.0+: For import statements
 PROCESS       : 'process' ;
 END           : 'end' ;
 
@@ -1286,12 +1313,14 @@ MICRO_BATCH   : 'micro_batch' ;
 EVENTS        : 'events' ;
 
 // ----------------------------------------------------------------------------
-// Keywords - Business Date and Markers (v0.6.0+)
+// Keywords - Business Date, Processing Date and Markers (v0.6.0+, v0.7.0+)
 // ----------------------------------------------------------------------------
 
-BUSINESS_DATE : 'business_date' ;
-MARKERS       : 'markers' ;
-PHASE         : 'phase' ;
+BUSINESS_DATE   : 'business_date' ;
+PROCESSING_DATE : 'processing_date' ;
+AUTO            : 'auto' ;
+MARKERS         : 'markers' ;
+PHASE           : 'phase' ;
 BEFORE        : 'before' ;
 BETWEEN       : 'between' ;
 // Note: AFTER, COMPLETE, COUNT already defined in other sections
@@ -1657,6 +1686,7 @@ LBRACKET      : '[' ;
 RBRACKET      : ']' ;
 COLON         : ':' ;
 COMMA         : ',' ;
+DOTDOT        : '..' ;  // v0.7.0+: Must come before DOT for correct lexing
 DOT           : '.' ;
 
 // ----------------------------------------------------------------------------

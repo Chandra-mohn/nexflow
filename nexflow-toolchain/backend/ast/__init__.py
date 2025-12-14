@@ -1,6 +1,9 @@
 # Nexflow AST Module
 # Python dataclass definitions for AST nodes
 
+# Common types (shared across all DSL levels)
+from .common import ImportStatement, SourceLocation
+
 from .proc_ast import (
     Program as ProcProgram,
     ProcessDefinition,
@@ -29,6 +32,9 @@ from .rules_ast import (
 )
 
 __all__ = [
+    # Common types
+    'ImportStatement',
+    'SourceLocation',
     # L1 - Process/Flow
     'ProcProgram',
     'ProcessDefinition',

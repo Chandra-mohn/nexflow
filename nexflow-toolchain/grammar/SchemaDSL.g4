@@ -30,7 +30,27 @@ grammar SchemaDSL;
 // ----------------------------------------------------------------------------
 
 program
-    : (schemaDefinition | typeAliasBlock)+ EOF
+    : importStatement* (schemaDefinition | typeAliasBlock)+ EOF
+    ;
+
+// ----------------------------------------------------------------------------
+// Import Statement (v0.7.0+)
+// ----------------------------------------------------------------------------
+
+importStatement
+    : IMPORT importPath
+    ;
+
+importPath
+    : importPathSegment+ importFileExtension  // Path ends with file extension
+    ;
+
+importPathSegment
+    : DOTDOT | DOT | SLASH | IDENTIFIER | UPPER_IDENTIFIER | MINUS  // Allow: ./path, ../path, /abs/path, PascalCase, path-with-hyphens
+    ;
+
+importFileExtension
+    : DOT ('schema' | 'transform' | 'flow' | 'rules')  // File extension marks end of import
     ;
 
 schemaDefinition
@@ -747,6 +767,9 @@ numberLiteral
 // Keywords
 // ----------------------------------------------------------------------------
 
+// Import (v0.7.0+)
+IMPORT : 'import' ;
+
 PII : 'pii' ;
 
 // ----------------------------------------------------------------------------
@@ -795,6 +818,7 @@ MULTILINE_STRING
 
 COLON : ':' ;
 COMMA : ',' ;
+DOTDOT : '..' ;                       // Must come before DOT for correct lexing
 DOT : '.' ;
 LBRACKET : '[' ;
 RBRACKET : ']' ;
@@ -810,7 +834,6 @@ PLUS : '+' ;
 MINUS : '-' ;
 STAR : '*' ;
 SLASH : '/' ;
-DOTDOT : '..' ;
 ARROW : '->' ;
 LBRACE : '{' ;
 RBRACE : '}' ;
