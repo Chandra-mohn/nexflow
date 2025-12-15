@@ -1,5 +1,5 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
+#### Nexflow DSL Toolchain
+#### Author: Chandra Mohn
 
 # Nexflow VS Code Extension User Guide
 
@@ -133,7 +133,6 @@ A typical Nexflow project has this structure:
 my-project/
 ├── flows/           # L1 process definitions
 │   ├── main.proc
-│   └── handlers/
 ├── schemas/         # L2 schema definitions
 │   ├── input.schema
 │   └── output.schema

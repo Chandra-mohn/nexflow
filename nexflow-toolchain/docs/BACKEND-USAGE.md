@@ -1,5 +1,5 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
+#### Nexflow DSL Toolchain
+#### Author: Chandra Mohn
 
 # Nexflow Backend Usage Guide
 
@@ -51,7 +51,7 @@ nexflow build
 
 # Build for specific target
 nexflow build --target flink
-nexflow build --target spark
+nexflow build --target spark # Not implemented yet, planned for future 
 
 # Dry run (validate only)
 nexflow build --dry-run
@@ -190,98 +190,6 @@ my-project/
                 └── rules/
 ```
 
-## Programmatic API
-
-### Using MasterCompiler
-
-```python
-from pathlib import Path
-from backend.compiler.master_compiler import MasterCompiler, compile_project
-
-# Option 1: Using convenience function
-result = compile_project(
-    src_dir=Path("src"),
-    output_dir=Path("generated"),
-    package_prefix="com.example.flow",
-    environment="production",
-    verbose=True
-)
-
-if result.success:
-    print(f"Generated {result.total_files_generated} files")
-    for file_path in result.generated_files:
-        print(f"  - {file_path}")
-else:
-    for error in result.errors:
-        print(f"Error: {error}")
-
-# Option 2: Using MasterCompiler directly
-compiler = MasterCompiler(
-    src_dir=Path("src"),
-    output_dir=Path("generated"),
-    package_prefix="com.example.flow",
-    environment="production",  # Selects production.infra
-    infra_file=None,           # Or specify explicit path
-    verbose=True,
-)
-
-result = compiler.compile()
-
-# Access infrastructure config
-if result.infra_config:
-    print(f"Environment: {result.infra_config.environment}")
-    print(f"Streams: {len(result.infra_config.streams)}")
-
-# Validate bindings
-errors = compiler.validate_bindings()
-for error in errors:
-    print(f"Binding error: {error}")
-```
-
-### Using Individual Parsers
-
-```python
-from backend.parser import parse
-
-# Parse a ProcDSL file
-content = open("flow.proc").read()
-result = parse(content, "flow")
-
-if result.success:
-    ast = result.ast
-    for process in ast.processes:
-        print(f"Process: {process.name}")
-        for receive in process.receives:
-            print(f"  Receives from: {receive.source}")
-else:
-    for error in result.errors:
-        print(f"Error at line {error.location.line}: {error.message}")
-```
-
-### Using Individual Generators
-
-```python
-from backend.generators import get_generator
-from backend.generators.base import GeneratorConfig
-from pathlib import Path
-
-# Configure generator
-config = GeneratorConfig(
-    package_prefix="com.example",
-    output_dir=Path("generated"),
-)
-
-# Get generator for a DSL type
-generator = get_generator("schema", config)
-
-# Generate code from AST
-result = generator.generate(ast)
-
-for gen_file in result.files:
-    print(f"Generated: {gen_file.path}")
-    print(gen_file.content)
-```
-
 ## Compilation Pipeline
 
 The Master Compiler executes phases in dependency order:
@@ -293,7 +201,7 @@ Phase 1: L5 Infrastructure (.infra)
 
 Phase 2: L2 Schema (.schema)
     └── Parse schema definitions
-    └── Generate Java POJOs
+    └── Generate Java Records
     └── Generate builders
     └── Generate migration helpers
 
@@ -361,7 +269,7 @@ generated/flink/
     │   ├── OrderReceiveFunction.java    # Source function
     │   └── OrderEmitFunction.java       # Sink function
     ├── schema/
-    │   ├── Order.java                   # POJO
+    │   ├── Order.java                   # Immutable Java Record
     │   ├── OrderBuilder.java            # Builder pattern
     │   └── OrderMigration.java          # Version migration
     ├── transform/
@@ -408,7 +316,7 @@ errors = compiler.validate_bindings()
 Generated code uses the `NexflowRuntime` class for built-in functions:
 
 ```java
-// Date/Time functions
+// Date/Time functions (Three-Date Model)
 NexflowRuntime.processingDate(context)  // Current processing timestamp
 NexflowRuntime.businessDate(context)    // Business date from context
 NexflowRuntime.businessDateOffset(context, 5)  // Business date + 5 days
@@ -427,6 +335,122 @@ NexflowRuntime.max(a, b)
 NexflowRuntime.first(list)
 NexflowRuntime.last(list)
 NexflowRuntime.size(collection)
+```
+
+## EOD Markers and Phase-Based Processing
+
+### Three-Date Model
+
+Nexflow implements a three-date model for financial services:
+
+| Date Type | Runtime Method | Description |
+|-----------|----------------|-------------|
+| Processing Date | `processingDate(context)` | System time when record is processed |
+| Business Date | `businessDate(context)` | Logical business day from calendar |
+| Business Date Offset | `businessDateOffset(context, n)` | Business date +/- n days |
+
+### Generated Marker Infrastructure
+
+When a `.proc` file contains markers, the compiler generates:
+
+```
+generated/flink/
+└── src/main/java/com/example/
+    ├── flow/
+    │   ├── SettlementJob.java           # Main job with phase routing
+    │   ├── MarkerStateManager.java      # Tracks marker fired/pending state
+    │   ├── PhaseRouter.java             # Routes to before/after phases
+    │   └── BeforeEodFunction.java       # Intraday processing logic
+    │   └── AfterEodFunction.java        # Settlement processing logic
+    └── rules/
+        └── MarkerConditionEvaluator.java # For L4 marker conditions
+```
+
+### Marker State Management
+
+The generated `MarkerStateManager` maintains:
+- **Fired markers**: Set of markers that have transitioned to fired
+- **Pending markers**: Set of markers waiting for conditions
+- **Composite evaluation**: Evaluates `and`/`or` conditions
+
+### Phase Routing Logic
+
+Generated `PhaseRouter` implements:
+```java
+public class PhaseRouter extends ProcessFunction<Record, Record> {
+    private final MarkerStateManager markerState;
+
+    @Override
+    public void processElement(Record record, Context ctx, Collector<Record> out) {
+        if (markerState.isMarkerFired("eod_ready")) {
+            // Route to AFTER phase
+            afterEodFunction.processElement(record, ctx, out);
+        } else {
+            // Route to BEFORE phase
+            beforeEodFunction.processElement(record, ctx, out);
+        }
+    }
+}
+```
+
+### Example: EOD Process Compilation
+
+Given this `.proc` file:
+```
+process DailySettlement
+    business_date from trading_calendar
+    processing_date auto
+
+    markers
+        market_close: when after "16:00"
+        trades_drained: when trades.drained
+        eod_ready: when market_close and trades_drained
+    end
+
+    phase before eod_ready
+        receive trades from kafka "trades"
+        transform using accumulate_trade
+        emit to trade_buffer
+    end
+
+    phase after eod_ready
+        receive buffered from state_store "trade_buffer"
+        transform using calculate_settlements
+        emit to settlements
+    end
+end
+```
+
+The compiler generates:
+1. `DailySettlementJob.java` - Main Flink job entry point
+2. `MarkerStateManager.java` - Tracks `market_close`, `trades_drained`, `eod_ready`
+3. `PhaseRouter.java` - Routes records based on `eod_ready` state
+4. `BeforeEodReadyFunction.java` - Implements intraday accumulation
+5. `AfterEodReadyFunction.java` - Implements settlement calculation
+
+### L4 Rules with Marker Conditions
+
+When L4 rules reference markers:
+```
+decision_table routing
+    decide:
+        | marker eod_1 fired | action |
+        ...
+end
+```
+
+The compiler generates `MarkerConditionEvaluator` that queries `MarkerStateManager`:
+```java
+public class MarkerConditionEvaluator {
+    public boolean isMarkerFired(String markerName) {
+        return markerStateManager.isMarkerFired(markerName);
+    }
+
+    public boolean isBetweenMarkers(String marker1, String marker2) {
+        return markerStateManager.isMarkerFired(marker1)
+            && !markerStateManager.isMarkerFired(marker2);
+    }
+}
 ```
 
 ## Extending the Toolchain

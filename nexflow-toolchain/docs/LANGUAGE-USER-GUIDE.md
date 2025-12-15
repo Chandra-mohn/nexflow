@@ -1,5 +1,5 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
+#### Nexflow DSL Toolchain
+#### Author: Chandra Mohn
 
 # Nexflow Language User Guide
 
@@ -441,6 +441,460 @@ process EndOfDaySettlement
             persist to settlement_db sync
         on complete signal "settlement_complete" to downstream
     end
+end
+```
+
+## End-of-Day (EOD) Markers
+
+EOD markers are a critical feature for financial services pipelines that require phase-based processing tied to business day boundaries.
+
+### The Three-Date Model
+
+Nexflow implements a three-date model essential for financial processing:
+
+| Date Type | Description | Example |
+|-----------|-------------|---------|
+| **Processing Date** | System timestamp when record is processed | `2024-01-15T14:30:00Z` |
+| **Business Date** | Logical business day from calendar | `2024-01-15` (even if processed on 1/16) |
+| **EOD Markers** | Named conditions signaling phase transitions | `eod_ready`, `settlement_complete` |
+
+### Declaring Business Date Context
+
+```
+process DailyReconciliation
+    // Business date from external calendar service
+    business_date from trading_calendar
+
+    // Processing date is system time (auto)
+    processing_date auto
+
+    // ... rest of process
+end
+```
+
+### Marker Types
+
+#### Time-Based Markers
+```
+markers
+    market_open: when after "09:30"
+    market_close: when after "16:00"
+    late_night_batch: when after "23:00"
+end
+```
+
+#### Data-Drained Markers
+Wait until a stream has no more pending data:
+```
+markers
+    trades_complete: when trades.drained
+    prices_received: when market_prices.drained
+    all_inputs_ready: when orders.drained and payments.drained
+end
+```
+
+#### Count-Based Markers
+Wait until a threshold is reached:
+```
+markers
+    enough_samples: when metrics.count >= 1000
+    batch_ready: when pending_items.count >= 500
+end
+```
+
+#### Composite Markers
+Combine multiple conditions:
+```
+markers
+    // All must be true
+    eod_ready: when market_close and trades_complete and prices_received
+
+    // Named for clarity
+    phase_1_complete: when eod_ready
+    phase_2_ready: when phase_1_complete and external_rates.drained
+end
+```
+
+### Phase Blocks
+
+Define processing logic that executes before or after markers:
+
+```
+process MultiPhaseSettlement
+    business_date from calendar
+
+    markers
+        cutoff: when after "17:00"
+        data_ready: when trades.drained
+        settlement_time: when cutoff and data_ready
+    end
+
+    // INTRADAY PHASE: Accumulate and validate
+    phase before settlement_time
+        receive trades from kafka "trades"
+            schema Trade
+        transform using validate_trade
+        transform using accumulate_position
+        emit to validated_trades
+            persist to trade_buffer async
+    end
+
+    // SETTLEMENT PHASE: Process accumulated data
+    phase after settlement_time
+        receive buffered from state_store "trade_buffer"
+        transform using calculate_net_positions
+        transform using generate_settlements
+        emit to settlement_instructions
+            persist to settlement_db sync
+
+        on complete
+            signal "settlements_ready" to downstream
+            clear state "trade_buffer"
+    end
+end
+```
+
+### Marker Conditions in Rules (L4)
+
+EOD markers can be used as conditions in decision tables:
+
+```
+decision_table phase_aware_routing
+    hit_policy first_match
+
+    given:
+        trade: Trade
+        amount: money
+
+    decide:
+        | marker eod_1 fired | amount    | action          |
+        |====================|===========|=================|
+        | true               | > $10000  | hold_for_review |
+        | true               | *         | process_normal  |
+        | false              | > $50000  | escalate        |
+        | false              | *         | queue_for_eod   |
+
+    return:
+        action: text
+end
+```
+
+### Between Markers
+
+Process data that arrives between two marker events:
+
+```
+decision_table intraday_rules
+    given:
+        transaction: Transaction
+
+    decide:
+        | between eod_1 and eod_2 | amount   | routing      |
+        |=========================|==========|==============|
+        | true                    | > $1000  | batch_queue  |
+        | false                   | *        | realtime     |
+end
+```
+
+### EOD Pattern: Complete Example
+
+```
+import ./schemas/trade.schema
+import ./schemas/position.schema
+import ./transforms/settlement.xform
+import ./rules/cutoff_routing.rules
+
+process EndOfDayProcessing
+    parallelism 8
+    partition by account_id
+    business_date from trading_calendar
+    processing_date auto
+
+    // Define EOD markers
+    markers
+        market_close: when after "16:00"
+        trades_drained: when trades.drained
+        prices_final: when reference_prices.count >= 5000
+        eod_cutoff: when market_close and trades_drained and prices_final
+        settlement_window: when after "18:00"
+        day_complete: when eod_cutoff and settlement_window
+    end
+
+    // Pre-EOD: Real-time trade processing
+    phase before eod_cutoff
+        receive trades from kafka "trades"
+            schema Trade
+            filter status != "cancelled"
+
+        transform using validate_trade
+        evaluate using cutoff_routing_rules
+
+        route using routing_decision
+            "immediate" to realtime_settlements
+            "batch" to batch_queue
+            otherwise to exception_queue
+    end
+
+    // Post-EOD: Batch settlement
+    phase after day_complete
+        receive pending from state_store "batch_queue"
+            schema Trade
+
+        transform using net_positions
+        transform using generate_settlement_instructions
+
+        emit to settlement_messages
+            persist to settlement_db sync
+            batch size 500
+
+        on complete
+            signal "eod_complete" to downstream_systems
+            emit_audit_event "settlement_cycle_complete"
+                payload: {
+                    business_date: business_date(),
+                    trade_count: count(pending),
+                    completion_time: now()
+                }
+    end
+
+    // Error handling
+    on error
+        log_error "EOD processing failed"
+        emit to eod_exceptions
+        alert "EOD_FAILURE" severity critical
+    end
+
+    checkpoint every 1000 events
+end
+```
+
+### Best Practices for EOD Markers
+
+1. **Name markers semantically** - Use descriptive names like `trades_drained` not `marker1`
+2. **Composite for safety** - Combine time + data conditions to prevent premature triggers
+3. **Include timeouts** - Add time-based fallbacks for drained conditions
+4. **Signal downstream** - Use `on complete signal` to notify dependent systems
+5. **Audit phase transitions** - Emit audit events when phases change
+6. **Clear state appropriately** - Clean up buffers after settlement phases
+7. **Test edge cases** - Verify behavior when markers fire in unexpected order
+
+## PII Protection with Voltage Encryption
+
+Nexflow provides built-in support for Personally Identifiable Information (PII) protection using Voltage Format-Preserving Encryption (FPE). This allows sensitive data to be encrypted while maintaining its format for downstream processing.
+
+### PII Field Syntax
+
+Mark fields as PII in your schema definitions using the `pii` modifier:
+
+```
+schema Customer
+    pattern master_data
+
+    fields
+        customer_id: uuid required,
+        name: string required,
+
+        // PII fields with encryption profiles
+        ssn: string required pii.ssn,              // SSN - last 4 digits clear
+        credit_card: string pii.pan,               // Credit card - first 4, last 4 clear
+        email: string required pii.email,          // Email format preserving
+        phone: string pii.phone,                   // Phone - last 4 digits clear
+        secret_key: string pii,                    // Full encryption (default)
+        custom_field: string pii.custom_profile,   // Custom profile from config
+    end
+end
+```
+
+### Built-in Encryption Profiles
+
+| Profile | Syntax | Description | Clear Text |
+|---------|--------|-------------|------------|
+| **SSN** | `pii.ssn` | Social Security Numbers | Last 4 digits |
+| **PAN** | `pii.pan` | Credit Card Numbers | First 4 + Last 4 digits |
+| **Email** | `pii.email` | Email Addresses | Format preserved |
+| **Phone** | `pii.phone` | Phone Numbers | Last 4 digits |
+| **Full** | `pii` | Complete Encryption | None |
+
+### Example: Customer Data Schema with PII
+
+```
+schema CustomerProfile
+    pattern master_data
+    version 1.0.0
+
+    identity
+        customer_id: uuid required,
+    end
+
+    fields
+        // Non-sensitive fields
+        customer_id: uuid required,
+        first_name: string required,
+        last_name: string required,
+        account_type: string[values: standard, premium, enterprise],
+        created_at: timestamp required,
+
+        // PII fields with appropriate profiles
+        ssn: string[length: 11] required pii.ssn,
+        tax_id: string pii.ssn,
+        primary_email: string required pii.email,
+        secondary_email: string optional pii.email,
+        phone_home: string pii.phone,
+        phone_mobile: string pii.phone,
+        credit_card_number: string pii.pan,
+        bank_account: string pii,                    // Full encryption
+
+        // Nested PII in objects
+        billing_address: object
+            street: string pii,                      // Full encryption for address
+            city: string,
+            state: string,
+            postal_code: string pii,
+        end
+    end
+
+    computed
+        display_name = concat(first_name, " ", last_name)
+        // Note: computed fields reference encrypted values
+    end
+end
+```
+
+### Custom Encryption Profiles
+
+Define custom profiles in your project's `voltage-profiles.yaml`:
+
+```yaml
+# voltage-profiles.yaml
+profiles:
+  account_number:
+    format: custom
+    description: "Bank account - last 4 clear"
+    clear_prefix: 0
+    clear_suffix: 4
+
+  license_plate:
+    format: custom
+    description: "License plate - full encryption"
+    clear_prefix: 0
+    clear_suffix: 0
+
+  medical_id:
+    format: custom
+    description: "Medical ID - first 2 clear for routing"
+    clear_prefix: 2
+    clear_suffix: 0
+```
+
+Use custom profiles in schemas:
+```
+schema MedicalRecord
+    fields
+        patient_id: string required pii.medical_id,
+        insurance_account: string pii.account_number,
+    end
+end
+```
+
+### PII in Transforms
+
+When working with PII fields in transforms, the encrypted values flow through:
+
+```
+transform mask_for_display
+    input: CustomerProfile
+    output: CustomerDisplayView
+
+    apply
+        output.customer_id = input.customer_id
+        output.name = input.display_name
+
+        // PII fields remain encrypted but format-preserved
+        // SSN shows as: ***-**-1234 (last 4 clear)
+        output.masked_ssn = input.ssn
+
+        // Email maintains format: ****@****.com
+        output.contact_email = input.primary_email
+
+        // Card shows: 4532-****-****-7890 (first 4, last 4 clear)
+        output.payment_card = input.credit_card_number
+    end
+end
+```
+
+### Generated Java Code
+
+For a field marked `pii.ssn`, the generator produces:
+
+```java
+// Generated getter with Voltage decryption
+public String getSsn() {
+    return VoltageRuntime.decrypt(this.ssn, "ssn");
+}
+
+// Generated setter with Voltage encryption
+public void setSsn(String value) {
+    this.ssn = VoltageRuntime.encrypt(value, "ssn");
+}
+
+// Raw encrypted value access (for persistence)
+public String getSsnEncrypted() {
+    return this.ssn;
+}
+```
+
+### PII Best Practices
+
+1. **Choose appropriate profiles** - Use `pii.ssn` for SSNs, `pii.pan` for cards, not `pii` (full)
+2. **Minimize PII exposure** - Only include PII fields that are strictly necessary
+3. **Document PII fields** - Use comments to indicate why each PII field is needed
+4. **Audit PII access** - Use audit events when PII is accessed or transformed
+5. **Test with masked data** - Use format-preserved encrypted data in non-production
+
+### PII Compliance Patterns
+
+#### Audit Trail for PII Access
+```
+process PIIAccessAudit
+    receive customer_queries
+        schema CustomerQuery
+
+    transform using fetch_customer_data
+
+    emit_audit_event "pii_accessed"
+        actor user input.requesting_user
+        payload: {
+            customer_id: input.customer_id,
+            fields_accessed: ["ssn", "email"],
+            purpose: input.access_purpose,
+            timestamp: now()
+        }
+
+    emit to response_stream
+end
+```
+
+#### Right to Erasure (GDPR)
+```
+process CustomerErasure
+    receive erasure_requests
+        schema ErasureRequest
+
+    // Clear PII while preserving audit trail
+    transform using anonymize_customer
+        // Replaces PII with anonymized tokens
+        output.ssn = null
+        output.email = generate_anonymous_email()
+        output.phone = null
+        output.erasure_completed = true
+        output.erasure_timestamp = now()
+
+    emit to customer_updates
+        persist to customer_db sync
+
+    emit_audit_event "customer_erased"
+        actor system "erasure-service"
+        payload: { customer_id: input.customer_id }
 end
 ```
 

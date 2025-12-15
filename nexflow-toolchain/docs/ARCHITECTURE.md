@@ -1,5 +1,5 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
+#### Nexflow DSL Toolchain
+#### Author: Chandra Mohn
 
 # Nexflow Architecture Document
 
@@ -14,47 +14,47 @@ Nexflow is a multi-layer Domain-Specific Language (DSL) toolchain for building s
 │                    Nexflow DSL Toolchain                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ L1 Proc  │  │ L2 Schema│  │ L3 Xform │  │ L4 Rules │        │
-│  │  .proc   │  │ .schema  │  │  .xform  │  │  .rules  │        │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐         │
+│  │ L1 Proc  │  │ L2 Schema│  │ L3 Xform │  │ L4 Rules │         │
+│  │  .proc   │  │ .schema  │  │  .xform  │  │  .rules  │         │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘         │
 │       │             │             │             │               │
 │       ▼             ▼             ▼             ▼               │
-│  ┌─────────────────────────────────────────────────────┐       │
-│  │              ANTLR4 Parser Layer                     │       │
-│  │   ProcDSL   SchemaDSL   TransformDSL   RulesDSL     │       │
-│  └─────────────────────────┬───────────────────────────┘       │
+│  ┌─────────────────────────────────────────────────────┐        │
+│  │              ANTLR4 Parser Layer                    │        │
+│  │   ProcDSL   SchemaDSL   TransformDSL   RulesDSL     │        │
+│  └─────────────────────────┬───────────────────────────┘        │
 │                            │                                    │
 │                            ▼                                    │
-│  ┌─────────────────────────────────────────────────────┐       │
-│  │              Abstract Syntax Trees                   │       │
-│  │   proc_ast   schema_ast   transform_ast   rules_ast │       │
-│  └─────────────────────────┬───────────────────────────┘       │
+│  ┌─────────────────────────────────────────────────────┐        │
+│  │              Abstract Syntax Trees                  │        │
+│  │   proc_ast   schema_ast   transform_ast   rules_ast │        │
+│  └─────────────────────────┬───────────────────────────┘        │
 │                            │                                    │
 │                            ▼                                    │
-│  ┌─────────────────────────────────────────────────────┐       │
-│  │              Semantic Validation                     │       │
-│  │   Cross-reference │ Type checking │ Import resolver │       │
-│  └─────────────────────────┬───────────────────────────┘       │
+│  ┌─────────────────────────────────────────────────────┐        │
+│  │              Semantic Validation                    │        │
+│  │   Cross-reference │ Type checking │ Import resolver │        │
+│  └─────────────────────────┬───────────────────────────┘        │
 │                            │                                    │
-│       ┌────────────────────┼────────────────────┐              │
-│       ▼                    ▼                    ▼              │
-│  ┌─────────┐         ┌──────────┐         ┌─────────┐         │
-│  │L5 Infra │         │L6 Master │         │L0 Runtme│         │
-│  │ .infra  │────────▶│ Compiler │◀────────│ Library │         │
-│  └─────────┘         └────┬─────┘         └─────────┘         │
-│                           │                                    │
-│                           ▼                                    │
-│  ┌─────────────────────────────────────────────────────┐       │
-│  │              Code Generators                         │       │
-│  │   FlowGen  SchemaGen  TransformGen  RulesGen        │       │
-│  └─────────────────────────┬───────────────────────────┘       │
+│       ┌────────────────────┼────────────────────┐               │
+│       ▼                    ▼                    ▼               │
+│  ┌─────────┐         ┌──────────┐         ┌─────────┐           │
+│  │L5 Infra │         │L6 Master │         │L0 Runtme│           │
+│  │ .infra  │────────▶│ Compiler │◀────────│ Library │           │
+│  └─────────┘         └────┬─────┘         └─────────┘           │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────┐        │
+│  │              Code Generators                        │        │
+│  │   FlowGen  SchemaGen  TransformGen  RulesGen        │        │
+│  └─────────────────────────┬───────────────────────────┘        │
 │                            │                                    │
 │                            ▼                                    │
-│  ┌─────────────────────────────────────────────────────┐       │
-│  │              Generated Java Code                     │       │
-│  │   Flink Jobs │ POJOs │ Functions │ Rule Engines     │       │
-│  └─────────────────────────────────────────────────────┘       │
+│  ┌─────────────────────────────────────────────────────┐        │
+│  │              Generated Java Code                    │        │
+│  │   Flink Jobs │ Java Recs │ Functions │ Rule Engines │        │
+│  └─────────────────────────────────────────────────────┘        │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -71,6 +71,7 @@ Base classes, operators, and utility functions available to all generated code.
 Defines streaming/batch data pipelines.
 - File extensions: `.proc`, `.flow`
 - Concepts: receive, transform, route, emit, state, resilience
+- **Business Date & EOD Markers**: Phase-based processing for end-of-day workflows
 
 ### L2: Schema Registry (SchemaDSL)
 Defines data structures with constraints and evolution rules.
@@ -103,7 +104,7 @@ Orchestrates multi-layer compilation with infrastructure awareness.
 ```
 nexflow-toolchain/
 ├── backend/
-│   ├── ast/                    # AST node definitions
+│   ├── ast/                   # AST node definitions
 │   │   ├── proc/              # L1 AST
 │   │   ├── schema/            # L2 AST
 │   │   ├── transform/         # L3 AST
@@ -116,7 +117,7 @@ nexflow-toolchain/
 │   │   └── generated/         # ANTLR4 output
 │   ├── generators/            # Code generators
 │   │   ├── flow/              # L1 → Flink jobs
-│   │   ├── schema/            # L2 → Java POJOs
+│   │   ├── schema/            # L2 → Java Records
 │   │   ├── transform/         # L3 → Functions
 │   │   ├── rules/             # L4 → Rule engines
 │   │   └── runtime/           # L0 → Runtime lib
@@ -125,10 +126,10 @@ nexflow-toolchain/
 │   ├── resolver/              # Import resolution
 │   └── cli/                   # Command-line interface
 ├── grammar/                   # ANTLR4 grammar files
-│   ├── ProcDSL.g4
-│   ├── SchemaDSL.g4
-│   ├── TransformDSL.g4
-│   └── RulesDSL.g4
+│   ├── ProcDSL.g4             # Process language grammar
+│   ├── SchemaDSL.g4           # Schema language grammar
+│   ├── TransformDSL.g4        # Transaformation language grammar
+│   └── RulesDSL.g4            # Business Rules language grammar
 ├── lsp/                       # VS Code extension
 │   ├── server/                # Python LSP server
 │   └── client/                # VS Code client
@@ -171,6 +172,37 @@ Logical names in DSL files are resolved to physical resources via L5 bindings.
 
 ### Compile-Time Safety
 All type mismatches and reference errors are caught at compile time.
+
+### Three-Date Model for Financial Services
+Nexflow implements a three-date model essential for financial processing:
+- **Processing Date**: System time when record is processed
+- **Business Date**: Logical business day from calendar context
+- **EOD Markers**: Named conditions that signal phase transitions
+
+## End-of-Day (EOD) Marker Architecture
+
+EOD markers enable phase-based processing for financial workflows:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    EOD MARKER LIFECYCLE                        │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  MARKERS BLOCK (L1)                                            │
+│  ├── time-based:     when after "16:00"                        │
+│  ├── data-drained:   when trades.drained                       │
+│  ├── count-based:    when prices.count >= 1000                 │
+│  └── composite:      when marker1 and marker2                  │
+│                                                                │
+│  PHASES (L1)                                                   │
+│  ├── phase before eod_marker: [intraday processing]            │
+│  └── phase after eod_marker:  [settlement processing]          │
+│                                                                │
+│  RULES CONDITIONS (L4)                                         │
+│  └── marker eod_1 fired | marker eod_1 pending                 │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
 
 ## Technology Stack
 
