@@ -1,28 +1,40 @@
 // Simple Order Schema
 // Minimal schema for end-to-end testing
 
-schema Order version "1.0"
-    identity order_id
+schema order
+    version 1.0.0
 
-    order_id: string required
-    customer_id: string required
-    product: string required
-    quantity: integer required min 1
-    price: decimal required precision 10 scale 2
-    status: string required default "pending"
-    timestamp: timestamp required
+    identity
+        order_id: string
+    end
+
+    fields
+        order_id: string required
+        customer_id: string required
+        product: string required
+        quantity: integer [range: 1..] required
+        price: decimal [precision: 10, scale: 2] required
+        status: string default: "pending" required
+        created_at: timestamp required
+    end
 end
 
-schema EnrichedOrder version "1.0"
-    identity order_id
+schema enriched_order
+    version 1.0.0
 
-    order_id: string required
-    customer_id: string required
-    product: string required
-    quantity: integer required
-    price: decimal required precision 10 scale 2
-    total: decimal required precision 12 scale 2
-    status: string required
-    timestamp: timestamp required
-    processed_at: timestamp required
+    identity
+        order_id: string
+    end
+
+    fields
+        order_id: string required
+        customer_id: string required
+        product: string required
+        quantity: integer required
+        price: decimal [precision: 10, scale: 2] required
+        total: decimal [precision: 12, scale: 2] required
+        status: string required
+        created_at: timestamp required
+        processed_at: timestamp required
+    end
 end

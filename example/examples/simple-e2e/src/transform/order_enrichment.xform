@@ -2,16 +2,18 @@
 // Calculates total and adds processing timestamp
 
 transform enrich_order
-    input order: Order
-    output EnrichedOrder
+    input: order
+    output: enriched_order
 
-    order_id = order.order_id
-    customer_id = order.customer_id
-    product = order.product
-    quantity = order.quantity
-    price = order.price
-    total = order.quantity * order.price
-    status = "processed"
-    timestamp = order.timestamp
-    processed_at = now()
+    apply
+        order_id = input.order_id
+        customer_id = input.customer_id
+        product = input.product
+        quantity = input.quantity
+        price = input.price
+        total = input.quantity * input.price
+        status = "processed"
+        created_at = input.created_at
+        processed_at = now()
+    end
 end

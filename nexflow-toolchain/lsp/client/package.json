@@ -30,7 +30,10 @@
     "onLanguage:procdsl",
     "onLanguage:schemadsl",
     "onLanguage:transformdsl",
-    "onLanguage:rulesdsl"
+    "onLanguage:rulesdsl",
+    "onCommand:nexflow.build",
+    "onCommand:nexflow.validate",
+    "onCommand:nexflow.generateFile"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -98,6 +101,73 @@
         "path": "./syntaxes/rulesdsl.tmLanguage.json"
       }
     ],
+    "commands": [
+      {
+        "command": "nexflow.build",
+        "title": "Nexflow: Build Project",
+        "icon": "$(play)"
+      },
+      {
+        "command": "nexflow.validate",
+        "title": "Nexflow: Validate Project",
+        "icon": "$(check)"
+      },
+      {
+        "command": "nexflow.generateFile",
+        "title": "Nexflow: Generate Java Code",
+        "icon": "$(code)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "nexflow.build",
+          "when": "true"
+        },
+        {
+          "command": "nexflow.validate",
+          "when": "true"
+        },
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules",
+          "group": "nexflow@1"
+        },
+        {
+          "command": "nexflow.build",
+          "when": "explorerResourceIsFolder",
+          "group": "nexflow@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules",
+          "group": "nexflow@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "nexflow.build",
+          "group": "navigation",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "nexflow.build",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+      }
+    ],
     "configuration": {
       "title": "Nexflow LSP",
       "properties": {
@@ -116,6 +186,16 @@
           "type": "boolean",
           "default": true,
           "description": "Enable real-time diagnostics."
+        },
+        "nexflow.build.outputDirectory": {
+          "type": "string",
+          "default": "src/main/java/com/nexflow/generated",
+          "description": "Output directory for generated Java code (relative to workspace root)."
+        },
+        "nexflow.build.packageName": {
+          "type": "string",
+          "default": "com.nexflow.generated",
+          "description": "Java package name for generated code."
         }
       }
     }

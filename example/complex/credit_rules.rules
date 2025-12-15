@@ -361,8 +361,8 @@ rule check_existing_exposure:                        // RULE: Exposure check
 
     if is_existing_customer == true then             // IF: Only for existing customers
         // Calculate current exposure
-        let existing_limits = sum(existing_customer_data.existing_products, p -> p.credit_limit)  // SUM with lambda
-        let existing_balances = sum(existing_customer_data.existing_products, p -> p.balance)
+        let existing_limits = sum(existing_customer_data.existing_products, credit_limit)  // SUM: collection, field
+        let existing_balances = sum(existing_customer_data.existing_products, balance)
         let requested_additional = requested_limit
 
         let total_proposed_exposure = existing_limits + requested_additional
@@ -412,7 +412,7 @@ rule apply_regulatory_overrides:                     // RULE: Regulatory complia
     // State-Specific APR Caps
     // REQUIREMENT: Some states have usury laws capping interest rates
     // =========================================================================
-    let state_apr_cap = lookup_state_apr_cap(applicant.address.state)  // LOOKUP: State regulation
+    let state_apr_cap = lookup_state_apr_cap(applicant.address.state_code)  // LOOKUP: State regulation
     if state_apr_cap is not null and calculated_apr > state_apr_cap then
         set calculated_apr = state_apr_cap           // ENFORCE: State cap
         add_flag("state_apr_capped")
