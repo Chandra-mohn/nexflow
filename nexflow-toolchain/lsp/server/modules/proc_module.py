@@ -38,7 +38,7 @@ class ProcModule(LanguageModule):
     # ProcDSL keywords organized by category
     KEYWORDS = {
         # Structure
-        "structure": ["process", "end"],
+        "structure": ["process", "end", "import"],
 
         # Execution
         "execution": [
@@ -47,21 +47,47 @@ class ProcModule(LanguageModule):
             "mode", "stream", "batch", "micro_batch"
         ],
 
+        # Business Date & EOD Markers (v0.6.0+)
+        "eod_markers": [
+            "business_date", "processing_date", "auto",
+            "markers", "phase", "before", "after", "between", "anytime",
+            "signal", "drained", "fired", "pending",
+            "on_complete", "end_of_day"
+        ],
+
         # Input
         "input": [
             "receive", "from", "schema", "project", "except",
-            "store", "in", "match", "on"
+            "store", "in", "match", "on", "filter"
+        ],
+
+        # Connectors
+        "connectors": [
+            "kafka", "mongodb", "redis", "scheduler", "state_store",
+            "group", "offset", "latest", "earliest",
+            "isolation", "read_committed", "read_uncommitted",
+            "compaction", "retention", "infinite", "upsert",
+            "headers", "index", "template", "channel", "payload"
         ],
 
         # Processing
         "processing": [
             "transform", "using", "enrich", "select",
-            "route", "aggregate", "merge", "into"
+            "route", "aggregate", "merge", "into",
+            "evaluate", "params", "input", "output", "lookups"
+        ],
+
+        # Control Flow
+        "control_flow": [
+            "if", "then", "else", "elseif", "endif",
+            "foreach", "continue", "terminate",
+            "branch", "parallel", "require_all", "min_required"
         ],
 
         # Window
         "window": [
-            "window", "tumbling", "sliding", "session", "gap", "every"
+            "window", "tumbling", "sliding", "session", "gap", "every",
+            "key", "count", "sum", "avg", "min", "max", "collect", "first", "last", "as"
         ],
 
         # Join
@@ -78,12 +104,18 @@ class ProcModule(LanguageModule):
 
         # Output
         "output": [
-            "emit", "to", "fanout", "broadcast", "round_robin"
+            "emit", "to", "fanout", "broadcast", "round_robin",
+            "persist", "async", "sync", "flush", "interval", "fail"
         ],
 
         # Completion
         "completion": [
             "commit", "failure", "completion", "correlation", "include"
+        ],
+
+        # State Machine
+        "state_machine": [
+            "state_machine", "persistence", "transition", "events"
         ],
 
         # State
@@ -94,18 +126,73 @@ class ProcModule(LanguageModule):
             "buffer", "fifo", "lifo", "priority"
         ],
 
+        # External Calls
+        "external": [
+            "call", "external", "ml_service", "endpoint", "features",
+            "circuit_breaker", "failure_threshold", "reset_timeout"
+        ],
+
+        # Scheduling
+        "scheduling": [
+            "schedule", "action", "repeat"
+        ],
+
+        # Validation & Deduplication
+        "validation": [
+            "validate_input", "require", "deduplicate"
+        ],
+
+        # Variables
+        "variables": [
+            "let", "set"
+        ],
+
+        # Audit
+        "audit": [
+            "emit_audit_event", "actor", "system", "user"
+        ],
+
+        # Conditional Actions
+        "conditional": [
+            "add_flag", "add_metadata", "adjust_score",
+            "on_critical_fraud", "on_duplicate",
+            "on_success", "on_failure", "on_partial_timeout"
+        ],
+
         # Resilience
         "resilience": [
-            "error", "transform", "lookup", "rule",
-            "dead_letter", "skip", "retry",
-            "checkpoint", "strategy", "block", "drop", "sample", "alert", "after"
+            "error", "transform_error", "lookup_error", "rule_error", "correlation_error",
+            "dead_letter", "skip", "retry", "times", "indefinitely",
+            "backoff", "exponential", "linear", "max_delay",
+            "checkpoint", "strategy", "block", "drop", "sample", "alert", "after",
+            "backpressure", "slow", "preserve_state", "include_error_context",
+            "log_error", "log_warning", "log_info"
+        ],
+
+        # Metrics
+        "metrics": [
+            "metrics", "histogram", "rate"
         ],
 
         # Time units
         "time_units": [
             "seconds", "second", "minutes", "minute",
-            "hours", "hour", "days", "day"
+            "hours", "hour", "days", "day", "weeks", "week"
         ],
+
+        # Boolean/Logic
+        "logic": [
+            "and", "or", "not", "true", "false", "null", "is", "contains", "none", "filter"
+        ],
+
+        # Lookup & Cache
+        "lookup": ["lookup", "cache"],
+
+        # Sizing
+        "sizing": ["size"],
+
+        # Rule reference
+        "rule": ["rule"],
     }
 
     # Keyword documentation for hover
@@ -127,6 +214,93 @@ class ProcModule(LanguageModule):
         "state": "**state**\n\nDeclares state stores used by the process.\n\n```\nstate\n    uses order_cache\n    local counters keyed by customer_id type counter ttl 1 hour\n```",
         "checkpoint": "**checkpoint every** `duration` **to** `backend`\n\nConfigures checkpointing for fault tolerance.\n\n```\ncheckpoint every 5 minutes\n    to rocksdb\n```",
         "schema": "**schema** `schema_name`\n\nSpecifies the schema (from L2 SchemaDSL) for input or output.\n\n```\nreceive orders\n    schema order_event\n```",
+
+        # Import (v0.7.0+)
+        "import": "**import** `path`\n\nImports definitions from another DSL file.\n\n```\nimport ../schemas/order.schema\nimport ./transforms/enrichment.xform\n```",
+
+        # Business Date & EOD Markers (v0.6.0+)
+        "business_date": "**business_date from** `calendar`\n\nDeclares the business date calendar for the process. Essential for financial workflows.\n\n```\nprocess DailySettlement\n    business_date from trading_calendar\n    processing_date auto\n```",
+        "processing_date": "**processing_date auto**\n\nDeclares that processing date uses system clock. Part of the three-date model.\n\n```\nprocessing_date auto\n```",
+        "markers": "**markers**\n\nDefines EOD (End-of-Day) marker conditions that trigger phase transitions.\n\n```\nmarkers\n    market_close: when after \"16:00\"\n    trades_drained: when trades.drained\n    eod_ready: when market_close and trades_drained\nend\n```",
+        "phase": "**phase** `before|after|between` `marker`\n\nDefines a processing phase relative to EOD markers.\n\n```\nphase before eod_ready\n    receive trades from kafka\n    transform using accumulate\nend\n\nphase after eod_ready\n    receive from state_store\n    transform using settle\nend\n```",
+        "before": "**before** `marker`\n\nPhase executes before the marker fires.\n\n```\nphase before eod_ready\n```",
+        "after": "**after** `marker` | `time`\n\nPhase executes after marker fires, or time-based marker condition.\n\n```\nphase after eod_ready\n// or in markers block:\nmarket_close: when after \"16:00\"\n```",
+        "between": "**between** `marker1` **and** `marker2`\n\nPhase executes between two markers.\n\n```\nphase between eod_1 and eod_2\n```",
+        "anytime": "**anytime**\n\nPhase executes regardless of marker state.\n\n```\nphase anytime\n    // Always-on processing\nend\n```",
+        "signal": "**signal** `name` **to** `target`\n\nEmits a signal for marker coordination or cross-process communication.\n\n```\non_complete signal settlement_done to downstream\n```",
+        "drained": "**stream.drained**\n\nMarker condition that fires when a stream has no more pending records.\n\n```\ntrades_drained: when trades.drained\n```",
+        "end_of_day": "**end_of_day**\n\nKeyword for time-based marker conditions.\n\n```\neod_marker: when end_of_day\n```",
+
+        # Connectors
+        "kafka": "**kafka** `\"topic\"`\n\nKafka connector for streaming input/output.\n\n```\nreceive orders\n    from kafka \"orders-topic\"\n    group \"consumer-group\"\n    offset latest\n```",
+        "mongodb": "**mongodb** `\"collection\"`\n\nMongoDB connector for persistence.\n\n```\npersist to mongodb \"orders_collection\"\n```",
+        "state_store": "**state_store** `\"name\"`\n\nFlink state store for buffered data.\n\n```\nreceive buffered from state_store \"trade_buffer\"\n```",
+
+        # State Machine
+        "state_machine": "**state_machine** `name`\n\nDeclares a state machine for entity lifecycle tracking.\n\n```\nstate_machine order_lifecycle\n    schema OrderState\n    persistence order_db\n    checkpoint every 100 events\n```",
+        "transition": "**transition to** `\"state\"`\n\nTransitions entity to a new state.\n\n```\ntransition to \"completed\"\n```",
+        "persistence": "**persistence** `target`\n\nDeclares persistence target for state machine.\n\n```\npersistence order_db\n```",
+
+        # External Calls
+        "call": "**call** `external|ml_service` `name`\n\nCalls an external service or ML model.\n\n```\ncall external fraud_service\n    endpoint \"https://api.example.com/check\"\n    timeout 5 seconds\n    retry 3 times\n```",
+        "evaluate": "**evaluate using** `rule_name`\n\nEvaluates an L4 business rule.\n\n```\nevaluate using fraud_detection\n    params: { amount: transaction.amount }\n    output decision\n```",
+
+        # Control Flow
+        "foreach": "**foreach** `item` **in** `collection`\n\nIterates over a collection.\n\n```\nforeach line_item in order.items\n    transform using process_item\nend\n```",
+        "branch": "**branch** `name`\n\nConditional sub-pipeline branch.\n\n```\nbranch high_value\n    transform using premium_handling\n    emit to vip_queue\nend\n```",
+
+        # Validation
+        "validate_input": "**validate_input**\n\nValidates input records with rules.\n\n```\nvalidate_input\n    require amount > 0 else \"Amount must be positive\"\n    require customer_id is not null else \"Customer required\"\n```",
+        "deduplicate": "**deduplicate by** `field` **window** `duration`\n\nRemoves duplicate records within a time window.\n\n```\ndeduplicate by transaction_id\n    window 1 hour\n```",
+
+        # Persist
+        "persist": "**persist to** `target`\n\nPersists records to external storage (L5 integration).\n\n```\nemit to output\n    persist to order_db async\n```",
+
+        # Metrics
+        "metrics": "**metrics**\n\nDefines observability metrics for the process.\n\n```\nmetrics\n    counter processed_count\n    histogram latency\n    gauge queue_depth\nend\n```",
+
+        # Lookup
+        "lookup": "**lookup** `name` **from** `source`\n\nLooks up data from external source with optional caching.\n\n```\nlookup customer_data\n    key customer_id\n    from mongodb \"customers\"\n    cache ttl 1 hour\n```",
+        "cache": "**cache ttl** `duration`\n\nEnables caching for lookup with specified time-to-live.\n\n```\ncache ttl 30 minutes\n```",
+
+        # Filter
+        "filter": "**filter** `condition`\n\nFilters records based on a condition.\n\n```\nreceive orders\n    filter amount > 100\n```",
+
+        # Control Flow additional
+        "when": "**when** `condition`\n\nConditional clause used in various contexts.\n\n```\nroute using decision\n    when result == \"approved\" to approved_sink\n    otherwise to review_queue\n```",
+        "otherwise": "**otherwise**\n\nDefault case in route or conditional expressions.\n\n```\notherwise to default_sink\notherwise continue\n```",
+
+        # Window additional
+        "tumbling": "**tumbling** `duration`\n\nFixed-size non-overlapping window.\n\n```\nwindow tumbling 1 hour\n```",
+        "sliding": "**sliding** `duration` **every** `step`\n\nOverlapping window with step size.\n\n```\nwindow sliding 1 hour every 15 minutes\n```",
+        "session": "**session gap** `duration`\n\nSession window that closes after inactivity gap.\n\n```\nwindow session gap 30 minutes\n```",
+
+        # Resilience additional
+        "retry": "**retry** `n` **times**\n\nRetry failed operations with optional backoff.\n\n```\nretry 3 times\n    delay 1 second\n    backoff exponential\n    max_delay 30 seconds\n```",
+        "dead_letter": "**dead_letter** `target`\n\nSend failed records to dead letter queue.\n\n```\non error\n    transform_error dead_letter failed_transforms\nend\n```",
+
+        # Aggregation functions
+        "count": "**count()**\n\nCounts records in window.\n\n```\naggregate\n    count() as total_count\nend\n```",
+        "sum": "**sum**(`field`)\n\nSums a numeric field in window.\n\n```\naggregate\n    sum(amount) as total_amount\nend\n```",
+        "avg": "**avg**(`field`)\n\nCalculates average of a numeric field.\n\n```\naggregate\n    avg(amount) as avg_amount\nend\n```",
+        "min": "**min**(`field`)\n\nFinds minimum value in window.\n\n```\naggregate\n    min(amount) as min_amount\nend\n```",
+        "max": "**max**(`field`)\n\nFinds maximum value in window.\n\n```\naggregate\n    max(amount) as max_amount\nend\n```",
+        "collect": "**collect**(`field`)\n\nCollects field values into a list.\n\n```\naggregate\n    collect(transaction_id) as transaction_ids\nend\n```",
+        "first": "**first**(`field`)\n\nGets first value in window.\n\n```\naggregate\n    first(timestamp) as window_start\nend\n```",
+        "last": "**last**(`field`)\n\nGets last value in window.\n\n```\naggregate\n    last(timestamp) as window_end\nend\n```",
+
+        # On clauses
+        "on": "**on** `event`\n\nTriggered action clause.\n\n```\non error\n    log_error \"Processing failed\"\nend\n\non commit\n    emit completion to notifications\n```",
+
+        # Variables
+        "let": "**let** `name` **=** `expression`\n\nDeclares a local variable.\n\n```\nlet threshold = config.fraud_threshold\nlet rate = lookup(\"rates\", currency)\n```",
+        "set": "**set** `field` **=** `expression`\n\nSets a field value.\n\n```\nset enriched.risk_score = ml_result.score\n```",
+
+        # Sizes and intervals
+        "size": "**size** `n`\n\nBatch size configuration.\n\n```\npersist to mongodb async\n    batch size 100\n```",
+
+        # Rule
+        "rule": "**rule**\n\nRule reference in error handling.\n\n```\non error\n    rule_error dead_letter failed_rules\nend\n```",
     }
 
     def __init__(self):

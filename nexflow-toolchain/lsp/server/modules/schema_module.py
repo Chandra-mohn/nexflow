@@ -38,18 +38,21 @@ class SchemaModule(LanguageModule):
     # SchemaDSL keywords organized by category
     KEYWORDS = {
         # Structure
-        "structure": ["schema", "end", "types"],
+        "structure": ["schema", "end", "types", "import"],
 
-        # Patterns (9 mutation patterns)
+        # Patterns (14 mutation patterns)
         "patterns": [
             "pattern", "master_data", "immutable_ledger", "versioned_configuration",
             "operational_parameters", "event_log", "state_machine", "temporal_data",
-            "reference_data", "business_logic"
+            "reference_data", "business_logic",
+            # Additional patterns
+            "command", "response", "aggregate", "document", "audit_event"
         ],
 
         # Version/Evolution
         "version": [
-            "version", "compatibility", "backward", "forward", "full", "none",
+            "version", "compatibility", "evolution", "backward", "forward", "full", "none",
+            "backward_compatible", "forward_compatible",
             "previous_version", "deprecated", "deprecated_since", "removal_version",
             "migration_guide"
         ],
@@ -57,13 +60,17 @@ class SchemaModule(LanguageModule):
         # Blocks
         "blocks": [
             "identity", "streaming", "fields", "parameters", "entries", "rule",
-            "migration", "transitions", "on_transition", "given", "calculate", "return"
+            "migration", "transitions", "on_transition", "given", "calculate", "return",
+            # New blocks
+            "computed", "constraints", "immutable"
         ],
 
         # Types
         "types": [
             "string", "integer", "decimal", "boolean", "date", "timestamp",
-            "uuid", "bytes", "list", "set", "map", "object"
+            "uuid", "bytes", "list", "set", "map", "object",
+            # Additional types
+            "bizdate"
         ],
 
         # Streaming
@@ -85,19 +92,26 @@ class SchemaModule(LanguageModule):
             "default", "pii"
         ],
 
+        # PII Profiles (Voltage FPE)
+        "pii_profiles": [
+            "pii.ssn", "pii.pan", "pii.email", "pii.phone", "pii.full"
+        ],
+
         # Constraints
         "constraints": [
-            "range", "length", "pattern", "values", "precision", "scale"
+            "range", "length", "pattern", "values", "precision", "scale",
+            "as"
         ],
 
         # State machine
         "state_machine": [
-            "for_entity", "states", "initial_state", "from", "to"
+            "for_entity", "states", "initial_state", "from", "to",
+            "initial", "terminal", "final"
         ],
 
         # Expressions
         "expressions": [
-            "when", "otherwise", "and", "or", "null"
+            "when", "then", "else", "otherwise", "and", "or", "null", "not", "is", "in"
         ],
 
         # Time units
@@ -156,7 +170,12 @@ class SchemaModule(LanguageModule):
         "unique": "**unique**\n\nField value must be unique across records.",
         "cannot_change": "**cannot_change**\n\nField value cannot be modified after creation.",
         "encrypted": "**encrypted**\n\nField value is encrypted at rest.",
-        "pii": "**pii**`.profile`\n\nPersonally identifiable information with encryption profile.\n\nProfiles: `ssn`, `pan`, `email`, or custom.",
+        "pii": "**pii**`.profile`\n\nPersonally identifiable information with Voltage Format-Preserving Encryption.\n\n**Built-in Profiles:**\n- `pii.ssn` - SSN format (last 4 digits clear)\n- `pii.pan` - Credit card (first 6 + last 4 clear)\n- `pii.email` - Email format preserving\n- `pii.phone` - Phone format preserving\n- `pii.full` - Full encryption (default)\n- `pii.custom_name` - Custom profile from config\n\n```\nfields\n    ssn: string required pii.ssn\n    card_number: string pii.pan\n    email: string pii.email\n    secret: string pii  // defaults to full\nend\n```",
+        "pii.ssn": "**pii.ssn**\n\nSSN Format-Preserving Encryption.\n\nKeeps last 4 digits clear for display: `***-**-1234`\n\n```\nssn: string required pii.ssn\n```",
+        "pii.pan": "**pii.pan**\n\nCredit Card PAN Format-Preserving Encryption.\n\nKeeps first 6 + last 4 clear for BIN identification: `411111******1234`\n\n```\ncard_number: string pii.pan\n```",
+        "pii.email": "**pii.email**\n\nEmail Format-Preserving Encryption.\n\nPreserves email format with encrypted local part: `abc***@domain.com`\n\n```\nemail: string pii.email\n```",
+        "pii.phone": "**pii.phone**\n\nPhone Format-Preserving Encryption.\n\nPreserves phone number format.\n\n```\nphone: string pii.phone\n```",
+        "pii.full": "**pii.full**\n\nFull encryption (default profile).\n\nNo clear text preserved.\n\n```\nsecret_data: string pii.full\n// or just:\nsecret_data: string pii\n```",
 
         # Constraints
         "range": "**range**: `min..max`\n\nNumeric value must be within range.",
@@ -167,8 +186,48 @@ class SchemaModule(LanguageModule):
         # Version
         "version": "**version** `x.y.z`\n\nSchema version number for evolution tracking.",
         "compatibility": "**compatibility** `mode`\n\nEvolution compatibility: backward, forward, full, none.",
+        "evolution": "**evolution** `mode`\n\nAlias for compatibility. Specifies schema evolution mode.",
         "backward": "**backward**\n\nNew schema can read data written by old schema.",
         "forward": "**forward**\n\nOld schema can read data written by new schema.",
+
+        # Import (v0.7.0+)
+        "import": "**import** `path`\n\nImports definitions from another DSL file.\n\n```\nimport ../types/common.schema\nimport ./order_types.schema\n```",
+
+        # New Patterns
+        "command": "**command**\n\nCommand/request pattern for CQRS architectures.",
+        "response": "**response**\n\nResponse pattern paired with command.",
+        "aggregate": "**aggregate**\n\nAggregate/summary pattern for materialized views.",
+        "document": "**document**\n\nDocument/output pattern for generated documents.",
+        "audit_event": "**audit_event**\n\nAudit trail events pattern for compliance tracking.\n\n```\nschema AuditEvent\n    pattern audit_event\n    immutable true\nend\n```",
+
+        # New Blocks
+        "computed": "**computed**\n\nDerived/calculated fields block.\n\n```\ncomputed\n    total_amount: decimal = line_total + tax_amount\n    is_high_value: boolean = total_amount > 10000\nend\n```",
+        "constraints": "**constraints**\n\nBusiness rule validation constraints.\n\n```\nconstraints\n    amount > 0 as \"Amount must be positive\"\n    quantity <= 1000 as \"Quantity exceeds limit\"\nend\n```",
+        "immutable": "**immutable** `true|false`\n\nDeclares schema as immutable (no updates allowed).\n\n```\nschema AuditLog\n    pattern audit_event\n    immutable true\nend\n```",
+
+        # Types
+        "bizdate": "**bizdate**\n\nBusiness date type (from L0 calendar context).\n\nRepresents logical business day rather than system timestamp.\n\n```\nfields\n    trade_date: bizdate required\n    settlement_date: bizdate\nend\n```",
+
+        # Constraint keyword
+        "as": "**as** `\"message\"`\n\nDefines validation message for constraint.\n\n```\nconstraints\n    amount > 0 as \"Amount must be positive\"\nend\n```",
+
+        # State machine qualifiers
+        "initial": "**initial**\n\nMarks a state as the initial state in a state machine.\n\n```\nstates\n    received: initial\n    processing\n    completed: terminal\nend\n```",
+        "terminal": "**terminal**\n\nMarks a state as a terminal/final state.\n\n```\nstates\n    completed: terminal\n    failed: terminal\nend\n```",
+        "final": "**final**\n\nAlias for terminal. Marks a state as final.\n\n```\nstates\n    done: final\nend\n```",
+        "for_entity": "**for_entity**: `entity_name`\n\nSpecifies which entity the state machine tracks.\n\n```\nfor_entity: Order\n```",
+        "states": "**states**\n\nDefines the possible states in a state machine.\n\n```\nstates\n    pending: initial\n    approved\n    rejected: terminal\nend\n```",
+
+        # Computed expression keywords
+        "then": "**then** `expression`\n\nResult expression in when...then...else conditional.\n\n```\ncomputed\n    discount = when amount > 100 then 0.1 else 0\nend\n```",
+        "else": "**else** `expression`\n\nDefault case in when...then...else conditional.\n\n```\ncomputed\n    tier = when amount > 1000 then \"gold\"\n           when amount > 500 then \"silver\"\n           else \"bronze\"\nend\n```",
+
+        # Date type
+        "date": "**date**\n\nDate without time component.\n\n```\nfields\n    birth_date: date required\nend\n```",
+
+        # Additional types
+        "set": "**set**`<type>`\n\nUnordered unique collection of elements.\n\n```\nfields\n    tags: set<string>\nend\n```",
+        "object": "**object**\n\nNested object type for complex structures.\n\n```\nfields\n    address: object\n        street: string\n        city: string\n        zip: string\n    end\nend\n```",
     }
 
     def __init__(self):

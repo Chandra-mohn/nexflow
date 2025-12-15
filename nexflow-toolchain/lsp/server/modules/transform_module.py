@@ -38,7 +38,7 @@ class TransformModule(LanguageModule):
     # TransformDSL keywords organized by category
     KEYWORDS = {
         # Structure
-        "structure": ["transform", "transform_block", "end"],
+        "structure": ["transform", "transform_block", "end", "import"],
 
         # Metadata
         "metadata": [
@@ -47,10 +47,13 @@ class TransformModule(LanguageModule):
         ],
 
         # Purity & Caching
-        "purity": ["pure", "cache", "ttl", "key"],
+        "purity": ["pure", "idempotent", "cache", "ttl", "key"],
 
         # Input/Output
         "io": ["input", "output", "nullable", "required", "default"],
+
+        # Lookup & State
+        "lookup_state": ["lookup", "lookups", "state", "params"],
 
         # Types
         "types": [
@@ -62,7 +65,7 @@ class TransformModule(LanguageModule):
         "constraints": ["range", "length", "pattern", "values", "precision", "scale"],
 
         # Apply & Mappings
-        "apply": ["apply", "mappings", "use"],
+        "apply": ["apply", "mappings", "use", "let"],
 
         # Composition
         "compose": ["compose", "sequential", "parallel", "conditional", "then"],
@@ -70,13 +73,14 @@ class TransformModule(LanguageModule):
         # Validation
         "validation": [
             "validate_input", "validate_output", "invariant", "on_invalid",
-            "message", "code", "severity"
+            "require", "else", "message", "code", "severity"
         ],
 
         # Error handling
         "error": [
             "on_error", "action", "reject", "skip", "use_default", "raise",
-            "emit_to", "emit_all_errors", "error_code", "error_message", "log_level"
+            "emit_to", "emit_all_errors", "error_code", "error_message", "log_level",
+            "log_error", "emit", "with", "defaults", "partial", "data"
         ],
 
         # Severity levels
@@ -87,7 +91,28 @@ class TransformModule(LanguageModule):
 
         # Expression keywords
         "expressions": [
-            "when", "otherwise", "between", "in", "is", "not", "and", "or", "null"
+            "when", "then", "otherwise", "between", "in", "is", "not", "and", "or", "null", "matches"
+        ],
+
+        # Collection functions
+        "collection_functions": [
+            "any", "all", "none", "sum", "count", "avg", "max", "min",
+            "filter", "find", "distinct"
+        ],
+
+        # Built-in functions
+        "builtin_functions": [
+            "lookup", "call_model", "generate_uuid", "now", "today",
+            "format", "substring", "concat", "upper", "lower", "trim",
+            "length", "round", "floor", "ceil", "abs",
+            "mask_card", "extract_holder_id", "lookup_merchant_name",
+            "contains", "starts_with", "ends_with", "replace"
+        ],
+
+        # Business date functions
+        "bizdate_functions": [
+            "current_business_date", "previous_business_date", "next_business_date",
+            "add_business_days", "is_business_day", "is_holiday", "business_days_between"
         ],
 
         # Time units
@@ -95,6 +120,9 @@ class TransformModule(LanguageModule):
 
         # Boolean
         "boolean": ["true", "false", "yes", "no"],
+
+        # Optional chaining
+        "operators": ["optional"],
     }
 
     # Hover documentation for keywords
@@ -180,6 +208,84 @@ class TransformModule(LanguageModule):
         "and": "**and**: Logical AND.",
         "or": "**or**: Logical OR.",
         "null": "**null**: Null/missing value.",
+        "matches": "**matches**: Pattern matching (`field matches \"regex\"`).",
+
+        # Let binding
+        "let": "**let**: Local variable binding\n\n```\nlet rate = lookup(\"rates\", currency)\noutput = amount * rate\n```",
+
+        # Lookup & State
+        "lookup": "**lookup**: External data lookup\n\n```\nlookups\n    rates: lookup(\"rate_table\", currency, amount)\nend\n```",
+        "lookups": "**lookups**: Block for defining external lookups\n\n```\nlookups\n    merchant: lookup(\"merchants\", merchant_id)\n    rates: lookup(\"exchange_rates\", currency)\nend\n```",
+        "state": "**state**: Stateful computation configuration\n\n```\nstate\n    running_total: decimal, default: 0\nend\n```",
+        "params": "**params**: Transform parameters\n\n```\nparams\n    threshold: decimal, required\n    mode: string, default: \"normal\"\nend\n```",
+
+        # Additional validation
+        "require": "**require**: Validation precondition\n\n```\nrequire amount > 0\n    else reject with message: \"Amount must be positive\", code: \"VAL001\"\n```",
+        "else": "**else**: Action when require fails\n\n```\nrequire condition\n    else reject with message: \"Validation failed\"\n```",
+        "on_invalid": "**on_invalid**: Handler for validation failures\n\n```\non_invalid\n    reject with message: error_message\nend\n```",
+
+        # Additional error handling
+        "log_error": "**log_error**: Log error details\n\n```\non_error\n    log_error with message: \"Transform failed\", level: error\nend\n```",
+        "emit": "**emit**: Emit record to output stream\n\n```\nemit with defaults\n    field1: default_value1\n    field2: default_value2\nend\n```",
+        "with": "**with**: Specify additional parameters\n\n```\nreject with message: \"Error\", code: \"E001\"\nemit with defaults ...\n```",
+        "defaults": "**defaults**: Default values block\n\n```\nemit with defaults\n    status: \"pending\"\n    timestamp: now()\nend\n```",
+        "partial": "**partial**: Allow partial output on error\n\n```\non_error\n    action: partial\nend\n```",
+        "data": "**data**: Access to error data context.",
+        "emit_all_errors": "**emit_all_errors**: `true | false`\n\nEmit all accumulated errors, not just the first.",
+        "error_code": "**error_code**: Error code in error context.",
+        "error_message": "**error_message**: Error message in error context.",
+
+        # Purity additional
+        "idempotent": "**idempotent**: `true | false`\n\nMarks transform as producing same output for repeated identical inputs.",
+
+        # Collection functions
+        "any": "**any**: Check if any element matches condition\n\n```\nany(items, item -> item.status == \"active\")\n```",
+        "all": "**all**: Check if all elements match condition\n\n```\nall(items, item -> item.amount > 0)\n```",
+        "none": "**none**: Check if no elements match condition\n\n```\nnone(items, item -> item.status == \"invalid\")\n```",
+        "sum": "**sum**: Sum numeric values\n\n```\nsum(items, item -> item.amount)\n```",
+        "count": "**count**: Count elements\n\n```\ncount(items)\ncount(items, item -> item.active)\n```",
+        "avg": "**avg**: Calculate average\n\n```\navg(items, item -> item.amount)\n```",
+        "max": "**max**: Find maximum value\n\n```\nmax(items, item -> item.amount)\n```",
+        "min": "**min**: Find minimum value\n\n```\nmin(items, item -> item.amount)\n```",
+        "filter": "**filter**: Filter elements by condition\n\n```\nfilter(items, item -> item.status == \"active\")\n```",
+        "find": "**find**: Find first matching element\n\n```\nfind(items, item -> item.id == target_id)\n```",
+        "distinct": "**distinct**: Get unique values\n\n```\ndistinct(items, item -> item.category)\n```",
+
+        # Built-in functions
+        "call_model": "**call_model**: Call ML model for inference\n\n```\nrisk_score = call_model(\"fraud_detector\", transaction)\n```",
+        "generate_uuid": "**generate_uuid**: Generate a new UUID\n\n```\nid = generate_uuid()\n```",
+        "now": "**now**: Current timestamp\n\n```\ncreated_at = now()\n```",
+        "today": "**today**: Current date\n\n```\nprocess_date = today()\n```",
+        "format": "**format**: Format value to string\n\n```\nformatted = format(amount, \"#,##0.00\")\ndate_str = format(date, \"yyyy-MM-dd\")\n```",
+        "substring": "**substring**: Extract substring\n\n```\nprefix = substring(text, 0, 3)\n```",
+        "concat": "**concat**: Concatenate strings\n\n```\nfull_name = concat(first, \" \", last)\n```",
+        "upper": "**upper**: Convert to uppercase\n\n```\ncode = upper(input)\n```",
+        "lower": "**lower**: Convert to lowercase\n\n```\nemail = lower(input)\n```",
+        "trim": "**trim**: Remove leading/trailing whitespace\n\n```\ncleaned = trim(input)\n```",
+        "length": "**length**: Get string or collection length\n\n```\nlen = length(text)\ncount = length(items)\n```",
+        "round": "**round**: Round to nearest integer or decimal places\n\n```\nrounded = round(amount, 2)\n```",
+        "floor": "**floor**: Round down\n\n```\nfloored = floor(amount)\n```",
+        "ceil": "**ceil**: Round up\n\n```\nceiled = ceil(amount)\n```",
+        "abs": "**abs**: Absolute value\n\n```\npositive = abs(value)\n```",
+        "mask_card": "**mask_card**: Mask card number showing only last 4 digits\n\n```\nmasked = mask_card(card_number)  // \"****-****-****-1234\"\n```",
+        "extract_holder_id": "**extract_holder_id**: Extract holder ID from account\n\n```\nholder = extract_holder_id(account_number)\n```",
+        "lookup_merchant_name": "**lookup_merchant_name**: Lookup merchant name from MCC/ID\n\n```\nname = lookup_merchant_name(merchant_id)\n```",
+        "contains": "**contains**: Check if string contains substring\n\n```\nhas_error = contains(message, \"error\")\n```",
+        "starts_with": "**starts_with**: Check string prefix\n\n```\nis_visa = starts_with(card_number, \"4\")\n```",
+        "ends_with": "**ends_with**: Check string suffix\n\n```\nis_pdf = ends_with(filename, \".pdf\")\n```",
+        "replace": "**replace**: Replace substring\n\n```\ncleaned = replace(text, \"old\", \"new\")\n```",
+
+        # Business date functions
+        "current_business_date": "**current_business_date**: Get current business date\n\n```\nbiz_date = current_business_date()\n```",
+        "previous_business_date": "**previous_business_date**: Get previous business date\n\n```\nprev_date = previous_business_date()\n```",
+        "next_business_date": "**next_business_date**: Get next business date\n\n```\nnext_date = next_business_date()\n```",
+        "add_business_days": "**add_business_days**: Add business days to date\n\n```\nfuture = add_business_days(date, 5)\n```",
+        "is_business_day": "**is_business_day**: Check if date is a business day\n\n```\nis_biz = is_business_day(date)\n```",
+        "is_holiday": "**is_holiday**: Check if date is a holiday\n\n```\nis_hol = is_holiday(date)\n```",
+        "business_days_between": "**business_days_between**: Count business days between dates\n\n```\ndays = business_days_between(start_date, end_date)\n```",
+
+        # Import
+        "import": "**import**: Import schemas or transforms\n\n```\nimport \"schemas/transaction.schema\"\nimport \"transforms/common.xform\"\n```",
     }
 
     def __init__(self):

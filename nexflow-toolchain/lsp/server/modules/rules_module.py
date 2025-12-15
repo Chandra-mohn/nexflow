@@ -38,16 +38,16 @@ class RulesModule(LanguageModule):
     # RulesDSL keywords organized by category
     KEYWORDS = {
         # Structure
-        "structure": ["decision_table", "rule", "end", "given", "decide", "return", "execute"],
+        "structure": ["decision_table", "rule", "end", "given", "decide", "return", "execute", "import"],
 
         # Hit Policies
-        "hit_policy": ["hit_policy", "first_match", "single_hit", "multi_hit"],
+        "hit_policy": ["hit_policy", "first_match", "single_hit", "multi_hit", "collect_all"],
 
         # Control Flow
-        "control_flow": ["if", "then", "elseif", "else", "endif"],
+        "control_flow": ["if", "then", "elseif", "else", "endif", "when", "otherwise"],
 
         # Logic
-        "logic": ["and", "or", "not"],
+        "logic": ["and", "or", "not", "mod"],
 
         # Conditions
         "conditions": [
@@ -55,17 +55,43 @@ class RulesModule(LanguageModule):
             "matches", "contains", "starts_with", "ends_with", "to"
         ],
 
+        # EOD Marker Conditions (v0.6.0+)
+        "marker_conditions": [
+            "marker", "fired", "pending", "between"
+        ],
+
         # Actions
         "actions": ["lookup", "emit", "default", "as_of"],
 
+        # Variables
+        "variables": ["let", "set"],
+
+        # Post-processing
+        "post_processing": ["post_calculate", "aggregate"],
+
         # Types
-        "types": ["text", "number", "boolean", "date", "timestamp", "money", "percentage"],
+        "types": ["text", "number", "boolean", "date", "timestamp", "money", "percentage", "bizdate"],
+
+        # Collection Functions
+        "collection_functions": [
+            "any", "all", "none", "sum", "count", "avg", "max", "min",
+            "filter", "find", "distinct"
+        ],
+
+        # Services Block
+        "services": ["services", "sync", "async", "cached", "timeout", "fallback", "retry"],
+
+        # Actions Block
+        "actions_block": ["actions", "state", "audit", "call"],
 
         # Other keywords
-        "other": ["description", "priority", "yes", "multi"],
+        "other": ["description", "priority", "yes", "multi", "version"],
 
         # Boolean literals
         "boolean": ["true", "false"],
+
+        # Duration units
+        "duration": ["ms", "s", "m", "h"],
     }
 
     # Hover documentation for keywords
@@ -96,6 +122,7 @@ class RulesModule(LanguageModule):
         "and": "**and**: Logical AND operator\n\n`score >= 650 and status = 'active'`",
         "or": "**or**: Logical OR operator\n\n`status = 'vip' or score >= 800`",
         "not": "**not**: Logical NOT operator\n\n`not is_blocked`",
+        "mod": "**mod**: Modulo operator (remainder)\n\n`value mod 10` - remainder when divided by 10",
 
         # Conditions
         "in": "**in**: Set membership condition\n\n`status in ('active', 'pending', 'review')`\n`status not in ('closed', 'suspended')`",
@@ -132,6 +159,64 @@ class RulesModule(LanguageModule):
 
         # Special
         "*": "**\\***: Wildcard - matches any value\n\nUsed in conditions (any input) and actions (no action).",
+
+        # Import (v0.7.0+)
+        "import": "**import** `path`\n\nImports definitions from another DSL file.\n\n```\nimport ../schemas/order.schema\nimport ./common_rules.rules\n```",
+
+        # EOD Marker Conditions (v0.6.0+)
+        "marker": "**marker** `name` `fired|pending`\n\nCondition based on EOD marker state.\n\n```\ndecision_table routing\n    decide:\n        | marker eod_1 fired  | action       |\n        |=====================|==============|\n        | true                | settle()     |\n        | false               | accumulate() |\n```",
+        "fired": "**fired**\n\nMarker state: the marker condition has been met.\n\n```\nmarker eod_ready fired\n```",
+        "pending": "**pending**\n\nMarker state: the marker condition has NOT yet been met.\n\n```\nmarker eod_ready pending\n```",
+        "between": "**between** `marker1` **and** `marker2`\n\nCondition true when between two marker states.\n\n```\ndecide:\n    | between eod_1 and eod_2 | action      |\n    |========================|=============|\n    | true                   | process()   |\n```",
+
+        # Hit Policy additions
+        "collect_all": "**collect_all**\n\nCollect results from all matching rows into a list.\n\n```\ndecision_table validate_all\n    hit_policy collect_all\n    // All matching rows contribute to result\n```",
+
+        # Control Flow additions
+        "when": "**when** `condition` **then** `result`\n\nInline conditional expression.\n\n```\npost_calculate:\n    status = when score >= 700 then \"approved\" otherwise \"review\"\n```",
+        "otherwise": "**otherwise**\n\nDefault branch in when expression.\n\n```\nwhen amount > 1000 then \"high\" otherwise \"normal\"\n```",
+
+        # Variables
+        "let": "**let** `var` `=` `expr`\n\nDeclares a local variable.\n\n```\nlet discount = base_price * 0.1\nlet total = base_price - discount\n```",
+        "set": "**set** `var` `=` `expr`\n\nAssigns a value to a variable.\n\n```\nset result = calculate_total(items)\n```",
+
+        # Post-processing
+        "post_calculate": "**post_calculate:**\n\nDerived calculations after decision table evaluation.\n\n```\npost_calculate:\n    total_risk = credit_risk + fraud_risk\n    final_decision = when total_risk > 0.7 then \"decline\" otherwise base_decision\n```",
+        "aggregate": "**aggregate:**\n\nAggregation block for collect_all results.\n\n```\naggregate:\n    total_amount = sum(amounts)\n    max_risk = max(risk_scores)\n```",
+
+        # Types
+        "bizdate": "**bizdate**\n\nBusiness date type (from L0 calendar context).\n\nRepresents logical business day.\n\n```\ngiven:\n    trade_date: bizdate\n    settlement_date: bizdate\n```",
+
+        # Collection Functions
+        "any": "**any**(`collection`, `predicate`)\n\nReturns true if any element matches predicate.\n\n```\nany(items, amount > 1000)\nany(flags, f -> f.type = \"critical\")\n```",
+        "all": "**all**(`collection`, `predicate`)\n\nReturns true if all elements match predicate.\n\n```\nall(items, status = \"valid\")\n```",
+        "none": "**none**(`collection`, `predicate`)\n\nReturns true if no elements match predicate.\n\n```\nnone(flags, type = \"blocked\")\n```",
+        "sum": "**sum**(`collection`, `field?`)\n\nSums numeric values.\n\n```\nsum(items, amount)\nsum(scores)\n```",
+        "count": "**count**(`collection`)\n\nCounts elements in collection.\n\n```\ncount(items)\n```",
+        "avg": "**avg**(`collection`, `field?`)\n\nCalculates average of numeric values.\n\n```\navg(scores)\navg(items, rating)\n```",
+        "max": "**max**(`collection`, `field?`)\n\nFinds maximum value.\n\n```\nmax(items, price)\n```",
+        "min": "**min**(`collection`, `field?`)\n\nFinds minimum value.\n\n```\nmin(items, quantity)\n```",
+        "filter": "**filter**(`collection`, `predicate`)\n\nFilters elements matching predicate.\n\n```\nfilter(items, active = true)\nfilter(transactions, t -> t.amount > 100)\n```",
+        "find": "**find**(`collection`, `predicate`)\n\nFinds first element matching predicate.\n\n```\nfind(items, type = \"premium\")\n```",
+        "distinct": "**distinct**(`collection`)\n\nRemoves duplicate elements.\n\n```\ndistinct(categories)\n```",
+
+        # Services Block
+        "services": "**services** `{...}`\n\nDeclares external service dependencies.\n\n```\nservices {\n    fraud_check: async FraudService.check(id: text) -> boolean\n        timeout: 5s\n        fallback: false\n}\n```",
+        "sync": "**sync**\n\nSynchronous service call (blocking).",
+        "async": "**async**\n\nAsynchronous service call (non-blocking).",
+        "cached": "**cached**(`duration`)\n\nCaches service results for specified duration.\n\n```\ncached(5m) LookupService.get(key: text) -> text\n```",
+        "timeout": "**timeout:** `duration`\n\nMaximum time to wait for service response.\n\n```\ntimeout: 5s\n```",
+        "fallback": "**fallback:** `value`\n\nDefault value if service fails.\n\n```\nfallback: false\n```",
+        "retry": "**retry:** `count`\n\nNumber of retry attempts on failure.\n\n```\nretry: 3\n```",
+
+        # Actions Block
+        "actions": "**actions** `{...}`\n\nDeclares action method implementations.\n\n```\nactions {\n    flag_suspicious(reason: text) -> emit to fraud_alerts\n    update_score(delta: number) -> state scores.adjust(delta)\n}\n```",
+        "state": "**state** `name.operation`\n\nState store operation target.\n\n```\n-> state scores.increment\n-> state flags.add(\"suspicious\")\n```",
+        "audit": "**audit**\n\nAudit logging target.\n\n```\n-> audit\n```",
+        "call": "**call** `Service.method`\n\nExternal service call target.\n\n```\n-> call NotificationService.send\n```",
+
+        # Version
+        "version": "**version:** `x.y.z`\n\nDecision table version for tracking changes.\n\n```\ndecision_table routing\n    version: 1.2.0\n```",
     }
 
     def __init__(self):
