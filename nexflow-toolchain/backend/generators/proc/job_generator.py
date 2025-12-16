@@ -24,10 +24,10 @@ from backend.ast import proc_ast as ast
 from backend.generators.common.java_utils import (
     to_pascal_case, to_camel_case, duration_to_ms
 )
-from backend.generators.flow.job_imports import JobImportsMixin
-from backend.generators.flow.job_operators import JobOperatorsMixin
-from backend.generators.flow.job_correlation import JobCorrelationMixin
-from backend.generators.flow.job_sinks import JobSinksMixin
+from backend.generators.proc.job_imports import JobImportsMixin
+from backend.generators.proc.job_operators import JobOperatorsMixin
+from backend.generators.proc.job_correlation import JobCorrelationMixin
+from backend.generators.proc.job_sinks import JobSinksMixin
 
 
 class JobGeneratorMixin(

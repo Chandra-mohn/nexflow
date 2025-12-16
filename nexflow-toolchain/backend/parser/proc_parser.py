@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Flow DSL (L1) Parser
+Proc DSL (L1) Parser
 
 Parser wrapper for L1 Process Orchestration DSL with AST building.
 Uses modular visitor mixins for maintainability.
@@ -18,49 +18,49 @@ from .generated.proc import ProcDSLLexer, ProcDSLParser, ProcDSLVisitor
 # Try to load the full AST builder mixins
 # If they fail (due to grammar/visitor mismatch), we'll use syntax-only mode
 _AST_BUILDER_AVAILABLE = False
-FlowASTBuilder = None
+ProcASTBuilder = None
 
 try:
-    from .flow import (
-        FlowHelpersVisitorMixin,
-        FlowCoreVisitorMixin,
-        FlowExecutionVisitorMixin,
-        FlowInputVisitorMixin,
-        FlowProcessingVisitorMixin,
-        FlowCorrelationVisitorMixin,
-        FlowOutputVisitorMixin,
-        FlowStateVisitorMixin,
-        FlowResilienceVisitorMixin,
-        FlowMarkersVisitorMixin,
+    from .proc import (
+        ProcHelpersVisitorMixin,
+        ProcCoreVisitorMixin,
+        ProcExecutionVisitorMixin,
+        ProcInputVisitorMixin,
+        ProcProcessingVisitorMixin,
+        ProcCorrelationVisitorMixin,
+        ProcOutputVisitorMixin,
+        ProcStateVisitorMixin,
+        ProcResilienceVisitorMixin,
+        ProcMarkersVisitorMixin,
     )
 
-    class FlowASTBuilder(
-        FlowHelpersVisitorMixin,
-        FlowCoreVisitorMixin,
-        FlowExecutionVisitorMixin,
-        FlowInputVisitorMixin,
-        FlowProcessingVisitorMixin,
-        FlowCorrelationVisitorMixin,
-        FlowOutputVisitorMixin,
-        FlowStateVisitorMixin,
-        FlowResilienceVisitorMixin,
-        FlowMarkersVisitorMixin,
+    class ProcASTBuilder(
+        ProcHelpersVisitorMixin,
+        ProcCoreVisitorMixin,
+        ProcExecutionVisitorMixin,
+        ProcInputVisitorMixin,
+        ProcProcessingVisitorMixin,
+        ProcCorrelationVisitorMixin,
+        ProcOutputVisitorMixin,
+        ProcStateVisitorMixin,
+        ProcResilienceVisitorMixin,
+        ProcMarkersVisitorMixin,
         ProcDSLVisitor
     ):
         """
-        Visitor that builds AST from ANTLR parse tree for L1 Flow DSL.
+        Visitor that builds AST from ANTLR parse tree for L1 Proc DSL.
 
         Composed from modular mixins:
-        - FlowHelpersVisitorMixin: Common helpers (field paths, durations, field lists)
-        - FlowCoreVisitorMixin: Program, process definition
-        - FlowExecutionVisitorMixin: Execution config (parallelism, time, mode)
-        - FlowInputVisitorMixin: Input declarations (receive, store, match)
-        - FlowProcessingVisitorMixin: Processing ops (enrich, transform, window, join)
-        - FlowCorrelationVisitorMixin: Correlation (await, hold, completion)
-        - FlowOutputVisitorMixin: Output and completion blocks
-        - FlowStateVisitorMixin: State management (uses, local, buffer)
-        - FlowResilienceVisitorMixin: Error handling, checkpoint, backpressure
-        - FlowMarkersVisitorMixin: Business date, EOD markers, phases (v0.6.0+)
+        - ProcHelpersVisitorMixin: Common helpers (field paths, durations, field lists)
+        - ProcCoreVisitorMixin: Program, process definition
+        - ProcExecutionVisitorMixin: Execution config (parallelism, time, mode)
+        - ProcInputVisitorMixin: Input declarations (receive, store, match)
+        - ProcProcessingVisitorMixin: Processing ops (enrich, transform, window, join)
+        - ProcCorrelationVisitorMixin: Correlation (await, hold, completion)
+        - ProcOutputVisitorMixin: Output and completion blocks
+        - ProcStateVisitorMixin: State management (uses, local, buffer)
+        - ProcResilienceVisitorMixin: Error handling, checkpoint, backpressure
+        - ProcMarkersVisitorMixin: Business date, EOD markers, phases (v0.6.0+)
         """
         pass
 
@@ -77,12 +77,12 @@ except (AttributeError, ImportError) as e:
     _AST_BUILDER_AVAILABLE = False
 
 
-class FlowParser(BaseParser):
-    """Parser for L1 Flow/Process DSL files."""
+class ProcParser(BaseParser):
+    """Parser for L1 Process DSL files (.proc)."""
 
     def parse(self, content: str) -> ParseResult:
         """
-        Parse Flow DSL content and return result.
+        Parse Proc DSL content and return result.
 
         If AST builder is available, returns full AST.
         Otherwise, performs syntax validation only.
@@ -94,9 +94,9 @@ class FlowParser(BaseParser):
             tree = parser.program()
             self._collect_errors(result)
 
-            if result.success and _AST_BUILDER_AVAILABLE and FlowASTBuilder:
+            if result.success and _AST_BUILDER_AVAILABLE and ProcASTBuilder:
                 try:
-                    builder = FlowASTBuilder()
+                    builder = ProcASTBuilder()
                     result.ast = builder.visitProgram(tree)
                 except Exception as ast_error:
                     # AST building failed, but syntax was valid

@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Correlation Block Visitor Mixin for Flow Parser
+Correlation Block Visitor Mixin for Proc Parser
 
 Handles parsing of correlation operations: await declarations, hold declarations,
 completion conditions, and timeout actions.
@@ -14,7 +14,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowCorrelationVisitorMixin:
+class ProcCorrelationVisitorMixin:
     """Mixin for correlation block visitor methods."""
 
     def visitCorrelationBlock(self, ctx: ProcDSLParser.CorrelationBlockContext) -> Union[ast.AwaitDecl, ast.HoldDecl]:

@@ -32,12 +32,12 @@ class TestMasterCompilerBasic:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
             )
 
             assert compiler.src_dir == src_dir
             assert compiler.output_dir == output_dir
-            assert compiler.package_prefix == "com.test.flow"
+            assert compiler.package_prefix == "com.test.proc"
 
     def test_compile_empty_project(self):
         """Test compiling empty project."""
@@ -49,7 +49,7 @@ class TestMasterCompilerBasic:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
             )
 
             result = compiler.compile()
@@ -73,7 +73,7 @@ class TestMasterCompilerInfrastructure:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
             )
 
             result = compiler.compile()
@@ -110,7 +110,7 @@ streams:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
                 environment="prod",
             )
 
@@ -153,7 +153,7 @@ streams:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
                 environment="prod",
             )
 
@@ -177,7 +177,7 @@ class TestMasterCompilerPhases:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
             )
 
             result = compiler.compile()
@@ -187,7 +187,7 @@ class TestMasterCompilerPhases:
             assert CompilationPhase.SCHEMA in result.layers
             assert CompilationPhase.TRANSFORM in result.layers
             assert CompilationPhase.RULES in result.layers
-            assert CompilationPhase.FLOW in result.layers
+            assert CompilationPhase.PROC in result.layers
 
     def test_infra_phase_failure_stops_compilation(self):
         """Test that infrastructure failure stops compilation."""
@@ -210,7 +210,7 @@ streams:
             compiler = MasterCompiler(
                 src_dir=src_dir,
                 output_dir=output_dir,
-                package_prefix="com.test.flow",
+                package_prefix="com.test.proc",
             )
 
             result = compiler.compile()
@@ -237,7 +237,7 @@ class TestLayerResult:
     def test_layer_result_with_errors(self):
         """Test layer result with errors."""
         result = LayerResult(
-            phase=CompilationPhase.FLOW,
+            phase=CompilationPhase.PROC,
             success=False,
             errors=["Error 1", "Error 2"]
         )

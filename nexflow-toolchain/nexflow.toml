@@ -10,8 +10,8 @@ src = "src"
 output = "generated"
 
 # Source directories for each DSL type
-[sources.flow]
-path = "src/flow"
+[sources.proc]
+path = "src/proc"
 
 [sources.schema]
 path = "src/schema"

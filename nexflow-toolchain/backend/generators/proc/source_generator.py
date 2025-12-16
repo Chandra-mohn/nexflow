@@ -20,8 +20,8 @@ L1 Input Block Features:
 from typing import Dict, List, Set, Tuple
 
 from backend.ast import proc_ast as ast
-from backend.generators.flow.source_projection import SourceProjectionMixin
-from backend.generators.flow.source_correlation import SourceCorrelationMixin
+from backend.generators.proc.source_projection import SourceProjectionMixin
+from backend.generators.proc.source_correlation import SourceCorrelationMixin
 
 
 class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):

@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Input Block Visitor Mixin for Flow Parser
+Input Block Visitor Mixin for Proc Parser
 
 Handles parsing of input declarations: receive statements, schema references,
 projections, store actions, and match actions.
@@ -14,7 +14,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowInputVisitorMixin:
+class ProcInputVisitorMixin:
     """Mixin for input block visitor methods."""
 
     def visitReceiveDecl(self, ctx: ProcDSLParser.ReceiveDeclContext) -> ast.ReceiveDecl:

@@ -19,8 +19,7 @@ class ProjectError(Exception):
 
 # DSL language extensions and their layer mapping
 DSL_EXTENSIONS = {
-    ".proc": "flow",        # L1 - Process Orchestration
-    ".flow": "flow",        # L1 - Process Orchestration (alternate)
+    ".proc": "proc",        # L1 - Process Orchestration
     ".schema": "schema",    # L2 - Schema Registry
     ".xform": "transform",  # L3 - Transform Catalog
     ".transform": "transform",  # L3 - Transform Catalog (alternate)
@@ -30,7 +29,7 @@ DSL_EXTENSIONS = {
 
 # Default directory structure
 DEFAULT_SRC_DIRS = {
-    "flow": "src/flow",
+    "proc": "src/proc",
     "schema": "src/schema",
     "transform": "src/transform",
     "rules": "src/rules",
@@ -175,7 +174,7 @@ class Project:
         """Count DSL files by type."""
         counts = {}
         # Use shorthand extensions: .proc, .xform, .infra
-        for lang, ext in [("flow", ".proc"), ("schema", ".schema"),
+        for lang, ext in [("proc", ".proc"), ("schema", ".schema"),
                           ("transform", ".xform"), ("rules", ".rules"),
                           ("infra", ".infra")]:
             src_config = self.sources.get(lang)
@@ -196,7 +195,7 @@ class Project:
             return []
 
         # Map language to file extension (using shorthand extensions)
-        ext_map = {"flow": ".proc", "schema": ".schema",
+        ext_map = {"proc": ".proc", "schema": ".schema",
                    "transform": ".xform", "rules": ".rules",
                    "infra": ".infra"}
         ext = ext_map.get(lang)
@@ -260,8 +259,8 @@ src = "src"
 output = "generated"
 
 # Source directories for each DSL type
-[sources.flow]
-path = "src/flow"
+[sources.proc]
+path = "src/proc"
 
 [sources.schema]
 path = "src/schema"

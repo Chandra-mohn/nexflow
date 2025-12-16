@@ -61,7 +61,7 @@ class ImportStatement:
         ext_map = {
             '.schema': 'schema',
             '.transform': 'transform',
-            '.flow': 'flow',
+            '.proc': 'proc',
             '.rules': 'rules',
         }
         ext = self.extension

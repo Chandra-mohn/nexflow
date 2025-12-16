@@ -17,14 +17,14 @@ from .base import (
 from .schema_validator import SchemaValidator
 from .transform_validator import TransformValidator
 from .rules_validator import RulesValidator
-from .flow_validator import FlowValidator
+from .proc_validator import ProcValidator
 
 # Validator registry - maps DSL type to validator class
 VALIDATORS = {
     'schema': SchemaValidator,
     'transform': TransformValidator,
     'rules': RulesValidator,
-    'flow': FlowValidator,
+    'proc': ProcValidator,
 }
 
 
@@ -33,7 +33,7 @@ def get_validator(lang: str, context: Optional[ValidationContext] = None) -> Opt
     Factory function to get a validator instance for a DSL type.
 
     Args:
-        lang: DSL type ('schema', 'flow', 'transform', 'rules')
+        lang: DSL type ('schema', 'proc', 'transform', 'rules')
         context: Optional shared validation context
 
     Returns:
@@ -73,8 +73,8 @@ def validate_project_asts(
     # 1. Schema (no dependencies)
     # 2. Transform (may reference schemas)
     # 3. Rules (may reference schemas)
-    # 4. Flow (references schemas, transforms, rules)
-    validation_order = ['schema', 'transform', 'rules', 'flow']
+    # 4. Proc (references schemas, transforms, rules)
+    validation_order = ['schema', 'transform', 'rules', 'proc']
 
     for lang in validation_order:
         if lang not in asts or not asts[lang]:
@@ -130,7 +130,7 @@ __all__ = [
     'SchemaValidator',
     'TransformValidator',
     'RulesValidator',
-    'FlowValidator',
+    'ProcValidator',
     'VALIDATORS',
     'get_validator',
     'validate_project_asts',

@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Processing Block Visitor Mixin for Flow Parser
+Processing Block Visitor Mixin for Proc Parser
 
 Handles parsing of processing operations: enrich, transform, route,
 aggregate, window, join, and merge declarations.
@@ -14,7 +14,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowProcessingVisitorMixin:
+class ProcProcessingVisitorMixin:
     """Mixin for processing block visitor methods."""
 
     def visitProcessingBlock(self, ctx: ProcDSLParser.ProcessingBlockContext) -> Union[

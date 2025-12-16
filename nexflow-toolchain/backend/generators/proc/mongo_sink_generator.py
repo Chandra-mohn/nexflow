@@ -36,7 +36,7 @@ class MongoSinkGeneratorMixin:
     - Error handling (continue, fail, or emit to DLQ)
     """
 
-    # Binding resolver is set by FlowGenerator
+    # Binding resolver is set by ProcGenerator
     _binding_resolver: BindingResolver
 
     def generate_mongo_sink_code(

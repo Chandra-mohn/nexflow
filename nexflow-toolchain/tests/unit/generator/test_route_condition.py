@@ -8,7 +8,7 @@ Tests the _compile_route_condition method in JobOperatorsMixin.
 
 import pytest
 
-from backend.generators.flow.job_operators import JobOperatorsMixin
+from backend.generators.proc.job_operators import JobOperatorsMixin
 
 
 class TestRouteConditionCompilation:

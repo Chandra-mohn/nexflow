@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Resilience Block Visitor Mixin for Flow Parser
+Resilience Block Visitor Mixin for Proc Parser
 
 Handles parsing of resilience configuration: error handling, checkpointing,
 backpressure strategies, and alerting.
@@ -14,7 +14,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowResilienceVisitorMixin:
+class ProcResilienceVisitorMixin:
     """Mixin for resilience block visitor methods."""
 
     def visitResilienceBlock(self, ctx: ProcDSLParser.ResilienceBlockContext) -> ast.ResilienceBlock:

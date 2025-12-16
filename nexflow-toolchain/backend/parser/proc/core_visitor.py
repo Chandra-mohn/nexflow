@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Core Visitor Mixin for Flow Parser
+Core Visitor Mixin for Proc Parser
 
 Handles parsing of top-level elements: program and process definition.
 
@@ -20,8 +20,8 @@ from backend.ast.common import ImportStatement
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowCoreVisitorMixin:
-    """Mixin for core flow visitor methods."""
+class ProcCoreVisitorMixin:
+    """Mixin for core proc visitor methods."""
 
     def visitProgram(self, ctx: ProcDSLParser.ProgramContext) -> ast.Program:
         processes = []

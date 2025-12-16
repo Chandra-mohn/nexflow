@@ -2,8 +2,8 @@
 # Author: Chandra Mohn
 
 """
-Unit tests for Flow DSL Parser.
-Tests validate correct parsing of L1 Flow DSL syntax.
+Unit tests for Proc DSL Parser.
+Tests validate correct parsing of L1 Proc DSL syntax.
 """
 
 import pytest
@@ -11,8 +11,8 @@ import pytest
 from backend.parser import parse
 
 
-class TestFlowParserBasic:
-    """Basic flow parsing tests."""
+class TestProcParserBasic:
+    """Basic proc parsing tests."""
 
     def test_simple_process(self):
         """Test parsing a simple process definition."""
@@ -27,18 +27,18 @@ class TestFlowParserBasic:
                 schema order
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
         assert result.ast is not None
         assert len(result.ast.processes) == 1
         assert result.ast.processes[0].name == 'simple_flow'
 
 
-class TestFlowParserTransform:
-    """Flow transform operations tests."""
+class TestProcParserTransform:
+    """Proc transform operations tests."""
 
     def test_transform_reference(self):
-        """Test parsing transform reference in flow."""
+        """Test parsing transform reference in proc."""
         dsl = """
         process with_transform
             mode stream
@@ -52,12 +52,12 @@ class TestFlowParserTransform:
                 schema output_schema
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserRouting:
-    """Flow routing operations tests."""
+class TestProcParserRouting:
+    """Proc routing operations tests."""
 
     def test_route_with_rules(self):
         """Test parsing route with rules reference."""
@@ -76,7 +76,7 @@ class TestFlowParserRouting:
                 schema event
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
     def test_route_when_inline_condition(self):
@@ -98,7 +98,7 @@ class TestFlowParserRouting:
                 schema transaction
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
         # Verify route declaration was parsed with condition
         process = result.ast.processes[0]
@@ -124,7 +124,7 @@ class TestFlowParserRouting:
                 schema message
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
         process = result.ast.processes[0]
         route_decl = process.processing[0]
@@ -133,8 +133,8 @@ class TestFlowParserRouting:
         assert '"active"' in route_decl.condition
 
 
-class TestFlowParserEnrich:
-    """Flow enrichment operations tests."""
+class TestProcParserEnrich:
+    """Proc enrichment operations tests."""
 
     def test_enrich_with_lookup(self):
         """Test parsing enrich with lookup."""
@@ -153,12 +153,12 @@ class TestFlowParserEnrich:
                 schema enriched_order
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserWindow:
-    """Flow windowing operations tests."""
+class TestProcParserWindow:
+    """Proc windowing operations tests."""
 
     def test_tumbling_window(self):
         """Test parsing tumbling window."""
@@ -175,12 +175,12 @@ class TestFlowParserWindow:
                 schema aggregated_event
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserState:
-    """Flow state management tests."""
+class TestProcParserState:
+    """Proc state management tests."""
 
     def test_state_configuration(self):
         """Test parsing state configuration."""
@@ -198,12 +198,12 @@ class TestFlowParserState:
                 uses customer_state
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserErrorHandling:
-    """Flow error handling tests."""
+class TestProcParserErrorHandling:
+    """Proc error handling tests."""
 
     def test_error_handling_config(self):
         """Test parsing error handling configuration."""
@@ -222,12 +222,12 @@ class TestFlowParserErrorHandling:
             end
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserParallelism:
-    """Flow parallelism tests."""
+class TestProcParserParallelism:
+    """Proc parallelism tests."""
 
     def test_parallelism_hint(self):
         """Test parsing parallelism hint."""
@@ -243,12 +243,12 @@ class TestFlowParserParallelism:
                 schema event
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
 
 
-class TestFlowParserErrors:
-    """Flow parser error handling tests."""
+class TestProcParserErrors:
+    """Proc parser error handling tests."""
 
     def test_invalid_syntax(self):
         """Test that invalid syntax produces errors."""
@@ -257,12 +257,12 @@ class TestFlowParserErrors:
             from input
         }
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert not result.success
 
 
-class TestFlowParserMultiple:
-    """Multiple flow parsing tests."""
+class TestProcParserMultiple:
+    """Multiple proc parsing tests."""
 
     def test_multiple_processes(self):
         """Test parsing multiple process definitions."""
@@ -287,6 +287,6 @@ class TestFlowParserMultiple:
                 schema type_b
         end
         """
-        result = parse(dsl, 'flow')
+        result = parse(dsl, 'proc')
         assert result.success, f"Parse failed: {result.errors}"
         assert len(result.ast.processes) == 2

@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Flow Generator Module
+Proc Generator Module
 
 Main generator class for L1 Process DSL → Apache Flink Java code.
 Orchestrates mixin classes for modular generation.
@@ -31,19 +31,19 @@ from backend.ast.infra import InfraConfig
 from backend.generators.base import BaseGenerator, GeneratorConfig, GenerationResult
 from backend.generators.scaffold_generator import ScaffoldGenerator
 from backend.generators.infra import BindingResolver
-from backend.generators.flow.source_generator import SourceGeneratorMixin
-from backend.generators.flow.operator_generator import OperatorGeneratorMixin
-from backend.generators.flow.window_generator import WindowGeneratorMixin
-from backend.generators.flow.sink_generator import SinkGeneratorMixin
-from backend.generators.flow.state_generator import StateGeneratorMixin
-from backend.generators.flow.state_context_generator import StateContextGeneratorMixin
-from backend.generators.flow.resilience_generator import ResilienceGeneratorMixin
-from backend.generators.flow.job_generator import JobGeneratorMixin
-from backend.generators.flow.flow_process_function import FlowProcessFunctionMixin
-from backend.generators.flow.mongo_sink_generator import MongoSinkGeneratorMixin
+from backend.generators.proc.source_generator import SourceGeneratorMixin
+from backend.generators.proc.operator_generator import OperatorGeneratorMixin
+from backend.generators.proc.window_generator import WindowGeneratorMixin
+from backend.generators.proc.sink_generator import SinkGeneratorMixin
+from backend.generators.proc.state_generator import StateGeneratorMixin
+from backend.generators.proc.state_context_generator import StateContextGeneratorMixin
+from backend.generators.proc.resilience_generator import ResilienceGeneratorMixin
+from backend.generators.proc.job_generator import JobGeneratorMixin
+from backend.generators.proc.proc_process_function import ProcProcessFunctionMixin
+from backend.generators.proc.mongo_sink_generator import MongoSinkGeneratorMixin
 
 
-class FlowGenerator(
+class ProcGenerator(
     SourceGeneratorMixin,
     OperatorGeneratorMixin,
     WindowGeneratorMixin,
@@ -52,7 +52,7 @@ class FlowGenerator(
     StateContextGeneratorMixin,
     ResilienceGeneratorMixin,
     JobGeneratorMixin,
-    FlowProcessFunctionMixin,
+    ProcProcessFunctionMixin,
     MongoSinkGeneratorMixin,
     BaseGenerator
 ):
@@ -93,7 +93,7 @@ class FlowGenerator(
     def _generate_process(self, process: ast.ProcessDefinition) -> None:
         """Generate all files for a single process definition."""
         class_name = self.to_java_class_name(process.name)
-        package = f"{self.config.package_prefix}.flow"
+        package = f"{self.config.package_prefix}.proc"
         java_src_path = Path("src/main/java") / self.get_package_path(package)
 
         # Generate main job class

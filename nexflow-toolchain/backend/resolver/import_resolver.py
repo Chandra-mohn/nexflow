@@ -46,7 +46,7 @@ class ResolvedImport:
     import_stmt: ImportStatement
     resolved_path: Path
     ast: Optional[Any] = None  # The parsed AST of the imported file
-    dsl_type: Optional[str] = None  # 'schema', 'transform', 'flow', 'rules'
+    dsl_type: Optional[str] = None  # 'schema', 'transform', 'proc', 'rules'
 
 
 @dataclass

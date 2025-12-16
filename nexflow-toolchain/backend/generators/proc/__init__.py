@@ -2,12 +2,12 @@
 # Author: Chandra Mohn
 
 """
-Flow Generator Module
+Proc Generator Module
 
 Generates Apache Flink streaming jobs from L1 Process DSL definitions.
 """
 
-from .flow_generator import FlowGenerator
+from .proc_generator import ProcGenerator
 from .source_generator import SourceGeneratorMixin
 from .operator_generator import OperatorGeneratorMixin
 from .window_generator import WindowGeneratorMixin
@@ -22,7 +22,7 @@ from .job_correlation import JobCorrelationMixin
 from .job_sinks import JobSinksMixin
 
 __all__ = [
-    'FlowGenerator',
+    'ProcGenerator',
     'SourceGeneratorMixin',
     'OperatorGeneratorMixin',
     'WindowGeneratorMixin',

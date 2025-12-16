@@ -11,9 +11,9 @@ COMPILATION ORDER:
 2. L2 Schema         - Parse .schema files, generate POJOs
 3. L3 Transform      - Parse .xform files, generate transform functions
 4. L4 Rules          - Parse .rules files, generate decision logic
-5. L1 Flow           - Parse .proc/.flow files, generate Flink jobs with L5 bindings
+5. L1 Process        - Parse .proc files, generate Flink jobs with L5 bindings
 
-The L5 InfraConfig is passed to L1 FlowGenerator for infrastructure-aware generation:
+The L5 InfraConfig is passed to L1 ProcGenerator for infrastructure-aware generation:
 - Source topics resolved from L5 streams
 - Sink topics resolved from L5 streams
 - MongoDB async sinks generated for persist clauses
@@ -45,7 +45,7 @@ class CompilationPhase(Enum):
     SCHEMA = auto()     # L2: Schema/Type definitions
     TRANSFORM = auto()  # L3: Transform functions
     RULES = auto()      # L4: Decision rules
-    FLOW = auto()       # L1: Process flows
+    PROC = auto()       # L1: Process definitions
 
 
 @dataclass
@@ -93,7 +93,7 @@ class MasterCompiler:
         compiler = MasterCompiler(
             src_dir=Path("src"),
             output_dir=Path("generated"),
-            package_prefix="com.example.flow",
+            package_prefix="com.example.proc",
             environment="production"  # Optional: selects .infra file
         )
         result = compiler.compile()
@@ -173,9 +173,9 @@ class MasterCompiler:
         rules_result = self._compile_rules()
         result.add_layer_result(rules_result)
 
-        # Phase 5: L1 Flow (with infrastructure bindings)
-        flow_result = self._compile_flows()
-        result.add_layer_result(flow_result)
+        # Phase 5: L1 Process (with infrastructure bindings)
+        proc_result = self._compile_procs()
+        result.add_layer_result(proc_result)
 
         return result
 
@@ -277,12 +277,12 @@ class MasterCompiler:
             generator_type="rules"
         )
 
-    def _compile_flows(self) -> LayerResult:
-        """Phase 5: Parse and generate L1 flows with infrastructure bindings."""
+    def _compile_procs(self) -> LayerResult:
+        """Phase 5: Parse and generate L1 processes with infrastructure bindings."""
         return self._compile_layer(
-            phase=CompilationPhase.FLOW,
-            extensions=[".proc", ".flow"],
-            generator_type="flow",
+            phase=CompilationPhase.PROC,
+            extensions=[".proc"],
+            generator_type="proc",
             with_infrastructure=True
         )
 
@@ -293,7 +293,7 @@ class MasterCompiler:
         generator_type: str,
         with_infrastructure: bool = False
     ) -> LayerResult:
-        """Compile a single layer (schema, transform, rules, or flow)."""
+        """Compile a single layer (schema, transform, rules, or proc)."""
         from backend.parser import parse as parse_dsl, PARSERS
         from backend.generators import get_generator
 
@@ -348,9 +348,9 @@ class MasterCompiler:
             validation_context=self._validation_context,
         )
 
-        # Get generator - for flows, pass infrastructure config
+        # Get generator - for procs, pass infrastructure config
         if with_infrastructure:
-            generator = self._get_flow_generator(config)
+            generator = self._get_proc_generator(config)
         else:
             generator = get_generator(generator_type, config)
 
@@ -448,11 +448,11 @@ class MasterCompiler:
             except Exception as e:
                 result.warnings.append(f"{file_path}:{import_stmt.line}: Import warning - {e}")
 
-    def _get_flow_generator(self, config: GeneratorConfig):
-        """Get FlowGenerator with infrastructure bindings."""
-        from backend.generators.flow import FlowGenerator
+    def _get_proc_generator(self, config: GeneratorConfig):
+        """Get ProcGenerator with infrastructure bindings."""
+        from backend.generators.proc import ProcGenerator
 
-        return FlowGenerator(config, infra_config=self._infra_config)
+        return ProcGenerator(config, infra_config=self._infra_config)
 
     def validate_bindings(self) -> List[str]:
         """
@@ -476,7 +476,7 @@ class MasterCompiler:
         stream_refs = set()
         persistence_refs = set()
 
-        # Extract references from parsed L1 (flow) ASTs
+        # Extract references from parsed L1 (proc) ASTs
         for file_path, ast in self._parsed_asts.items():
             # Skip non-L1 ASTs (check if it has processes attribute)
             if not hasattr(ast, 'processes'):

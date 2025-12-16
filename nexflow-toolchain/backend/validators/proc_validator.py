@@ -2,9 +2,9 @@
 # Author: Chandra Mohn
 
 """
-Flow Validator
+Proc Validator
 
-Validates L1 Flow (Proc) DSL ASTs for semantic correctness.
+Validates L1 Proc DSL ASTs for semantic correctness.
 """
 
 from pathlib import Path
@@ -14,9 +14,9 @@ from backend.ast import proc_ast as ast
 from backend.validators.base import BaseValidator, ValidationResult, ValidationContext
 
 
-class FlowValidator(BaseValidator):
+class ProcValidator(BaseValidator):
     """
-    Validator for Flow (Proc) DSL ASTs.
+    Validator for Proc DSL ASTs.
 
     Checks:
     - Schema references exist (or will be provided)
@@ -28,7 +28,7 @@ class FlowValidator(BaseValidator):
     """
 
     def validate(self, program, file_path: Optional[Path] = None) -> ValidationResult:
-        """Validate a flow program AST."""
+        """Validate a proc program AST."""
         result = ValidationResult()
 
         for process in program.processes:

@@ -39,7 +39,7 @@ def cli(ctx: click.Context, verbose: bool):
     """
     Nexflow Build Tool
 
-    Compile DSL files (.flow, .schema, .transform, .rules) to target runtime code.
+    Compile DSL files (.proc, .schema, .transform, .rules) to target runtime code.
 
     \b
     Example:

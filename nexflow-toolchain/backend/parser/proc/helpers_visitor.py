@@ -2,10 +2,10 @@
 # Author: Chandra Mohn
 
 """
-Helper Methods Visitor Mixin for Flow Parser
+Helper Methods Visitor Mixin for Proc Parser
 
 Common helper methods for field paths, durations, and utility functions
-used across all flow visitor mixins.
+used across all proc visitor mixins.
 
 Updated for grammar v0.5.0+ which uses keywordOrIdentifier for field paths
 to allow keywords as valid field names.
@@ -18,8 +18,8 @@ from backend.parser.base import SourceLocation
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowHelpersVisitorMixin:
-    """Mixin for common helper methods used by all flow visitor mixins."""
+class ProcHelpersVisitorMixin:
+    """Mixin for common helper methods used by all proc visitor mixins."""
 
     def _get_location(self, ctx) -> Optional[SourceLocation]:
         """Extract source location from parser context."""

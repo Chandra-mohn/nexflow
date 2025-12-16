@@ -18,7 +18,7 @@ if str(project_root) not in sys.path:
 from .base import LanguageModule, ModuleCapabilities, SymbolInfo
 
 # Import existing parser infrastructure from backend
-from backend.parser.flow_parser import FlowParser
+from backend.parser.proc_parser import ProcParser
 from backend.parser.base import ParseResult, ParseError
 
 
@@ -305,7 +305,7 @@ class ProcModule(LanguageModule):
 
     def __init__(self):
         """Initialize the ProcDSL module."""
-        self._parser = FlowParser()
+        self._parser = ProcParser()
         self._all_keywords = self._flatten_keywords()
 
     def _flatten_keywords(self) -> List[str]:

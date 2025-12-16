@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Output and Completion Block Visitor Mixin for Flow Parser
+Output and Completion Block Visitor Mixin for Proc Parser
 
 Handles parsing of output declarations (emit) and completion
 callbacks (on_commit, on_commit_failure).
@@ -17,7 +17,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowOutputVisitorMixin:
+class ProcOutputVisitorMixin:
     """Mixin for output and completion block visitor methods."""
 
     # =========================================================================

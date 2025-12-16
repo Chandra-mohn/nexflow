@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Execution Block Visitor Mixin for Flow Parser
+Execution Block Visitor Mixin for Proc Parser
 
 Handles parsing of execution configuration: parallelism, partitioning,
 time declarations, watermarks, and mode settings.
@@ -12,7 +12,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowExecutionVisitorMixin:
+class ProcExecutionVisitorMixin:
     """Mixin for execution block visitor methods."""
 
     def visitExecutionBlock(self, ctx: ProcDSLParser.ExecutionBlockContext) -> ast.ExecutionBlock:

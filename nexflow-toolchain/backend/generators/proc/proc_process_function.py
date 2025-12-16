@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Flow Process Function Mixin
+Proc Process Function Mixin
 
 Generates ProcessFunction implementations for complex processing logic.
 """
@@ -13,7 +13,7 @@ from backend.ast import proc_ast as ast
 from backend.generators.base import BaseGenerator
 
 
-class FlowProcessFunctionMixin:
+class ProcProcessFunctionMixin:
     """Mixin providing ProcessFunction generation for complex processes."""
 
     def _generate_process_function(self: BaseGenerator,

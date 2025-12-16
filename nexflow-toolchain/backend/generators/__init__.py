@@ -21,7 +21,7 @@ from backend.generators.pom_generator import (
     write_pom,
 )
 from backend.generators.schema_generator import SchemaGenerator
-from backend.generators.flow import FlowGenerator
+from backend.generators.proc import ProcGenerator
 from backend.generators.transform import TransformGenerator
 from backend.generators.rules import RulesGenerator
 from backend.generators.scaffold_generator import ScaffoldGenerator
@@ -30,7 +30,7 @@ from backend.generators.runtime import RuntimeGenerator
 # Generator registry - maps DSL type to generator class
 GENERATORS: Dict[str, Type[BaseGenerator]] = {
     'schema': SchemaGenerator,
-    'flow': FlowGenerator,
+    'proc': ProcGenerator,
     'transform': TransformGenerator,
     'rules': RulesGenerator,
     'scaffold': ScaffoldGenerator,
@@ -42,7 +42,7 @@ def get_generator(lang: str, config: GeneratorConfig) -> Optional[BaseGenerator]
     Factory function to get a generator instance for a DSL type.
 
     Args:
-        lang: DSL type ('schema', 'flow', 'transform', 'rules')
+        lang: DSL type ('schema', 'proc', 'transform', 'rules')
         config: Generator configuration
 
     Returns:
@@ -60,7 +60,7 @@ __all__ = [
     'GeneratedFile',
     'GenerationResult',
     'SchemaGenerator',
-    'FlowGenerator',
+    'ProcGenerator',
     'TransformGenerator',
     'RulesGenerator',
     'ScaffoldGenerator',

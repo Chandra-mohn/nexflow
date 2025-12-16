@@ -390,7 +390,7 @@ def _build_with_l6_compiler(
 
     This is used when .infra files are present in the project.
     The L6 compiler properly orders compilation phases and passes
-    infrastructure bindings to the L1 FlowGenerator.
+    infrastructure bindings to the L1 ProcGenerator.
     """
     from ...compiler import MasterCompiler, CompilationPhase
 

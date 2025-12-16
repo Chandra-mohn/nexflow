@@ -6,15 +6,15 @@
 
 from .base import ParseResult, ParseError, SourceLocation, BaseParser
 from .rules_parser import RulesParser
-from .flow_parser import FlowParser
+from .proc_parser import ProcParser
 from .schema_parser import SchemaParser
 from .transform_parser import TransformParser
 
 # Parser registry - maps language ID to parser class
 PARSERS = {
-    # L1 - Flow/Process Orchestration
-    'flow': FlowParser,
-    'l1': FlowParser,
+    # L1 - Process Orchestration
+    'proc': ProcParser,
+    'l1': ProcParser,
 
     # L2 - Schema Registry
     'schema': SchemaParser,
@@ -56,7 +56,7 @@ __all__ = [
     'SourceLocation',
     'BaseParser',
     'RulesParser',
-    'FlowParser',
+    'ProcParser',
     'SchemaParser',
     'TransformParser',
     'get_parser',

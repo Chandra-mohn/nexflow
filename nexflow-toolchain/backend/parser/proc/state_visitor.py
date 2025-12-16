@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-State Block Visitor Mixin for Flow Parser
+State Block Visitor Mixin for Proc Parser
 
 Handles parsing of state declarations: uses, local state, buffers,
 TTL configuration, and cleanup strategies.
@@ -14,7 +14,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowStateVisitorMixin:
+class ProcStateVisitorMixin:
     """Mixin for state block visitor methods."""
 
     def visitStateBlock(self, ctx: ProcDSLParser.StateBlockContext) -> ast.StateBlock:

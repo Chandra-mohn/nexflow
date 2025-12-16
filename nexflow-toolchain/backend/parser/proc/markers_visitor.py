@@ -2,7 +2,7 @@
 # Author: Chandra Mohn
 
 """
-Markers Visitor Mixin for Flow Parser
+Markers Visitor Mixin for Proc Parser
 
 Handles parsing of EOD markers, phases, business date, and processing date declarations.
 Added in v0.6.0+ for phase-based execution control.
@@ -15,7 +15,7 @@ from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class FlowMarkersVisitorMixin:
+class ProcMarkersVisitorMixin:
     """Mixin for markers and phases visitor methods."""
 
     def visitBusinessDateDecl(self, ctx: ProcDSLParser.BusinessDateDeclContext) -> ast.BusinessDateDecl:
