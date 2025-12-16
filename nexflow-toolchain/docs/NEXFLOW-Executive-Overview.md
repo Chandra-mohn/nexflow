@@ -1,4 +1,4 @@
-# Nexflow DSL Toolchain
+#### Nexflow DSL Toolchain
 ## Executive Stakeholder Overview
 
 **A Deterministic Code Generation Platform for Enterprise Stream Processing**
@@ -6,119 +6,6 @@
 ---
 
 # Page 1: Executive Summary & Business Challenge
-
-## Why Stream Processing? The Credit Card Issuer Imperative
-
-Before addressing the complexity, it's essential to understand why credit card issuers **must** adopt stream processing despite its challenges.
-
-### The Real-Time Authorization Advantage
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│              BATCH PROCESSING vs STREAM PROCESSING                  │
-│                                                                     │
-│  BATCH (Traditional):                                               │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐         │
-│  │ Collect │───▶│  Wait   │───▶│ Process │───▶│  Act    │         │
-│  │ Txns    │    │ (hours) │    │  Batch  │    │         │         │
-│  └─────────┘    └─────────┘    └─────────┘    └─────────┘         │
-│                                                                     │
-│  Fraud detected: HOURS AFTER transaction completes                  │
-│  Result: LOSSES already incurred, cardholder already impacted       │
-│                                                                     │
-│  STREAM (Real-Time):                                                │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐                         │
-│  │ Auth    │───▶│ Process │───▶│ Approve/│                         │
-│  │ Request │    │ <50ms   │    │ Decline │                         │
-│  └─────────┘    └─────────┘    └─────────┘                         │
-│                                                                     │
-│  Fraud detected: BEFORE transaction completes                       │
-│  Result: FRAUD PREVENTED, cardholder protected                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Credit Card Issuer Use Cases That Demand Real-Time
-
-| Use Case | Why Batch Fails | Stream Requirement |
-|----------|-----------------|-------------------|
-| **Authorization Fraud Detection** | Fraud completes before batch runs | Score and decide in <50ms during auth |
-| **Transaction Monitoring** | Suspicious patterns detected too late | Real-time velocity checks and anomaly detection |
-| **Spend Controls** | Limit exceeded after multiple transactions | Enforce limits per-transaction in real-time |
-| **Merchant Category Blocking** | Blocked transaction already processed | Check restrictions during authorization |
-| **Cross-Border Risk Scoring** | Risk assessed after funds transferred | Real-time geolocation and travel pattern analysis |
-| **Card-Not-Present Verification** | E-commerce fraud detected post-purchase | Real-time device fingerprinting and behavior analysis |
-| **Account Takeover Prevention** | Account compromised for hours/days | Detect credential stuffing and unusual access patterns instantly |
-| **Real-Time Alerts** | Cardholder notified hours later | Instant push notifications on suspicious activity |
-| **Dynamic Credit Limits** | Limit changes based on stale data | Adjust limits based on real-time spending patterns |
-| **Loyalty & Rewards** | Points posted next day | Instant rewards and real-time redemption |
-
-### The Cost of Latency in Card Issuing
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│               FRAUD LOSS vs DETECTION LATENCY                       │
-│                                                                     │
-│  Loss │                                                             │
-│    ▲   │                                         ●●●●●●●●●●●●●●●●● │
-│    │   │                               ●●●●●●●●●                    │
-│    │   │                        ●●●●●●                              │
-│    │   │                   ●●●●                                     │
-│    │   │              ●●●●                                          │
-│    │   │         ●●●●                                               │
-│    │   │    ●●●●                                                    │
-│    │   │ ●●                                                         │
-│    │   └──────────────────────────────────────────────────▶        │
-│        ms    sec    min    hour    day    week                      │
-│                        DETECTION LATENCY                            │
-│                                                                     │
-│  Credit Card Issuer Reality:                                        │
-│  • <50ms: Block fraud during authorization (zero loss)              │
-│  • 1 second: Transaction approved, chargeback likely                │
-│  • 1 minute: Multiple fraudulent transactions in progress           │
-│  • 1 hour: Entire card compromised, hundreds in losses              │
-│  • 1 day: Account takeover complete, max credit line stolen         │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Competitive Differentiation for Card Issuers
-
-| Metric | Batch-Only Issuer | Stream-Enabled Issuer |
-|--------|-------------------|------------------------|
-| Fraud basis points | 8-12 bps | 3-5 bps |
-| Authorization decline rate | High (false positives) | Low (precise real-time scoring) |
-| Cardholder friction | Frequent blocks, calls to verify | Seamless experience, smart alerts |
-| Dispute resolution | Days to weeks | Real-time dispute prevention |
-| Regulatory compliance | T+1 reporting, audit gaps | Continuous compliance monitoring |
-| Cardholder satisfaction | Reactive support | Proactive protection |
-
-### The Card Issuer Market Reality
-
-> **Card issuers process 500+ million transactions daily. A 50ms delay in fraud detection translates to thousands of approved fraudulent transactions per hour.**
-
-Stream processing enables card issuers to:
-- **Real-Time Authorization**: Score every transaction during the auth request window
-- **Cross-Channel Correlation**: Link POS, e-commerce, ATM, and mobile transactions instantly
-- **Behavioral Biometrics**: Analyze spending patterns, device behavior, and location in real-time
-- **Instant Cardholder Communication**: Push alerts before the cardholder even sees the charge
-
-### Why Not Just Use Simpler Tools?
-
-| Approach | Works For | Fails for Card Issuers When |
-|----------|-----------|------------|
-| **Batch SQL** | End-of-day reporting | 50ms auth window, real-time velocity |
-| **Message Queues** | Simple event routing | Stateful fraud scoring, windowed aggregations |
-| **Rules Engines** | Static rule checks | Complex ML model inference, behavioral analysis |
-| **API Gateways** | Request validation | High-volume continuous streams, state management |
-| **Stream Processing** | All of the above | — |
-
-Stream processing frameworks like Apache Flink are the only solution that handles:
-- **10,000+ authorizations per second** with sub-50ms latency
-- **Stateful velocity checks** (transactions per card per hour/day)
-- **Windowed aggregations** (spending patterns over rolling time windows)
-- **Complex event correlation** (linking auth, settlement, dispute events)
-- **Exactly-once processing** (no duplicate charges, no missed fraud)
-
----
 
 ## Why Stream Processing is Hard
 
@@ -130,26 +17,26 @@ Given that stream processing is a business necessity, understanding its complexi
 ┌─────────────────────────────────────────────────────────────────────┐
 │                 STREAM PROCESSING COMPLEXITY FACTORS                │
 │                                                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │   INFINITE   │  │   TEMPORAL   │  │  DISTRIBUTED │              │
-│  │    DATA      │  │   SEMANTICS  │  │    SCALE     │              │
-│  │              │  │              │  │              │              │
-│  │ No "end" to  │  │ Event time   │  │ Partitioned  │              │
-│  │ process—must │  │ vs process   │  │ state across │              │
-│  │ handle data  │  │ time, late   │  │ hundreds of  │              │
-│  │ continuously │  │ arrivals,    │  │ nodes with   │              │
-│  │ forever      │  │ watermarks   │  │ consistency  │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐              │
+│  │   INFINITE    │  │   TEMPORAL   │  │  DISTRIBUTED │              │
+│  │    DATA       │  │   SEMANTICS  │  │    SCALE     │              │
+│  │               │  │              │  │              │              │
+│  │ No "end" to   │  │ Event time   │  │ Partitioned  │              │
+│  │ process. must │  │ vs process   │  │ state across │              │
+│  │ handle data   │  │ time, late   │  │ hundreds of  │              │
+│  │ continuously  │  │ arrivals,    │  │ nodes with   │              │
+│  │ forever       │  │ watermarks   │  │ consistency  │              │
+│  └───────────────┘  └──────────────┘  └──────────────┘              │
 │                                                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │    STATE     │  │   FAILURE    │  │   EXACTLY-   │              │
-│  │  MANAGEMENT  │  │   RECOVERY   │  │   ONCE       │              │
-│  │              │  │              │  │              │              │
-│  │ Keyed state, │  │ Checkpoints, │  │ Idempotency, │              │
-│  │ windowed     │  │ savepoints,  │  │ deduplication│              │
-│  │ aggregations,│  │ job restarts │  │ transactional│              │
-│  │ TTL cleanup  │  │ with state   │  │ sinks        │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐              │
+│  │    STATE      │  │   FAILURE    │  │   EXACTLY-   │              │
+│  │  MANAGEMENT   │  │   RECOVERY   │  │   ONCE       │              │
+│  │               │  │              │  │              │              │
+│  │ Keyed state,  │  │ Checkpoints, │  │ Idempotency, │              │
+│  │ windowed      │  │ savepoints,  │  │ deduplication│              │
+│  │ aggregations, │  │ job restarts │  │ transactional│              │
+│  │ TTL cleanup   │  │ with state   │  │ sinks        │              │
+│  └───────────────┘  └──────────────┘  └──────────────┘              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -163,34 +50,6 @@ Given that stream processing is a business necessity, understanding its complexi
 | **Exactly-Once** | Business requires no duplicates, no data loss | Checkpointing, transactional sinks, idempotent writes |
 | **Failure Recovery** | Jobs must survive node failures, restarts | Savepoints, state migration, schema evolution |
 | **Backpressure** | Downstream can't keep up with upstream | Async I/O, rate limiting, buffering strategies |
-
-### The Flink Learning Curve
-
-```
-                    FLINK EXPERTISE REQUIRED
-
-    Expert ──────────────────────────────────────────● Complex stateful
-           │                                            processing, custom
-           │                                            operators
-           │                                        ●
-           │                                    State management,
-           │                                    exactly-once sinks
-           │                                ●
-           │                            Windowing, watermarks,
-           │                            event time
-           │                        ●
-           │                    Keyed streams, basic state
-           │                ●
-    Junior │            DataStream API basics
-           │        ●
-           │    Simple transformations
-           ●
-       "Hello World"
-
-       └────────────────────────────────────────────────────▶
-              Weeks          Months          Years
-                        TIME TO PROFICIENCY
-```
 
 ### Real-World Development Challenges
 
@@ -231,7 +90,7 @@ Event Time vs Processing Time vs Ingestion Time
 ┌─────────────────────────────────────────────────────────────────────┐
 │              ACHIEVING EXACTLY-ONCE PROCESSING                      │
 │                                                                     │
-│  Source → Process → Sink                                            │
+│  Source -> Process -> Sink                                            │
 │                                                                     │
 │  Must coordinate:                                                   │
 │  • Kafka consumer offsets                                           │
@@ -284,10 +143,10 @@ Nexflow addresses these challenges through a **deterministic DSL-to-code generat
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         NEXFLOW PLATFORM                            │
 │                                                                     │
-│   Business Intent    →    Domain-Specific    →    Production-Ready  │
-│   (What to do)            Languages (DSL)         Java Code         │
+│  Business Intent    ->    Domain-Specific    ->    Production-Ready │
+│  (What to do)            Languages (DSL)           Java Code        │
 │                                                                     │
-│   "Process payments"  →   .proc/.schema/.rules →  FlinkJob.java    │
+│  "Process payments"  ->   .proc/.schema/.rules ->  FlinkJob.java    │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -330,12 +189,12 @@ Nexflow implements a **six-layer architecture** where each layer addresses a spe
 │      Orchestrates all layers, manages compilation order             │
 ├─────────────────────────────────────────────────────────────────────┤
 │  L5: INFRASTRUCTURE BINDING (.infra)                                │
-│      Maps logical names → physical resources (Kafka, MongoDB)       │
+│      Maps logical names -> physical resources (Kafka, MongoDB)      │
 ├─────────────────────────────────────────────────────────────────────┤
 │  L4: BUSINESS RULES (.rules)                                        │
 │      Decision tables, validation rules, business logic              │
 ├─────────────────────────────────────────────────────────────────────┤
-│  L3: TRANSFORM CATALOG (.transform)                                 │
+│  L3: TRANSFORM CATALOG (.xform)                                     │
 │      Reusable data transformations, field mappings                  │
 ├─────────────────────────────────────────────────────────────────────┤
 │  L2: SCHEMA REGISTRY (.schema)                                      │
@@ -364,12 +223,12 @@ Nexflow implements a **six-layer architecture** where each layer addresses a spe
 - **Audience**: Process Engineers
 
 ### L2: Schema Registry (.schema files)
-- Defines **data contracts** between systems
+- Defines **data contracts** between systems & processes
 - Event types, field definitions, constraints
 - Type safety enforcement
 - **Audience**: Data Architects, Business Analysts
 
-### L3: Transform Catalog (.transform files)
+### L3: Transform Catalog (.xform files)
 - Defines **reusable transformations**
 - Field mappings, calculations, enrichments
 - Shared across multiple processes
@@ -397,12 +256,12 @@ Nexflow implements a **six-layer architecture** where each layer addresses a spe
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   L2 Schema  │────▶│ L3 Transform │────▶│   L1 Proc    │
+│   L2 Schema  │────>│ L3 Transform │────>│   L1 Proc    │
 │  PaymentEvt  │     │ enrichPaymt  │     │ processPaymt │
 └──────────────┘     └──────────────┘     └──────────────┘
         │                                         │
         │         ┌──────────────┐                │
-        └────────▶│   L4 Rules   │◀───────────────┘
+        └────────>│   L4 Rules   │<───────────────┘
                   │ validatePaymt│
                   └──────────────┘
 ```
@@ -422,14 +281,14 @@ Traditional stream processing requires all stakeholders to communicate in Java o
 │                    STAKEHOLDER COMMUNICATION                        │
 │                                                                     │
 │  Business Analyst     Process Engineer     DevOps Engineer          │
-│        ↓                    ↓                    ↓                  │
+│        V                    V                    V                  │
 │   .rules DSL           .proc DSL           .infra DSL               │
-│        ↓                    ↓                    ↓                  │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              NEXFLOW COMPILER (L6)                          │   │
-│  │         Validates, Integrates, Generates                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                            ↓                                        │
+│        V                    V                    V                  │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │              NEXFLOW COMPILER (L6)                          │    │
+│  │         Validates, Integrates, Generates                    │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                            V                                        │
 │                   Production Java Code                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -510,7 +369,7 @@ environment production {
 | **Faster Iteration** | Business analysts modify rules without developer involvement |
 | **Clear Ownership** | Each team owns their layer's DSL files |
 | **Auditable Intent** | DSL files serve as executable documentation |
-| **Version Control** | Business logic changes tracked in Git like code |
+| **Version Control** | Business logic changes tracked in Git, like code |
 
 ---
 
@@ -528,22 +387,22 @@ Nexflow's code generators implement a **hexagonal (ports & adapters) architectur
 │                      │   GENERATOR     │                            │
 │                      │     CORE        │                            │
 │                      │                 │                            │
-│    ┌─────────┐      │  • AST Walking  │      ┌─────────┐           │
-│    │  INPUT  │──────│  • Logic Flow   │──────│ OUTPUT  │           │
-│    │  PORT   │      │  • Validation   │      │  PORT   │           │
-│    │         │      │                 │      │         │           │
-│    │ Schema  │      └─────────────────┘      │ Flink   │           │
-│    │ Proc    │              │                │ Spark   │           │
-│    │ Rules   │              │                │ Kafka   │           │
-│    │ etc.    │              ▼                │ Streams │           │
-│    └─────────┘      ┌─────────────────┐      └─────────┘           │
-│                     │     MIXINS      │                             │
-│                     │                 │                             │
-│                     │ • StateGen      │                             │
-│                     │ • WindowGen     │                             │
-│                     │ • SinkGen       │                             │
-│                     │ • ErrorGen      │                             │
-│                     └─────────────────┘                             │
+│    ┌─────────┐       │  • AST Walking  │      ┌─────────┐           │
+│    │  INPUT  │───────│  • Logic Flow   │──────│ OUTPUT  │           │
+│    │  PORT   │       │  • Validation   │      │  PORT   │           │
+│    │         │       │                 │      │         │           │
+│    │ Schema  │       └─────────────────┘      │ Flink   │           │
+│    │ Proc    │               │                │ Spark   │           │
+│    │ Rules   │               │                │ Kafka   │           │
+│    │ etc.    │               V                │ Streams │           │
+│    └─────────┘       ┌─────────────────┐      └─────────┘           │
+│                      │     MIXINS      │                            │
+│                      │                 │                            │
+│                      │ • StateGen      │                            │
+│                      │ • WindowGen     │                            │
+│                      │ • SinkGen       │                            │
+│                      │ • ErrorGen      │                            │
+│                      └─────────────────┘                            │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -579,13 +438,13 @@ The same DSL can generate code for multiple target platforms:
 └──────┬───────┘
        │
        ├──────────────────┬──────────────────┐
-       ▼                  ▼                  ▼
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│    FLINK     │   │    SPARK     │   │    KAFKA     │
-│   TARGET     │   │   TARGET     │   │   STREAMS    │
-│              │   │   (Future)   │   │   (Future)   │
-│ FlinkJob.java│   │ SparkJob.scala│  │ KStreams.java│
-└──────────────┘   └──────────────┘   └──────────────┘
+       V                  V                  V
+┌──────────────┐   ┌───────────────┐   ┌──────────────┐
+│    FLINK     │   │    SPARK      │   │    KAFKA     │
+│   TARGET     │   │   TARGET      │   │   STREAMS    │
+│              │   │   (Future)    │   │   (Future)   │
+│ FlinkJob.java│   │ SparkJob.scala│   │ KStreams.java│
+└──────────────┘   └───────────────┘   └──────────────┘
 ```
 
 ## Generator Configuration
@@ -619,7 +478,7 @@ GeneratorConfig(
 ┌─────────────────────────────────────────────────────────────────────┐
 │              DETERMINISTIC CODE GENERATION (Nexflow)                │
 │                                                                     │
-│    Input DSL  ──────▶  Compiler  ──────▶  Output Code               │
+│    Input DSL  ──────>  Compiler  ──────>  Output Code               │
 │       A                                       X                     │
 │                                                                     │
 │    Same Input A  ALWAYS produces  Same Output X                     │
@@ -631,7 +490,7 @@ GeneratorConfig(
 ┌─────────────────────────────────────────────────────────────────────┐
 │              PROBABILISTIC CODE GENERATION (AI/LLM)                 │
 │                                                                     │
-│    Prompt  ──────▶  LLM  ──────▶  Output Code                       │
+│    Prompt  ──────>  LLM  ──────>  Output Code                       │
 │      A                              X, Y, or Z                      │
 │                                                                     │
 │    Same Prompt A  MAY produce  Different Outputs                    │
@@ -646,13 +505,13 @@ GeneratorConfig(
 | Aspect | Deterministic (Nexflow) | Probabilistic (AI) |
 |--------|------------------------|-------------------|
 | **Reproducibility** | 100% identical output | Variable output |
-| **Auditability** | DSL → Code mapping is traceable | Prompt → Code is opaque |
+| **Auditability** | DSL -> Code mapping is traceable | Prompt -> Code is opaque |
 | **Testing** | Test DSL once, trust all output | Must test each generation |
 | **Compliance** | Provable code lineage | Difficult to audit |
 | **Versioning** | Semantic versioning possible | Model drift issues |
-| **Debugging** | DSL error → Code location clear | Output errors hard to trace |
+| **Debugging** | DSL error -> Code location clear | Output errors hard to trace |
 | **Security** | No prompt injection risk | Potential vulnerabilities |
-| **Cost** | One-time toolchain cost | Per-generation API costs |
+| **Cost** | Uses existing hardware | Per-generation API costs |
 
 ## Production Reliability
 
@@ -660,14 +519,14 @@ GeneratorConfig(
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                    PRODUCTION GUARANTEES                        │
-│                                                                 │
-│  ✓ Error handling follows proven patterns                       │
-│  ✓ State management uses tested implementations                 │
-│  ✓ Resource cleanup is guaranteed                               │
-│  ✓ Logging follows organizational standards                     │
-│  ✓ Metrics collection is automatic                              │
-│  ✓ Security patterns are enforced                               │
+│                    PRODUCTION GUARANTEES                       │
+│                                                                │
+│  ✓ Error handling follows proven patterns                      │
+│  ✓ State management uses tested implementations                │
+│  ✓ Resource cleanup is guaranteed                              │
+│  ✓ Logging follows organizational standards                    │
+│  ✓ Metrics collection is automatic                             │
+│  ✓ Security patterns are enforced                              │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -675,14 +534,14 @@ GeneratorConfig(
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                    PRODUCTION RISKS                             │
-│                                                                 │
-│  ? Error handling may vary between generations                  │
-│  ? State management patterns inconsistent                       │
-│  ? Resource leaks possible in edge cases                        │
-│  ? Logging may not follow standards                             │
-│  ? Metrics may be missing or inconsistent                       │
-│  ? Security patterns may have gaps                              │
+│                    PRODUCTION RISKS                            │
+│                                                                │
+│  ? Error handling may vary between generations                 │
+│  ? State management patterns inconsistent                      │
+│  ? Resource leaks possible in edge cases                       │
+│  ? Logging may not follow standards                            │
+│  ? Metrics may be missing or inconsistent                      │
+│  ? Security patterns may have gaps                             │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -695,31 +554,31 @@ With deterministic generation, support teams develop expertise that applies acro
 │                    SUPPORT TEAM KNOWLEDGE                           │
 │                                                                     │
 │  NEXFLOW GENERATED CODE:                                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
-│  │  Job A      │  │  Job B      │  │  Job C      │                 │
-│  │             │  │             │  │             │                 │
-│  │ Same error  │  │ Same error  │  │ Same error  │                 │
-│  │ patterns    │  │ patterns    │  │ patterns    │                 │
-│  │ Same state  │  │ Same state  │  │ Same state  │                 │
-│  │ management  │  │ management  │  │ management  │                 │
-│  └─────────────┘  └─────────────┘  └─────────────┘                 │
-│         ↓                ↓                ↓                         │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │           ONE SUPPORT PLAYBOOK FOR ALL                      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
+│  │  Job A      │  │  Job B      │  │  Job C      │                  │
+│  │             │  │             │  │             │                  │
+│  │ Same error  │  │ Same error  │  │ Same error  │                  │
+│  │ patterns    │  │ patterns    │  │ patterns    │                  │
+│  │ Same state  │  │ Same state  │  │ Same state  │                  │
+│  │ management  │  │ management  │  │ management  │                  │
+│  └─────────────┘  └─────────────┘  └─────────────┘                  │
+│         V                V                V                         │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │           ONE SUPPORT PLAYBOOK FOR ALL                      │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 │                                                                     │
 │  AI GENERATED CODE:                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
-│  │  Job A      │  │  Job B      │  │  Job C      │                 │
-│  │             │  │             │  │             │                 │
-│  │ Custom      │  │ Different   │  │ Unique      │                 │
-│  │ error       │  │ error       │  │ error       │                 │
-│  │ handling    │  │ handling    │  │ handling    │                 │
-│  └─────────────┘  └─────────────┘  └─────────────┘                 │
-│         ↓                ↓                ↓                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
-│  │ Playbook A  │  │ Playbook B  │  │ Playbook C  │                 │
-│  └─────────────┘  └─────────────┘  └─────────────┘                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
+│  │  Job A      │  │  Job B      │  │  Job C      │                  │
+│  │             │  │             │  │             │                  │
+│  │ Custom      │  │ Different   │  │ Unique      │                  │
+│  │ error       │  │ error       │  │ error       │                  │
+│  │ handling    │  │ handling    │  │ handling    │                  │
+│  └─────────────┘  └─────────────┘  └─────────────┘                  │
+│         V                V                V                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
+│  │ Playbook A  │  │ Playbook B  │  │ Playbook C  │                  │
+│  └─────────────┘  └─────────────┘  └─────────────┘                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -727,7 +586,7 @@ With deterministic generation, support teams develop expertise that applies acro
 
 | Use Deterministic (Nexflow) | Use AI Generation |
 |----------------------------|-------------------|
-| Production streaming jobs | Prototyping, exploration |
+| Production streaming jobs | Prototyping, exploration, DSL generation |
 | Regulated industries | One-off scripts |
 | Long-lived applications | Learning exercises |
 | Team-maintained code | Personal projects |
@@ -746,20 +605,20 @@ Nexflow enforces organizational standards **through generation**, not code revie
 │              STANDARDS ENFORCEMENT COMPARISON                       │
 │                                                                     │
 │  TRADITIONAL APPROACH:                                              │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐     │
-│  │Developer │───▶│ Manual   │───▶│  Code    │───▶│Production│     │
-│  │ Writes   │    │  Code    │    │  Review  │    │          │     │
-│  │  Code    │    │          │    │ (Catch   │    │ (Hope    │     │
-│  │          │    │          │    │ errors?) │    │ it works)│     │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘     │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐       │
+│  │Developer │───>│ Manual   │───>│  Code    │───>│Rework    │       │
+│  │ Writes   │    │  Code    │    │  Review  │    │          │       │
+│  │  Code    │    │          │    │ (Catch   │    │          │       │
+│  │          │    │          │    │ errors?) │    │          │       │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘       │
 │                                                                     │
 │  NEXFLOW APPROACH:                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐     │
-│  │Developer │───▶│  DSL     │───▶│Generated │───▶│Production│     │
-│  │ Writes   │    │Validated │    │Standards │    │          │     │
-│  │  DSL     │    │ by       │    │Compliant │    │(Known    │     │
-│  │          │    │ Compiler │    │   Code   │    │ quality) │     │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘     │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐       │
+│  │Developer │───>│  DSL     │───>│Generated │───>│Production│       │
+│  │ Writes   │    │Validated │    │Standards │    │          │       │
+│  │  DSL     │    │ by       │    │Compliant │    │(Known    │       │
+│  │          │    │ Compiler │    │   Code   │    │ quality) │       │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -841,7 +700,7 @@ Every generated job implements:
 │  Question: "What business logic does PaymentProcessor implement?"   │
 │                                                                     │
 │  TRADITIONAL ANSWER:                                                │
-│  "Read through 5,000 lines of Java, extract business logic,        │
+│  "Read through 5,000 lines of Java, extract business logic,         │
 │   document manually, hope it's accurate"                            │
 │                                                                     │
 │  NEXFLOW ANSWER:                                                    │
