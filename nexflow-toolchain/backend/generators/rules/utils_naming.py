@@ -5,53 +5,20 @@
 Rules Generator Naming Utilities
 
 Naming convention utilities for L4 Rules code generation.
+
+Re-exports from common java_utils plus rules-specific utilities.
 """
 
+from backend.generators.common.java_utils import (
+    to_camel_case,
+    to_pascal_case,
+    to_getter,
+    to_setter,
+)
 
-def to_camel_case(name: str) -> str:
-    """Convert snake_case to camelCase.
-
-    Args:
-        name: Snake case string (e.g., 'user_name')
-
-    Returns:
-        Camel case string (e.g., 'userName')
-    """
-    if not name:
-        return name
-    parts = name.split('_')
-    return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
-
-
-def to_pascal_case(name: str) -> str:
-    """Convert snake_case to PascalCase.
-
-    Args:
-        name: Snake case string (e.g., 'user_name')
-
-    Returns:
-        Pascal case string (e.g., 'UserName')
-    """
-    if not name:
-        return name
-    return ''.join(word.capitalize() for word in name.split('_'))
-
-
-def to_getter(field_name: str) -> str:
-    """Convert field name to getter method call (POJO pattern).
-
-    DEPRECATED: Use to_record_accessor() for Java Records.
-
-    Args:
-        field_name: Field name (e.g., 'user_name')
-
-    Returns:
-        Getter call string (e.g., 'getUserName()')
-    """
-    camel = to_camel_case(field_name)
-    if not camel:
-        return "()"
-    return f"get{camel[0].upper()}{camel[1:]}()"
+# Re-export for backwards compatibility
+__all__ = ['to_camel_case', 'to_pascal_case', 'to_getter', 'to_setter',
+           'to_record_accessor', 'to_with_method']
 
 
 def to_record_accessor(field_name: str) -> str:
@@ -69,23 +36,6 @@ def to_record_accessor(field_name: str) -> str:
     if not camel:
         return "()"
     return f"{camel}()"
-
-
-def to_setter(field_name: str) -> str:
-    """Convert field name to setter method name (POJO pattern).
-
-    DEPRECATED: Java Records are immutable. Use withField() pattern instead.
-
-    Args:
-        field_name: Field name (e.g., 'user_name')
-
-    Returns:
-        Setter method name (e.g., 'setUserName')
-    """
-    camel = to_camel_case(field_name)
-    if not camel:
-        return "set"
-    return f"set{camel[0].upper()}{camel[1:]}"
 
 
 def to_with_method(field_name: str) -> str:

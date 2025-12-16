@@ -10,6 +10,7 @@ Generates Flink sink connections from L1 emit declarations.
 from typing import Set, List
 
 from backend.ast import proc_ast as ast
+from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 
 class SinkGeneratorMixin:
@@ -117,12 +118,11 @@ class SinkGeneratorMixin:
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+        return to_pascal_case(name)
 
     def _to_camel_case(self, name: str) -> str:
         """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return to_camel_case(name)
 
     def get_sink_imports(self) -> Set[str]:
         """Get required imports for sink generation."""

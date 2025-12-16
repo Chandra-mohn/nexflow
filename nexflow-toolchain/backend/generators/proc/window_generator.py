@@ -10,6 +10,7 @@ Generates Flink windowing code from L1 window declarations.
 from typing import Set
 
 from backend.ast import proc_ast as ast
+from backend.generators.common.java_utils import to_camel_case, format_duration, duration_to_time_call
 
 
 class WindowGeneratorMixin:
@@ -96,32 +97,15 @@ class WindowGeneratorMixin:
 
     def _duration_to_time(self, duration: ast.Duration) -> str:
         """Convert Duration to Flink Time call."""
-        unit_map = {
-            'ms': 'milliseconds',
-            's': 'seconds',
-            'm': 'minutes',
-            'h': 'hours',
-            'd': 'days',
-        }
-        method = unit_map.get(duration.unit, 'seconds')
-        return f"Time.{method}({duration.value})"
+        return duration_to_time_call(duration)
 
     def _format_duration(self, duration: ast.Duration) -> str:
         """Format duration for comments."""
-        unit_names = {
-            'ms': 'milliseconds',
-            's': 'seconds',
-            'm': 'minutes',
-            'h': 'hours',
-            'd': 'days',
-        }
-        unit = unit_names.get(duration.unit, duration.unit)
-        return f"{duration.value} {unit}"
+        return format_duration(duration)
 
     def _to_camel_case(self, name: str) -> str:
         """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return to_camel_case(name)
 
     def get_window_imports(self) -> Set[str]:
         """Get required imports for window generation."""

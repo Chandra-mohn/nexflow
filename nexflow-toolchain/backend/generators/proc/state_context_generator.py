@@ -19,6 +19,7 @@ The generated ProcessContext class provides:
 from typing import Set, List, Dict, Optional
 
 from backend.ast import proc_ast as ast
+from backend.generators.common.java_utils import to_pascal_case, to_camel_case, duration_to_ms
 
 
 class StateContextGeneratorMixin:
@@ -590,15 +591,12 @@ public class {context_class_name} implements Serializable {{
 
     def _to_camel_case(self, name: str) -> str:
         """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return to_camel_case(name)
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert snake_case to PascalCase."""
-        parts = name.split('_')
-        return ''.join(word.capitalize() for word in parts)
+        return to_pascal_case(name)
 
     def _duration_to_ms(self, duration: ast.Duration) -> int:
         """Convert Duration to milliseconds."""
-        multipliers = {'ms': 1, 's': 1000, 'm': 60000, 'h': 3600000, 'd': 86400000}
-        return duration.value * multipliers.get(duration.unit, 1)
+        return duration_to_ms(duration)

@@ -9,6 +9,8 @@ Generates field projection code for Flink DataStream sources.
 
 from typing import Tuple, TYPE_CHECKING
 
+from backend.generators.common.java_utils import to_pascal_case
+
 if TYPE_CHECKING:
     from backend.ast import proc_ast as ast
 
@@ -118,4 +120,4 @@ class SourceProjectionMixin:
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+        return to_pascal_case(name)

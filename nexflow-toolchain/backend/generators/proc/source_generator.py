@@ -20,6 +20,7 @@ L1 Input Block Features:
 from typing import Dict, List, Set, Tuple
 
 from backend.ast import proc_ast as ast
+from backend.generators.common.java_utils import to_pascal_case, to_camel_case, duration_to_ms
 from backend.generators.proc.source_projection import SourceProjectionMixin
 from backend.generators.proc.source_correlation import SourceCorrelationMixin
 
@@ -158,23 +159,15 @@ class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert snake_case or kebab-case to PascalCase."""
-        # Handle both underscores and hyphens
-        name = name.replace('-', '_')
-        return ''.join(word.capitalize() for word in name.split('_'))
+        return to_pascal_case(name)
 
     def _to_camel_case(self, name: str) -> str:
         """Convert snake_case or kebab-case to camelCase."""
-        # Handle both underscores and hyphens
-        name = name.replace('-', '_')
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return to_camel_case(name)
 
     def _duration_to_ms(self, duration) -> int:
         """Convert Duration to milliseconds."""
-        if hasattr(duration, 'to_milliseconds'):
-            return duration.to_milliseconds()
-        multipliers = {'ms': 1, 's': 1000, 'm': 60000, 'h': 3600000, 'd': 86400000}
-        return duration.value * multipliers.get(duration.unit, 1)
+        return duration_to_ms(duration)
 
     def get_source_imports(self) -> Set[str]:
         """Get required imports for source generation."""

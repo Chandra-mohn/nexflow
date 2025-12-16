@@ -7,10 +7,9 @@ Job Correlation Mixin
 Generates Flink correlation wiring code (await and hold patterns).
 """
 
-import re
 from backend.ast import proc_ast as ast
 from backend.generators.common.java_utils import (
-    to_pascal_case, to_camel_case, duration_to_ms, format_duration
+    to_pascal_case, to_camel_case, duration_to_ms, format_duration, to_snake_case
 )
 
 
@@ -159,5 +158,4 @@ class JobCorrelationMixin:
 
     def _to_snake_case(self, name: str) -> str:
         """Convert camelCase or PascalCase to snake_case."""
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        return to_snake_case(name)

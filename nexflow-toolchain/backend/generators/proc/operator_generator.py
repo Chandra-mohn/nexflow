@@ -10,6 +10,7 @@ Generates Flink processing operators from L1 enrich, transform, route declaratio
 from typing import List, Set, Union
 
 from backend.ast import proc_ast as ast
+from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 
 class OperatorGeneratorMixin:
@@ -155,12 +156,11 @@ DataStream<MergedRecord> {output_stream} = {self._to_camel_case(streams[0])}Stre
 
     def _to_pascal_case(self, name: str) -> str:
         """Convert snake_case to PascalCase."""
-        return ''.join(word.capitalize() for word in name.split('_'))
+        return to_pascal_case(name)
 
     def _to_camel_case(self, name: str) -> str:
         """Convert snake_case to camelCase."""
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return to_camel_case(name)
 
     def get_operator_imports(self) -> Set[str]:
         """Get required imports for operator generation."""
