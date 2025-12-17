@@ -14,31 +14,15 @@ to allow keywords as valid field names.
 from typing import List, Optional
 
 from backend.ast import proc_ast as ast
-from backend.parser.base import SourceLocation
+from backend.parser.common import BaseVisitorMixin
 from backend.parser.generated.proc import ProcDSLParser
 
 
-class ProcHelpersVisitorMixin:
-    """Mixin for common helper methods used by all proc visitor mixins."""
+class ProcHelpersVisitorMixin(BaseVisitorMixin):
+    """Mixin for common helper methods used by all proc visitor mixins.
 
-    def _get_location(self, ctx) -> Optional[SourceLocation]:
-        """Extract source location from parser context."""
-        if ctx is None:
-            return None
-        start = ctx.start if hasattr(ctx, 'start') else None
-        stop = ctx.stop if hasattr(ctx, 'stop') else None
-        if start:
-            return SourceLocation(
-                line=start.line,
-                column=start.column,
-                start_index=start.start if hasattr(start, 'start') else 0,
-                stop_index=stop.stop if stop and hasattr(stop, 'stop') else 0
-            )
-        return None
-
-    def _get_text(self, ctx) -> str:
-        """Get text content from context."""
-        return ctx.getText() if ctx else ""
+    Inherits _get_location, _get_text, _strip_quotes from BaseVisitorMixin.
+    """
 
     def visitFieldPath(self, ctx: ProcDSLParser.FieldPathContext) -> ast.FieldPath:
         """

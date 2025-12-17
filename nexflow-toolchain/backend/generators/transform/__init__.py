@@ -13,7 +13,7 @@ from .error_generator import ErrorGeneratorMixin
 from .function_generator import FunctionGeneratorMixin
 from .compose_generator import ComposeGeneratorMixin
 from .onchange_generator import OnChangeGeneratorMixin
-from .pojo_generator import PojoGeneratorMixin
+from .record_generator import TransformRecordGeneratorMixin
 from .metadata_generator import MetadataGeneratorMixin
 
 __all__ = [
@@ -26,6 +26,6 @@ __all__ = [
     'FunctionGeneratorMixin',
     'ComposeGeneratorMixin',
     'OnChangeGeneratorMixin',
-    'PojoGeneratorMixin',
+    'TransformRecordGeneratorMixin',
     'MetadataGeneratorMixin',
 ]

@@ -12,39 +12,15 @@ from typing import List, Optional, Union
 
 from backend.ast import schema_ast as ast
 from backend.ast.common import ImportStatement
-from backend.parser.base import SourceLocation
+from backend.parser.common import BaseVisitorMixin
 from backend.parser.generated.schema import SchemaDSLParser
 
 
-class CoreVisitorMixin:
-    """Mixin for core schema visitor methods."""
+class CoreVisitorMixin(BaseVisitorMixin):
+    """Mixin for core schema visitor methods.
 
-    def _get_location(self, ctx) -> Optional[SourceLocation]:
-        """Extract source location from parser context."""
-        if ctx is None:
-            return None
-        start = ctx.start if hasattr(ctx, 'start') else None
-        stop = ctx.stop if hasattr(ctx, 'stop') else None
-        if start:
-            return SourceLocation(
-                line=start.line,
-                column=start.column,
-                start_index=start.start if hasattr(start, 'start') else 0,
-                stop_index=stop.stop if stop and hasattr(stop, 'stop') else 0
-            )
-        return None
-
-    def _get_text(self, ctx) -> str:
-        """Get text content from context."""
-        return ctx.getText() if ctx else ""
-
-    def _strip_quotes(self, text: str) -> str:
-        """Strip quotes from string literal."""
-        if len(text) >= 2:
-            if (text.startswith('"') and text.endswith('"')) or \
-               (text.startswith("'") and text.endswith("'")):
-                return text[1:-1]
-        return text
+    Inherits _get_location, _get_text, _strip_quotes from BaseVisitorMixin.
+    """
 
     def visitProgram(self, ctx: SchemaDSLParser.ProgramContext) -> ast.Program:
         schemas = []

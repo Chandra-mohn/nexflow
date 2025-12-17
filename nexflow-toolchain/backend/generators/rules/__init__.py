@@ -12,7 +12,7 @@ from .action_generator import ActionGeneratorMixin
 from .lookup_generator import LookupGeneratorMixin
 from .emit_generator import EmitGeneratorMixin
 from .execute_generator import ExecuteGeneratorMixin
-from .pojo_generator import RulesPojoGeneratorMixin
+from .record_generator import RulesRecordGeneratorMixin
 from .services_generator import ServicesGeneratorMixin
 from .action_methods_generator import ActionMethodsGeneratorMixin
 from .collection_generator import CollectionGeneratorMixin
@@ -53,7 +53,7 @@ __all__ = [
     'LookupGeneratorMixin',
     'EmitGeneratorMixin',
     'ExecuteGeneratorMixin',
-    'RulesPojoGeneratorMixin',
+    'RulesRecordGeneratorMixin',
     'ServicesGeneratorMixin',
     'ActionMethodsGeneratorMixin',
     'CollectionGeneratorMixin',

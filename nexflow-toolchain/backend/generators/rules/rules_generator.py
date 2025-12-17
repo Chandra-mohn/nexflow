@@ -32,7 +32,7 @@ from backend.generators.rules.procedural_generator import ProceduralGeneratorMix
 from backend.generators.rules.lookup_generator import LookupGeneratorMixin
 from backend.generators.rules.emit_generator import EmitGeneratorMixin
 from backend.generators.rules.execute_generator import ExecuteGeneratorMixin
-from backend.generators.rules.pojo_generator import RulesPojoGeneratorMixin
+from backend.generators.rules.record_generator import RulesRecordGeneratorMixin
 from backend.generators.rules.services_generator import ServicesGeneratorMixin
 from backend.generators.rules.action_methods_generator import ActionMethodsGeneratorMixin
 from backend.generators.rules.collection_generator import CollectionGeneratorMixin
@@ -46,7 +46,7 @@ class RulesGenerator(
     LookupGeneratorMixin,
     EmitGeneratorMixin,
     ExecuteGeneratorMixin,
-    RulesPojoGeneratorMixin,
+    RulesRecordGeneratorMixin,
     ServicesGeneratorMixin,
     ActionMethodsGeneratorMixin,
     CollectionGeneratorMixin,
@@ -62,7 +62,7 @@ class RulesGenerator(
     - External data lookups with caching
     - Side output emissions via OutputTag
     - Execute specifications for action handling
-    - Output POJOs for multiple return parameters
+    - Output Records for multiple return parameters
     - Service interfaces and call wrappers (timeout, fallback, retry, caching)
     - Action method implementations (emit, state, audit, call)
     """
@@ -88,13 +88,13 @@ class RulesGenerator(
         package = f"{self.config.package_prefix}.rules"
         java_src_path = Path("src/main/java") / self.get_package_path(package)
 
-        # Generate Output POJO if needed (multiple return parameters)
-        if self.should_generate_output_pojo(table):
-            output_pojo_content = self.generate_output_pojo(table, package)
-            output_pojo_name = self.to_java_class_name(table.name) + "Output"
+        # Generate Output Record if needed (multiple return parameters)
+        if self.should_generate_output_record(table):
+            output_record_content = self.generate_output_record(table, package)
+            output_record_name = self.to_java_class_name(table.name) + "Output"
             self.result.add_file(
-                java_src_path / f"{output_pojo_name}.java",
-                output_pojo_content,
+                java_src_path / f"{output_record_name}.java",
+                output_record_content,
                 "java"
             )
 

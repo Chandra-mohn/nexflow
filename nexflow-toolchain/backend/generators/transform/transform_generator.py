@@ -33,7 +33,7 @@ from backend.generators.transform.error_generator import ErrorGeneratorMixin
 from backend.generators.transform.function_generator import FunctionGeneratorMixin
 from backend.generators.transform.compose_generator import ComposeGeneratorMixin
 from backend.generators.transform.onchange_generator import OnChangeGeneratorMixin
-from backend.generators.transform.pojo_generator import PojoGeneratorMixin
+from backend.generators.transform.record_generator import TransformRecordGeneratorMixin
 from backend.generators.transform.metadata_generator import MetadataGeneratorMixin
 
 
@@ -46,7 +46,7 @@ class TransformGenerator(
     FunctionGeneratorMixin,
     ComposeGeneratorMixin,
     OnChangeGeneratorMixin,
-    PojoGeneratorMixin,
+    TransformRecordGeneratorMixin,
     MetadataGeneratorMixin,
     BaseGenerator
 ):
@@ -106,23 +106,23 @@ class TransformGenerator(
         input_type = self._get_block_input_type(block)
         output_type = self._get_block_output_type(block)
 
-        # Generate Input POJO if needed (multiple input fields)
-        if self.should_generate_input_pojo(block):
-            input_pojo_content = self.generate_input_pojo(block, package)
-            input_pojo_name = self.to_pascal_case(block.name) + "Input"
+        # Generate Input Record if needed (multiple input fields)
+        if self.should_generate_input_record(block):
+            input_record_content = self.generate_input_record(block, package)
+            input_record_name = self.to_pascal_case(block.name) + "Input"
             self.result.add_file(
-                java_src_path / f"{input_pojo_name}.java",
-                input_pojo_content,
+                java_src_path / f"{input_record_name}.java",
+                input_record_content,
                 "java"
             )
 
-        # Generate Output POJO if needed (multiple output fields)
-        if self.should_generate_output_pojo(block):
-            output_pojo_content = self.generate_output_pojo(block, package)
-            output_pojo_name = self.to_pascal_case(block.name) + "Output"
+        # Generate Output Record if needed (multiple output fields)
+        if self.should_generate_output_record(block):
+            output_record_content = self.generate_output_record(block, package)
+            output_record_name = self.to_pascal_case(block.name) + "Output"
             self.result.add_file(
-                java_src_path / f"{output_pojo_name}.java",
-                output_pojo_content,
+                java_src_path / f"{output_record_name}.java",
+                output_record_content,
                 "java"
             )
 

@@ -14,6 +14,19 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import os
 
+from backend.generators.common.java_utils import (
+    to_camel_case as _to_camel_case,
+    to_pascal_case as _to_pascal_case,
+    to_snake_case as _to_snake_case,
+    to_getter as _to_getter,
+    to_setter as _to_setter,
+    to_constant as _to_constant,
+    get_java_type as _get_java_type,
+    duration_to_ms as _duration_to_ms,
+    format_duration as _format_duration,
+    duration_to_time_call as _duration_to_time_call,
+)
+
 
 @dataclass
 class GeneratorConfig:
@@ -144,26 +157,11 @@ class BaseGenerator(ABC):
         return name.upper()
 
     def get_java_type(self, nexflow_type: str) -> str:
-        """
-        Map Nexflow base types to Java types.
+        """Map Nexflow base types to Java types.
 
-        Args:
-            nexflow_type: Nexflow type name (string, integer, decimal, etc.)
-
-        Returns:
-            Corresponding Java type
+        Delegates to java_utils.get_java_type() for consistent type mapping.
         """
-        type_map = {
-            'string': 'String',
-            'integer': 'Long',
-            'decimal': 'BigDecimal',
-            'boolean': 'Boolean',
-            'date': 'LocalDate',
-            'timestamp': 'Instant',
-            'uuid': 'UUID',
-            'bytes': 'byte[]',
-        }
-        return type_map.get(nexflow_type.lower(), 'Object')
+        return _get_java_type(nexflow_type)
 
     def get_java_imports_for_type(self, nexflow_type: str) -> List[str]:
         """
@@ -195,86 +193,34 @@ class BaseGenerator(ABC):
 
     # =========================================================================
     # Java Naming Convention Utilities
+    # Delegate to java_utils for single source of truth
     # =========================================================================
 
     def to_camel_case(self, name: str) -> str:
-        """Convert snake_case to camelCase.
-
-        Args:
-            name: Snake case name (e.g., 'my_field_name')
-
-        Returns:
-            Camel case name (e.g., 'myFieldName')
-        """
-        parts = name.split('_')
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        """Convert snake_case to camelCase. Delegates to java_utils."""
+        return _to_camel_case(name)
 
     def to_pascal_case(self, name: str) -> str:
-        """Convert snake_case to PascalCase.
-
-        Args:
-            name: Snake case name (e.g., 'my_class_name')
-
-        Returns:
-            Pascal case name (e.g., 'MyClassName')
-        """
-        return ''.join(word.capitalize() for word in name.split('_'))
+        """Convert snake_case to PascalCase. Delegates to java_utils."""
+        return _to_pascal_case(name)
 
     def to_getter(self, field_name: str) -> str:
-        """Convert field name to Java getter method call (POJO pattern).
-
-        DEPRECATED: Use to_record_accessor() for Java Records.
-
-        Args:
-            field_name: Field name in snake_case or camelCase
-
-        Returns:
-            Getter method call (e.g., 'getMyField()')
-        """
-        camel = self.to_camel_case(field_name)
-        return f"get{camel[0].upper()}{camel[1:]}()"
+        """Convert field name to getter call. DEPRECATED: Use to_record_accessor()."""
+        return _to_getter(field_name)
 
     def to_record_accessor(self, field_name: str) -> str:
-        """Convert field name to Java Record accessor method call.
-
-        Java Records use fieldName() instead of getFieldName().
-
-        Args:
-            field_name: Field name in snake_case or camelCase
-
-        Returns:
-            Record accessor call (e.g., 'myField()')
-        """
-        camel = self.to_camel_case(field_name)
-        return f"{camel}()"
+        """Convert field name to Java Record accessor (fieldName())."""
+        camel = _to_camel_case(field_name)
+        return f"{camel}()" if camel else "()"
 
     def to_setter(self, field_name: str) -> str:
-        """Convert field name to Java setter method name (POJO pattern).
-
-        DEPRECATED: Java Records are immutable. Use withField() pattern instead.
-
-        Args:
-            field_name: Field name in snake_case or camelCase
-
-        Returns:
-            Setter method name (e.g., 'setMyField')
-        """
-        camel = self.to_camel_case(field_name)
-        return f"set{camel[0].upper()}{camel[1:]}"
+        """Convert field name to setter name. DEPRECATED: Records are immutable."""
+        return _to_setter(field_name)
 
     def to_with_method(self, field_name: str) -> str:
-        """Convert field name to Java Record withField method name.
-
-        Java Records are immutable. Use withField() to create modified copies.
-
-        Args:
-            field_name: Field name in snake_case or camelCase
-
-        Returns:
-            With method name (e.g., 'withMyField')
-        """
-        camel = self.to_camel_case(field_name)
-        return f"with{camel[0].upper()}{camel[1:]}"
+        """Convert field name to Record withField method name."""
+        camel = _to_camel_case(field_name)
+        return f"with{camel[0].upper()}{camel[1:]}" if camel else "with"
 
     # =========================================================================
     # File Header Generation
@@ -321,37 +267,19 @@ class BaseGenerator(ABC):
     # =========================================================================
 
     def duration_to_ms(self, duration) -> int:
-        """Convert a duration object to milliseconds.
+        """Convert a duration object to milliseconds. Delegates to java_utils."""
+        return _duration_to_ms(duration)
 
-        Args:
-            duration: Duration object with 'value' and 'unit' attributes
+    def format_duration(self, duration) -> str:
+        """Format duration for comments/display. Delegates to java_utils."""
+        return _format_duration(duration)
 
-        Returns:
-            Duration in milliseconds
-        """
-        if duration is None:
-            return 0
-
-        multipliers = {
-            'ms': 1,
-            's': 1000,
-            'm': 60000,
-            'h': 3600000,
-            'd': 86400000
-        }
-        unit = getattr(duration, 'unit', 'ms')
-        value = getattr(duration, 'value', 0)
-        return value * multipliers.get(unit, 1)
+    def duration_to_time_call(self, duration) -> str:
+        """Convert duration to Flink Time.xxx() call. Delegates to java_utils."""
+        return _duration_to_time_call(duration)
 
     def size_to_bytes(self, size) -> int:
-        """Convert a size object to bytes.
-
-        Args:
-            size: Size object with 'value' and 'unit' attributes
-
-        Returns:
-            Size in bytes
-        """
+        """Convert a size object to bytes."""
         if size is None:
             return 0
 
@@ -366,21 +294,5 @@ class BaseGenerator(ABC):
         return value * multipliers.get(unit, 1)
 
     def to_java_constant(self, name: str) -> str:
-        """Convert a name to Java constant style (UPPER_SNAKE_CASE).
-
-        Args:
-            name: Name to convert
-
-        Returns:
-            Valid Java constant name in UPPER_SNAKE_CASE
-        """
-        if not name:
-            return "UNKNOWN"
-
-        result = name.upper()
-        # Replace hyphens and spaces with underscores
-        result = result.replace('-', '_').replace(' ', '_')
-        # Ensure it's a valid Java identifier
-        if result and result[0].isdigit():
-            result = '_' + result
-        return result
+        """Convert name to UPPER_SNAKE_CASE. Delegates to java_utils."""
+        return _to_constant(name)
