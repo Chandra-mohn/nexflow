@@ -165,6 +165,9 @@ Support teams learn **one set of patterns**. Every generated Flink job follows t
 ### 4. Domain Expert Empowerment
 Business analysts define schemas and rules. Process engineers define orchestration. Infrastructure teams define deployment bindings. Each speaks their own language.
 
+### 5. Stream-Native Architecture
+Nexflow processes communicate through streams and business signals—not through tightly-coupled invocations. This enables independent scaling, fault isolation, and deployment flexibility. When Process A fails, Process B continues operating; Kafka buffers messages until recovery completes. The topology is explicit in the DSL, making data flow visible and auditable.
+
 ## Business Outcomes
 
 | Metric | Traditional Approach | With Nexflow |

@@ -162,6 +162,18 @@ nexflow-toolchain/
 ### Zero-Code Covenant
 Users should never write Java code. All business logic is expressed in DSLs.
 
+### Stream-Native Process Composition
+Nexflow processes are intentionally decoupled - they communicate exclusively through streams and business signals, never through direct invocation. This design ensures:
+
+- **Fault isolation**: Process failures don't cascade; Kafka buffers messages during recovery
+- **Independent scaling**: Each process scales based on its own load characteristics
+- **Testability**: Processes can be tested in isolation with mock streams
+- **Explicit topology**: Data flow is visible in the DSL, not hidden in call graphs
+
+Processes declare what they consume (`receive`) and produce (`emit`). The runtime orchestrates execution automatically based on data availability and business markers.
+
+> *See [ADR: Stream-Based Process Composition](specs/ADR-Stream-Based-Composition.md) for detailed rationale.*
+
 ### Layer Separation
 - L1 is the "railroad" - orchestrates data flow, NOT business logic
 - L3/L4 contain business logic
