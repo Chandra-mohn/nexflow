@@ -18,11 +18,11 @@ class ProjectError(Exception):
 
 
 # DSL language extensions and their layer mapping
+# Canonical extensions: .proc, .schema, .xform, .rules, .infra
 DSL_EXTENSIONS = {
     ".proc": "proc",        # L1 - Process Orchestration
     ".schema": "schema",    # L2 - Schema Registry
     ".xform": "transform",  # L3 - Transform Catalog
-    ".transform": "transform",  # L3 - Transform Catalog (alternate)
     ".rules": "rules",      # L4 - Business Rules
     ".infra": "infra",      # L5 - Infrastructure Binding
 }
@@ -173,7 +173,7 @@ class Project:
     def file_counts(self) -> Dict[str, int]:
         """Count DSL files by type."""
         counts = {}
-        # Use shorthand extensions: .proc, .xform, .infra
+        # Canonical extensions: .proc, .schema, .xform, .rules, .infra
         for lang, ext in [("proc", ".proc"), ("schema", ".schema"),
                           ("transform", ".xform"), ("rules", ".rules"),
                           ("infra", ".infra")]:
@@ -194,7 +194,7 @@ class Project:
         if not src_config:
             return []
 
-        # Map language to file extension (using shorthand extensions)
+        # Canonical extensions: .proc, .schema, .xform, .rules, .infra
         ext_map = {"proc": ".proc", "schema": ".schema",
                    "transform": ".xform", "rules": ".rules",
                    "infra": ".infra"}

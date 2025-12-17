@@ -73,7 +73,7 @@ Defines the "railroad tracks" of data flow - how data enters the system, how it'
 - **Phase-Based Processing**: Pre/post marker execution blocks
 
 #### File Extension
-`.proc`, `.flow`
+`.proc`
 
 #### Users
 | User Type | Usage |
@@ -195,7 +195,7 @@ Defines reusable, composable data transformations. L3 contains the **pure functi
 - **Lookup Integration**: External data enrichment
 
 #### File Extension
-`.xform`, `.transform`
+`.xform`
 
 #### Users
 | User Type | Usage |
@@ -579,7 +579,7 @@ generated/
     └── src/main/java/com/example/
         ├── runtime/
         │   └── NexflowRuntime.java          # L0
-        ├── flow/
+        ├── proc/
         │   ├── OrderProcessingJob.java       # L1
         │   ├── OrderReceiveFunction.java     # L1
         │   └── OrderEmitFunction.java        # L1

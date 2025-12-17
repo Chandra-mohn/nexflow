@@ -11,7 +11,7 @@ src = "."
 output = "generated"
 
 # Source directories - flat structure (all files in root)
-[sources.flow]
+[sources.proc]
 path = "."
 
 [sources.schema]

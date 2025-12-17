@@ -69,7 +69,7 @@ Base classes, operators, and utility functions available to all generated code.
 
 ### L1: Process Orchestration (ProcDSL)
 Defines streaming/batch data pipelines.
-- File extensions: `.proc`, `.flow`
+- File extension: `.proc`
 - Concepts: receive, transform, route, emit, state, resilience
 - **Business Date & EOD Markers**: Phase-based processing for end-of-day workflows
 
@@ -80,7 +80,7 @@ Defines data structures with constraints and evolution rules.
 
 ### L3: Transform Catalog (TransformDSL)
 Defines reusable data transformations.
-- File extensions: `.xform`, `.transform`
+- File extension: `.xform`
 - Pure functional transforms with composition
 
 ### L4: Business Rules (RulesDSL)
