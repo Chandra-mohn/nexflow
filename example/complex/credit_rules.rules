@@ -268,13 +268,13 @@ decision_table review_queue_routing
 end
 
 // ============================================================================
-// CRITICAL PATTERN: collect_all Hit Policy with Aggregate Block
-// PURPOSE: Collect ALL matching fraud indicators (not just first match)
-// PATTERN: Multiple rules can fire, results aggregated
+// DECISION TABLE: Fraud Indicators
+// PURPOSE: Identify the highest-priority fraud indicator for risk assessment
+// PATTERN: First match determines primary fraud indicator
 // ============================================================================
 decision_table fraud_indicators                      // DECISION TABLE: Fraud detection
-    hit_policy collect_all                           // COLLECT_ALL: All matching rules fire (not first_match!)
-    description "Collect all fraud indicators for risk assessment"
+    hit_policy first_match                           // FIRST_MATCH: Return first matching row
+    description "Identify primary fraud indicator for risk assessment"
 
     given:                                           // INPUT VARIABLES
         application_velocity_24h: integer            // Applications in last 24 hours
@@ -285,32 +285,23 @@ decision_table fraud_indicators                      // DECISION TABLE: Fraud de
         identity_mismatch_count: integer             // Number of identity data mismatches
         bureau_fraud_alert: boolean                  // Bureau has fraud alert on file
 
-    // COLLECT_ALL MATRIX: Each matching row adds to results
-    // Unlike first_match, ALL rows can match and contribute
+    // PRIORITY-ORDERED MATRIX: First match wins (ordered by severity)
     decide:
         | application_velocity_24h | ssn_applications_30d | address_applications_30d | device_applications_7d | ip_risk_score | identity_mismatch_count | bureau_fraud_alert | indicator           | severity   | score_impact |
         |=====================================================================================================================================================================================================================================================|
-        | > 3                      | *                    | *                        | *                      | *             | *                       | *                  | "velocity_24h"      | "high"     | 30           |  // High velocity: +30 points
-        | *                        | > 2                  | *                        | *                      | *             | *                       | *                  | "ssn_velocity"      | "critical" | 50           |  // SSN reuse: +50 points (critical)
-        | *                        | *                    | > 5                      | *                      | *             | *                       | *                  | "address_velocity"  | "medium"   | 20           |  // Address velocity: +20 points
-        | *                        | *                    | *                        | > 3                    | *             | *                       | *                  | "device_velocity"   | "high"     | 35           |  // Device velocity: +35 points
-        | *                        | *                    | *                        | *                      | > 0.7         | *                       | *                  | "high_risk_ip"      | "medium"   | 25           |  // High risk IP: +25 points
-        | *                        | *                    | *                        | *                      | *             | > 2                     | *                  | "identity_mismatch" | "high"     | 40           |  // Identity mismatch: +40 points
-        | *                        | *                    | *                        | *                      | *             | *                       | true               | "bureau_alert"      | "critical" | 60           |  // Bureau alert: +60 points (critical)
+        | *                        | *                    | *                        | *                      | *             | *                       | true               | "bureau_alert"      | "critical" | 60           |  // Bureau alert: highest priority
+        | *                        | > 2                  | *                        | *                      | *             | *                       | *                  | "ssn_velocity"      | "critical" | 50           |  // SSN reuse: critical
+        | *                        | *                    | *                        | *                      | *             | > 2                     | *                  | "identity_mismatch" | "high"     | 40           |  // Identity mismatch
+        | *                        | *                    | *                        | > 3                    | *             | *                       | *                  | "device_velocity"   | "high"     | 35           |  // Device velocity
+        | > 3                      | *                    | *                        | *                      | *             | *                       | *                  | "velocity_24h"      | "high"     | 30           |  // High velocity
+        | *                        | *                    | *                        | *                      | > 0.7         | *                       | *                  | "high_risk_ip"      | "medium"   | 25           |  // High risk IP
+        | *                        | *                    | > 5                      | *                      | *             | *                       | *                  | "address_velocity"  | "medium"   | 20           |  // Address velocity
+        | *                        | *                    | *                        | *                      | *             | *                       | *                  | "none"              | "low"      | 0            |  // Default: no indicator
 
-    return:                                          // PER-MATCH OUTPUTS (one per matched row)
+    return:                                          // OUTPUT VALUES
         indicator: text                              // Indicator name
         severity: text                               // Severity level
         score_impact: integer                        // Points to add to fraud score
-
-    // =========================================================================
-    // CRITICAL PATTERN: Aggregate Block for collect_all Results
-    // PURPOSE: Combine results from all matched rows
-    // =========================================================================
-    aggregate:                                       // AGGREGATE: Combine matched results
-        total_fraud_score = sum(score_impact)        // SUM: Total of all score_impacts
-        highest_severity = max(severity)             // MAX: Highest severity among matches
-        fraud_indicators = collect(indicator)        // COLLECT: List of all indicator names
 end                                                  // End fraud_indicators
 
 // ============================================================================
@@ -360,9 +351,9 @@ rule check_existing_exposure:                        // RULE: Exposure check
     description "Calculate total exposure for existing customers"
 
     if is_existing_customer == true then             // IF: Only for existing customers
-        // Calculate current exposure
-        let existing_limits = sum(existing_customer_data.existing_products, credit_limit)  // SUM: collection, field
-        let existing_balances = sum(existing_customer_data.existing_products, balance)
+        // Calculate current exposure (pre-aggregated from customer data)
+        let existing_limits = existing_customer_data.total_credit_limit        // Pre-computed sum of limits
+        let existing_balances = existing_customer_data.total_balance           // Pre-computed sum of balances
         let requested_additional = requested_limit
 
         let total_proposed_exposure = existing_limits + requested_additional

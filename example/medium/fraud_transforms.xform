@@ -115,43 +115,83 @@ end                                              // End enrich_with_customer tra
 transform calculate_velocity_metrics             // Declare velocity calculation transform
     version: 1.0.0                               // Transform version
     description: "Calculate transaction velocity from windowed aggregates"  // Purpose
-    pure: true                                   // PURE: same input always produces same output (state is input)
+    pure: true                                   // PURE: same input always produces same output
 
-    input: enriched_transaction                  // Input schema
-    state: velocity_state                        // STATE: windowed aggregation state store
-    output: enriched_transaction                 // Output schema (same as input, enriched)
+    input
+        transaction_id: uuid, required
+        card_number: string, required
+        card_holder_id: string, required
+        amount: decimal, required
+        currency: string, required
+        merchant_id: string, required
+        merchant_name: string
+        merchant_category: string
+        transaction_time: timestamp, required
+        channel: string
+        card_present: boolean
+        customer_risk_score: decimal
+        customer_account_age: integer
+        customer_average_transaction: decimal
+        is_premium_customer: boolean
+        transactions_last_hour: integer
+        transactions_last_day: integer
+        amount_last_hour: decimal
+        amount_last_day: decimal
+        is_unusual_location: boolean
+        distance_from_last: decimal
+    end
+
+    output
+        transaction_id: uuid, required
+        card_number: string, required
+        card_holder_id: string, required
+        amount: decimal, required
+        currency: string, required
+        merchant_id: string, required
+        merchant_name: string
+        merchant_category: string
+        transaction_time: timestamp, required
+        channel: string
+        card_present: boolean
+        customer_risk_score: decimal
+        customer_account_age: integer
+        customer_average_transaction: decimal
+        is_premium_customer: boolean
+        transactions_last_hour: integer
+        transactions_last_day: integer
+        amount_last_hour: decimal
+        amount_last_day: decimal
+        is_unusual_location: boolean
+        distance_from_last: decimal
+    end
 
     apply                                        // Transformation logic
         // --- Pass through all existing fields unchanged ---
-        transaction_id = input.transaction_id    // Transaction ID
-        card_number = input.card_number          // Card number
-        card_holder_id = input.card_holder_id    // Customer ID
-        amount = input.amount                    // Amount
-        currency = input.currency                // Currency
-        merchant_id = input.merchant_id          // Merchant ID
-        merchant_name = input.merchant_name      // Merchant name
-        merchant_category = input.merchant_category  // Merchant category
-        transaction_time = input.transaction_time    // Timestamp
-        channel = input.channel                  // Channel
-        card_present = input.card_present        // Card present
-        customer_risk_score = input.customer_risk_score  // Customer risk
-        customer_account_age = input.customer_account_age  // Account age
-        customer_average_transaction = input.customer_average_transaction  // Avg txn
-        is_premium_customer = input.is_premium_customer  // Premium flag
+        transaction_id = transaction_id          // Transaction ID
+        card_number = card_number                // Card number
+        card_holder_id = card_holder_id          // Customer ID
+        amount = amount                          // Amount
+        currency = currency                      // Currency
+        merchant_id = merchant_id                // Merchant ID
+        merchant_name = merchant_name            // Merchant name
+        merchant_category = merchant_category    // Merchant category
+        transaction_time = transaction_time      // Timestamp
+        channel = channel                        // Channel
+        card_present = card_present              // Card present
+        customer_risk_score = customer_risk_score  // Customer risk
+        customer_account_age = customer_account_age  // Account age
+        customer_average_transaction = customer_average_transaction  // Avg txn
+        is_premium_customer = is_premium_customer  // Premium flag
 
-        // --- Read velocity from windowed state stores ---
-        let hourly = state.get_window("hourly", input.card_holder_id)  // Get hourly window for this customer
-        let daily = state.get_window("daily", input.card_holder_id)    // Get daily window for this customer
-
-        // --- Populate velocity metrics from state ---
-        transactions_last_hour = hourly.count    // Count of txns in hourly window
-        transactions_last_day = daily.count      // Count of txns in daily window
-        amount_last_hour = hourly.sum_amount     // Sum of amounts in hourly window
-        amount_last_day = daily.sum_amount       // Sum of amounts in daily window
+        // --- Velocity metrics (computed by windowing infrastructure) ---
+        transactions_last_hour = transactions_last_hour  // Count of txns in hourly window
+        transactions_last_day = transactions_last_day    // Count of txns in daily window
+        amount_last_hour = amount_last_hour      // Sum of amounts in hourly window
+        amount_last_day = amount_last_day        // Sum of amounts in daily window
 
         // --- Pass through location flags ---
-        is_unusual_location = input.is_unusual_location  // Location flag
-        distance_from_last = input.distance_from_last    // Distance
+        is_unusual_location = is_unusual_location  // Location flag
+        distance_from_last = distance_from_last    // Distance
     end                                          // End apply block
 end                                              // End calculate_velocity_metrics transform
 
