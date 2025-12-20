@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* VS Code theme integration */
+:root {
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* React Flow customizations */
+.react-flow {
+  background: var(--vscode-editor-background);
+}
+
+.react-flow__background {
+  background: var(--vscode-editor-background);
+}
+
+.react-flow__minimap {
+  background: var(--vscode-sideBar-background, #252526);
+}
+
+.react-flow__controls {
+  background: var(--vscode-sideBar-background, #252526);
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+}
+
+.react-flow__controls-button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+/* Custom node styles */
+.nexflow-node {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: 2px solid;
+  min-width: 150px;
+  font-size: 12px;
+}
+
+.nexflow-node-stream {
+  background: #1e3a5f;
+  border-color: #3b82f6;
+}
+
+/* Stream nodes as half-height pipes */
+.nexflow-node-pipe {
+  padding: 4px 12px;
+  min-width: 100px;
+  border-radius: 12px; /* Pill/capsule shape */
+  min-height: auto;
+}
+
+.nexflow-pipe-label {
+  font-weight: 600;
+  font-size: 10px; /* 17% reduction from 12px */
+  color: white;
+  line-height: 1.2;
+}
+
+.nexflow-pipe-meta {
+  font-size: 8px; /* 17% reduction from ~10px */
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.2;
+}
+
+.nexflow-node-xform-ref {
+  background: #1e3a2f;
+  border-color: #22c55e;
+}
+
+.nexflow-node-rules-ref {
+  background: #3a1e3f;
+  border-color: #a855f7;
+}
+
+.nexflow-node-route {
+  background: #3a2f1e;
+  border-color: #f59e0b;
+}
+
+.nexflow-node-window {
+  background: #1e2f3a;
+  border-color: #06b6d4;
+}
+
+.nexflow-node-join {
+  background: #2f1e3a;
+  border-color: #ec4899;
+}
+
+.nexflow-node-marker {
+  background: #3a1e1e;
+  border-color: #ef4444;
+}
+
+.nexflow-node-process {
+  background: #2a2a2a;
+  border-color: #6b7280;
+  padding: 4px 10px;
+  min-width: 80px;
+}
+
+.nexflow-node-enrich {
+  background: #1e2f2a;
+  border-color: #10b981;
+}
+
+/* Multi-output nodes (rules, route) */
+.nexflow-node-multi-output {
+  display: flex;
+  flex-direction: row;
+  position: relative;
+}
+
+.nexflow-output-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nexflow-output-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.nexflow-node-label {
+  font-weight: 600;
+  color: white;
+}
+
+.nexflow-node-type {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Handle styles */
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7280;
+  border: 2px solid #374151;
+}
+
+.react-flow__handle-left {
+  left: -6px;
+}
+
+.react-flow__handle-right {
+  right: -6px;
+}
+
+/* Edge styles */
+.react-flow__edge-path {
+  stroke: #6b7280;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--vscode-textLink-foreground);
+  stroke-width: 3;
+}

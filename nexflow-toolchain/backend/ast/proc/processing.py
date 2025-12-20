@@ -26,8 +26,13 @@ class EnrichDecl:
 
 @dataclass
 class TransformDecl:
-    """Transform using L3 declaration."""
+    """Transform using L3 declaration.
+
+    Can include on_success/on_failure blocks for conditional processing.
+    """
     transform_name: str
+    on_success: Optional[List] = None  # List of processing operations on success
+    on_failure: Optional[List] = None  # List of processing operations on failure
     location: Optional[SourceLocation] = None
 
 

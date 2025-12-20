@@ -17,6 +17,14 @@ from backend.parser.generated.proc import ProcDSLParser
 class ProcProcessingVisitorMixin:
     """Mixin for processing block visitor methods."""
 
+    def _get_identifier_text(self, identifier, index=0):
+        """Safely get text from an IDENTIFIER which may be a list or single token."""
+        if identifier is None:
+            return ""
+        if isinstance(identifier, list):
+            return identifier[index].getText() if len(identifier) > index else ""
+        return identifier.getText()
+
     def visitProcessingBlock(self, ctx: ProcDSLParser.ProcessingBlockContext) -> Union[
         ast.EnrichDecl, ast.TransformDecl, ast.RouteDecl, ast.AggregateDecl,
         ast.WindowDecl, ast.JoinDecl, ast.MergeDecl, ast.EvaluateDecl,
@@ -66,7 +74,7 @@ class ProcProcessingVisitorMixin:
         return None
 
     def visitEnrichDecl(self, ctx: ProcDSLParser.EnrichDeclContext) -> ast.EnrichDecl:
-        lookup_name = ctx.IDENTIFIER().getText()
+        lookup_name = self._get_identifier_text(ctx.IDENTIFIER())
         on_fields = self._get_field_list(ctx.fieldList())
 
         select_fields = None
@@ -81,11 +89,56 @@ class ProcProcessingVisitorMixin:
         )
 
     def visitTransformDecl(self, ctx: ProcDSLParser.TransformDeclContext) -> ast.TransformDecl:
-        transform_name = ctx.IDENTIFIER().getText()
+        transform_name = self._get_identifier_text(ctx.IDENTIFIER())
+
+        # Parse on_success block if present
+        on_success = []
+        if hasattr(ctx, 'onSuccessBlock') and ctx.onSuccessBlock():
+            success_block = ctx.onSuccessBlock()
+            if hasattr(success_block, 'actionContent') and success_block.actionContent():
+                action_content = success_block.actionContent()
+                on_success = self._parse_action_content(action_content)
+
+        # Parse on_failure block if present
+        on_failure = []
+        if hasattr(ctx, 'onFailureBlock') and ctx.onFailureBlock():
+            failure_block = ctx.onFailureBlock()
+            if hasattr(failure_block, 'actionContent') and failure_block.actionContent():
+                action_content = failure_block.actionContent()
+                on_failure = self._parse_action_content(action_content)
+
         return ast.TransformDecl(
             transform_name=transform_name,
+            on_success=on_success if on_success else None,
+            on_failure=on_failure if on_failure else None,
             location=self._get_location(ctx)
         )
+
+    def _parse_action_content(self, action_content) -> list:
+        """Parse actionContent which contains processingStatement, emitDecl, CONTINUE, TERMINATE."""
+        result = []
+
+        # processingStatement*
+        if hasattr(action_content, 'processingStatement'):
+            stmts = action_content.processingStatement()
+            if stmts:
+                stmts = stmts if isinstance(stmts, list) else [stmts]
+                for stmt in stmts:
+                    parsed = self.visitProcessingStatement(stmt)
+                    if parsed:
+                        result.append(parsed)
+
+        # emitDecl*
+        if hasattr(action_content, 'emitDecl'):
+            emits = action_content.emitDecl()
+            if emits:
+                emits = emits if isinstance(emits, list) else [emits]
+                for emit in emits:
+                    parsed = self.visitEmitDecl(emit) if hasattr(self, 'visitEmitDecl') else None
+                    if parsed:
+                        result.append(parsed)
+
+        return result
 
     def visitRouteDecl(self, ctx: ProcDSLParser.RouteDeclContext) -> ast.RouteDecl:
         # Grammar: routeDecl: ROUTE (USING routeSource | WHEN expression) ...
@@ -105,7 +158,7 @@ class ProcProcessingVisitorMixin:
         )
 
     def visitAggregateDecl(self, ctx: ProcDSLParser.AggregateDeclContext) -> ast.AggregateDecl:
-        transform_name = ctx.IDENTIFIER().getText()
+        transform_name = self._get_identifier_text(ctx.IDENTIFIER())
         return ast.AggregateDecl(
             transform_name=transform_name,
             location=self._get_location(ctx)
@@ -262,29 +315,133 @@ class ProcProcessingVisitorMixin:
 
     def visitLookupStatement(self, ctx) -> ast.LookupDecl:
         """Visit lookup statement."""
-        source_name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        source_name = self._get_identifier_text(ctx.IDENTIFIER()) if ctx.IDENTIFIER() else ""
         return ast.LookupDecl(
             source_name=source_name,
             location=self._get_location(ctx)
         )
 
     def visitBranchStatement(self, ctx) -> ast.BranchDecl:
-        """Visit branch statement."""
-        branch_name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        """Visit branch statement with nested body."""
+        branch_name = self._get_identifier_text(ctx.IDENTIFIER())
+
+        # Parse branch body - contains processingStatement and emitDecl
+        body = []
+        if hasattr(ctx, 'branchBody') and ctx.branchBody():
+            branch_body = ctx.branchBody()
+            # processingStatement*
+            if hasattr(branch_body, 'processingStatement'):
+                stmts = branch_body.processingStatement()
+                if stmts:
+                    stmts = stmts if isinstance(stmts, list) else [stmts]
+                    for stmt in stmts:
+                        parsed = self.visitProcessingStatement(stmt)
+                        if parsed:
+                            body.append(parsed)
+            # emitDecl*
+            if hasattr(branch_body, 'emitDecl'):
+                emits = branch_body.emitDecl()
+                if emits:
+                    emits = emits if isinstance(emits, list) else [emits]
+                    for emit in emits:
+                        parsed = self.visitEmitDecl(emit)
+                        if parsed:
+                            body.append(parsed)
+
         return ast.BranchDecl(
             branch_name=branch_name,
-            body=[],  # TODO: Parse branch body
+            body=body,
             location=self._get_location(ctx)
         )
 
     def visitParallelStatement(self, ctx) -> ast.ParallelDecl:
-        """Visit parallel statement."""
-        name = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        """Visit parallel statement with branches."""
+        name = self._get_identifier_text(ctx.IDENTIFIER())
+
+        # Parse parallel branches
+        branches = []
+        if hasattr(ctx, 'parallelBranch'):
+            branch_list = ctx.parallelBranch()
+            if branch_list:
+                branch_list = branch_list if isinstance(branch_list, list) else [branch_list]
+                for branch_ctx in branch_list:
+                    branch_name = self._get_identifier_text(branch_ctx.IDENTIFIER())
+                    branch_body = []
+
+                    # Parse branch body
+                    if hasattr(branch_ctx, 'branchBody') and branch_ctx.branchBody():
+                        bb = branch_ctx.branchBody()
+                        if hasattr(bb, 'processingStatement'):
+                            stmts = bb.processingStatement()
+                            if stmts:
+                                stmts = stmts if isinstance(stmts, list) else [stmts]
+                                for stmt in stmts:
+                                    parsed = self.visitProcessingStatement(stmt)
+                                    if parsed:
+                                        branch_body.append(parsed)
+                        if hasattr(bb, 'emitDecl'):
+                            emits = bb.emitDecl()
+                            if emits:
+                                emits = emits if isinstance(emits, list) else [emits]
+                                for emit in emits:
+                                    parsed = self.visitEmitDecl(emit)
+                                    if parsed:
+                                        branch_body.append(parsed)
+
+                    branches.append(ast.BranchDecl(
+                        branch_name=branch_name,
+                        body=branch_body,
+                        location=self._get_location(branch_ctx)
+                    ))
+
         return ast.ParallelDecl(
             name=name,
-            branches=[],  # TODO: Parse parallel branches
+            branches=branches,
             location=self._get_location(ctx)
         )
+
+    def visitProcessingStatement(self, ctx):
+        """Visit a processing statement - delegating to specific handlers."""
+        # Check each possible statement type
+        if hasattr(ctx, 'transformDecl') and ctx.transformDecl():
+            return self.visitTransformDecl(ctx.transformDecl())
+        elif hasattr(ctx, 'evaluateStatement') and ctx.evaluateStatement():
+            return self.visitEvaluateStatement(ctx.evaluateStatement())
+        elif hasattr(ctx, 'routeDecl') and ctx.routeDecl():
+            return self.visitRouteDecl(ctx.routeDecl())
+        elif hasattr(ctx, 'transitionStatement') and ctx.transitionStatement():
+            return self.visitTransitionStatement(ctx.transitionStatement())
+        elif hasattr(ctx, 'emitAuditStatement') and ctx.emitAuditStatement():
+            return self.visitEmitAuditStatement(ctx.emitAuditStatement())
+        elif hasattr(ctx, 'branchStatement') and ctx.branchStatement():
+            return self.visitBranchStatement(ctx.branchStatement())
+        elif hasattr(ctx, 'parallelStatement') and ctx.parallelStatement():
+            return self.visitParallelStatement(ctx.parallelStatement())
+        elif hasattr(ctx, 'lookupStatement') and ctx.lookupStatement():
+            return self.visitLookupStatement(ctx.lookupStatement())
+        elif hasattr(ctx, 'callStatement') and ctx.callStatement():
+            return self.visitCallStatement(ctx.callStatement())
+        elif hasattr(ctx, 'scheduleStatement') and ctx.scheduleStatement():
+            return self.visitScheduleStatement(ctx.scheduleStatement())
+        elif hasattr(ctx, 'setStatement') and ctx.setStatement():
+            return self.visitSetStatement(ctx.setStatement())
+        elif hasattr(ctx, 'validateInputStatement') and ctx.validateInputStatement():
+            return self.visitValidateInputStatement(ctx.validateInputStatement())
+        elif hasattr(ctx, 'foreachStatement') and ctx.foreachStatement():
+            return self.visitForeachStatement(ctx.foreachStatement())
+        elif hasattr(ctx, 'deduplicateStatement') and ctx.deduplicateStatement():
+            return self.visitDeduplicateStatement(ctx.deduplicateStatement())
+        elif hasattr(ctx, 'windowDecl') and ctx.windowDecl():
+            return self.visitWindowDecl(ctx.windowDecl())
+        elif hasattr(ctx, 'joinDecl') and ctx.joinDecl():
+            return self.visitJoinDecl(ctx.joinDecl())
+        elif hasattr(ctx, 'mergeDecl') and ctx.mergeDecl():
+            return self.visitMergeDecl(ctx.mergeDecl())
+        elif hasattr(ctx, 'enrichDecl') and ctx.enrichDecl():
+            return self.visitEnrichDecl(ctx.enrichDecl())
+        elif hasattr(ctx, 'aggregateDecl') and ctx.aggregateDecl():
+            return self.visitAggregateDecl(ctx.aggregateDecl())
+        return None
 
     def visitValidateInputStatement(self, ctx) -> ast.ValidateInputDecl:
         """Visit validate_input statement."""
@@ -314,7 +471,7 @@ class ProcProcessingVisitorMixin:
 
     def visitCallStatement(self, ctx) -> ast.CallDecl:
         """Visit call statement."""
-        target = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        target = self._get_identifier_text(ctx.IDENTIFIER())
         return ast.CallDecl(
             target=target,
             location=self._get_location(ctx)
@@ -322,7 +479,7 @@ class ProcProcessingVisitorMixin:
 
     def visitScheduleStatement(self, ctx) -> ast.ScheduleDecl:
         """Visit schedule statement."""
-        target = ctx.IDENTIFIER().getText() if ctx.IDENTIFIER() else ""
+        target = self._get_identifier_text(ctx.IDENTIFIER())
         delay = None
         if hasattr(ctx, 'duration') and ctx.duration():
             delay = self.visitDuration(ctx.duration())
@@ -333,11 +490,11 @@ class ProcProcessingVisitorMixin:
         )
 
     def visitSetStatement(self, ctx) -> ast.SetDecl:
-        """Visit set statement."""
+        """Visit set statement: SET fieldPath ASSIGN expression."""
         variable = ""
+        if hasattr(ctx, 'fieldPath') and ctx.fieldPath():
+            variable = self._get_text(ctx.fieldPath())
         value = ""
-        if hasattr(ctx, 'IDENTIFIER') and ctx.IDENTIFIER():
-            variable = ctx.IDENTIFIER().getText()
         if hasattr(ctx, 'expression') and ctx.expression():
             value = self._get_text(ctx.expression())
         return ast.SetDecl(

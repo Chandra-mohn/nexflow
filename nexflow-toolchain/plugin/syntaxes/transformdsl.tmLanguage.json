@@ -1,0 +1,220 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TransformDSL",
+  "scopeName": "source.transformdsl",
+  "fileTypes": ["xform", "transform"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#operators" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.transformdsl",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.transformdsl",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.transformdsl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.transformdsl",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.version.transformdsl",
+          "match": "\\b[0-9]+\\.[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.duration.transformdsl",
+          "match": "\\b[0-9]+(ms|s|m|h|d|w)\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.transformdsl",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.transformdsl",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.structure.transformdsl",
+          "match": "\\b(transform|transform_block|end)\\b"
+        },
+        {
+          "name": "keyword.control.metadata.transformdsl",
+          "match": "\\b(version|description|previous_version|compatibility|backward|forward|full|none)\\b"
+        },
+        {
+          "name": "keyword.control.purity.transformdsl",
+          "match": "\\b(pure|cache|ttl|key)\\b"
+        },
+        {
+          "name": "keyword.control.io.transformdsl",
+          "match": "\\b(input|output|nullable|required|default)\\b"
+        },
+        {
+          "name": "storage.type.primitive.transformdsl",
+          "match": "\\b(string|integer|decimal|boolean|date|timestamp|uuid|bytes)\\b"
+        },
+        {
+          "name": "storage.type.collection.transformdsl",
+          "match": "\\b(list|set|map)\\b"
+        },
+        {
+          "name": "keyword.control.constraint.transformdsl",
+          "match": "\\b(range|length|pattern|values|precision|scale)\\b"
+        },
+        {
+          "name": "keyword.control.apply.transformdsl",
+          "match": "\\b(apply|mappings|use)\\b"
+        },
+        {
+          "name": "keyword.control.compose.transformdsl",
+          "match": "\\b(compose|sequential|parallel|conditional|then)\\b"
+        },
+        {
+          "name": "keyword.control.validation.transformdsl",
+          "match": "\\b(validate_input|validate_output|invariant|on_invalid|message|code|severity)\\b"
+        },
+        {
+          "name": "keyword.control.error.transformdsl",
+          "match": "\\b(on_error|action|reject|skip|use_default|raise|emit_to|emit_all_errors|error_code|error_message|log_level)\\b"
+        },
+        {
+          "name": "keyword.control.severity.transformdsl",
+          "match": "\\b(error|warning|info|debug)\\b"
+        },
+        {
+          "name": "keyword.control.recalc.transformdsl",
+          "match": "\\b(on_change|recalculate)\\b"
+        },
+        {
+          "name": "keyword.control.expression.transformdsl",
+          "match": "\\b(when|otherwise|between|in|is|not|and|or)\\b"
+        },
+        {
+          "name": "keyword.other.time-unit.transformdsl",
+          "match": "\\b(seconds?|minutes?|hours?|days?)\\b"
+        },
+        {
+          "name": "constant.language.boolean.transformdsl",
+          "match": "\\b(true|false|yes|no)\\b"
+        },
+        {
+          "name": "constant.language.null.transformdsl",
+          "match": "\\bnull\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.range.transformdsl",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.optional-chain.transformdsl",
+          "match": "\\?\\."
+        },
+        {
+          "name": "keyword.operator.coalesce.transformdsl",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.nullsafe-eq.transformdsl",
+          "match": "=\\?"
+        },
+        {
+          "name": "keyword.operator.comparison.transformdsl",
+          "match": "(>=|<=|!=|==|>|<)"
+        },
+        {
+          "name": "keyword.operator.assignment.transformdsl",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.transformdsl",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "punctuation.separator.colon.transformdsl",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.separator.comma.transformdsl",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.dot.transformdsl",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.bracket.angle.transformdsl",
+          "match": "[<>]"
+        },
+        {
+          "name": "punctuation.bracket.square.transformdsl",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.bracket.round.transformdsl",
+          "match": "[()]"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "entity.name.function.transform.transformdsl",
+          "match": "(?<=transform\\s+)[a-z_][a-z0-9_]*"
+        },
+        {
+          "name": "entity.name.class.transform-block.transformdsl",
+          "match": "(?<=transform_block\\s+)[a-z_][a-z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.alias.transformdsl",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "variable.other.field.transformdsl",
+          "match": "\\b[a-z_][a-z0-9_]*(?=\\s*\\.)"
+        },
+        {
+          "name": "entity.name.function.call.transformdsl",
+          "match": "\\b[a-z_][a-z0-9_]*(?=\\s*\\()"
+        },
+        {
+          "name": "variable.other.transformdsl",
+          "match": "\\b[a-z_][a-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

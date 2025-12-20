@@ -77,12 +77,14 @@ process credit_decisioning_pipeline                  // PROCESS: Main credit dec
         on_success                                   // ON_SUCCESS: If validation passes
             emit_audit_event "validation_completed"  // AUDIT: Log successful validation
             continue                                 // CONTINUE: Proceed to next stage
+        end                                          // END: Close on_success block
         on_failure                                   // ON_FAILURE: If validation fails
             transition to "declined"                 // TRANSITION: Move to declined state
             emit_audit_event "validation_failed"     // AUDIT: Log validation failure
             emit to declined_applications            // EMIT: Send to declined queue
                 reason "Validation failed: ${error.message}"  // Interpolate error message
             terminate                                // TERMINATE: Stop processing this record
+        end                                          // END: Close on_failure block
 
     // DEDUPLICATION: Prevent duplicate applications within time window
     deduplicate by applicant.ssn_hash                // DEDUPLICATE: Key by SSN hash

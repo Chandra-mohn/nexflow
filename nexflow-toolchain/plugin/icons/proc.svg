@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Process icon: Flow diagram representing orchestration -->
+  <!-- Start node -->
+  <circle cx="6" cy="6" r="3" stroke="#66BB6A" stroke-width="1.5" fill="none"/>
+  <!-- Middle process box -->
+  <rect x="9" y="10" width="6" height="4" rx="1" stroke="#66BB6A" stroke-width="1.5" fill="none"/>
+  <!-- End node -->
+  <circle cx="18" cy="18" r="3" stroke="#66BB6A" stroke-width="1.5" fill="none"/>
+  <circle cx="18" cy="18" r="1.5" fill="#66BB6A"/>
+  <!-- Flow arrows -->
+  <path d="M6 9 L6 12 L9 12" stroke="#66BB6A" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 12 L18 12 L18 15" stroke="#66BB6A" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow heads -->
+  <polyline points="7,11 9,12 7,13" stroke="#66BB6A" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="17,13 18,15 19,13" stroke="#66BB6A" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

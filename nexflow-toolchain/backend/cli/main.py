@@ -140,7 +140,7 @@ def validate(ctx: click.Context, path: Optional[str]):
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=True))
-@click.option("--format", "-f", "output_format", type=click.Choice(["json", "tree", "summary"]),
+@click.option("--format", "-f", "output_format", type=click.Choice(["json", "tree", "summary", "graph"]),
               default="summary", help="Output format (default: summary)")
 @click.pass_context
 def parse(ctx: click.Context, file: str, output_format: str):
@@ -148,12 +148,14 @@ def parse(ctx: click.Context, file: str, output_format: str):
     Parse a single DSL file and show AST.
 
     Useful for debugging and understanding DSL structure.
+    Use --format graph for UI-consumable node/edge format (proc files only).
 
     \b
     Example:
         nexflow parse src/rules/credit.rules
         nexflow parse src/rules/credit.rules --format json
         nexflow parse src/rules/credit.rules --format tree
+        nexflow parse src/proc/order.proc --format graph
     """
     verbose = ctx.obj.get("verbose", False)
 

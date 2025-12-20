@@ -1,0 +1,255 @@
+{
+  "name": "nexflow",
+  "displayName": "Nexflow",
+  "description": "Complete language support and visual designer for Nexflow DSLs",
+  "version": "0.2.0",
+  "publisher": "nexflow",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nexflow/nexflow-toolchain"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters",
+    "Visualization"
+  ],
+  "keywords": [
+    "nexflow",
+    "procdsl",
+    "schemadsl",
+    "transformdsl",
+    "rulesdsl",
+    "dsl",
+    "process orchestration",
+    "visual designer",
+    "pipeline"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "procdsl",
+        "aliases": ["ProcDSL", "procdsl", "L1"],
+        "extensions": [".proc"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/proc.svg",
+          "dark": "./icons/proc.svg"
+        }
+      },
+      {
+        "id": "schemadsl",
+        "aliases": ["SchemaDSL", "schemadsl", "L2"],
+        "extensions": [".schema"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/schema.svg",
+          "dark": "./icons/schema.svg"
+        }
+      },
+      {
+        "id": "transformdsl",
+        "aliases": ["TransformDSL", "transformdsl", "L3"],
+        "extensions": [".xform", ".transform"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/transform.svg",
+          "dark": "./icons/transform.svg"
+        }
+      },
+      {
+        "id": "rulesdsl",
+        "aliases": ["RulesDSL", "rulesdsl", "L4"],
+        "extensions": [".rules"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/rules.svg",
+          "dark": "./icons/rules.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "procdsl",
+        "scopeName": "source.procdsl",
+        "path": "./syntaxes/procdsl.tmLanguage.json"
+      },
+      {
+        "language": "schemadsl",
+        "scopeName": "source.schemadsl",
+        "path": "./syntaxes/schemadsl.tmLanguage.json"
+      },
+      {
+        "language": "transformdsl",
+        "scopeName": "source.transformdsl",
+        "path": "./syntaxes/transformdsl.tmLanguage.json"
+      },
+      {
+        "language": "rulesdsl",
+        "scopeName": "source.rulesdsl",
+        "path": "./syntaxes/rulesdsl.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "nexflow.build",
+        "title": "Nexflow: Build Project",
+        "icon": "$(play)"
+      },
+      {
+        "command": "nexflow.validate",
+        "title": "Nexflow: Validate Project",
+        "icon": "$(check)"
+      },
+      {
+        "command": "nexflow.generateFile",
+        "title": "Nexflow: Generate Java Code",
+        "icon": "$(code)"
+      },
+      {
+        "command": "nexflow.openVisualDesigner",
+        "title": "Nexflow: Open in Visual Designer",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "nexflow.openVisualDesignerFromUI",
+        "title": "Nexflow: Open Visual Designer",
+        "icon": "$(type-hierarchy)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "nexflow.build",
+          "when": "true"
+        },
+        {
+          "command": "nexflow.validate",
+          "when": "true"
+        },
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+        },
+        {
+          "command": "nexflow.openVisualDesigner",
+          "when": "resourceExtname == .proc"
+        },
+        {
+          "command": "nexflow.openVisualDesignerFromUI",
+          "when": "resourceFilename =~ /\\.proc\\.ui$/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "nexflow.openVisualDesigner",
+          "when": "resourceExtname == .proc",
+          "group": "nexflow@0"
+        },
+        {
+          "command": "nexflow.openVisualDesignerFromUI",
+          "when": "resourceFilename =~ /\\.proc\\.ui$/",
+          "group": "nexflow@0"
+        },
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules",
+          "group": "nexflow@1"
+        },
+        {
+          "command": "nexflow.build",
+          "when": "explorerResourceIsFolder",
+          "group": "nexflow@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nexflow.openVisualDesigner",
+          "when": "resourceExtname == .proc",
+          "group": "nexflow@0"
+        },
+        {
+          "command": "nexflow.generateFile",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules",
+          "group": "nexflow@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "nexflow.build",
+          "group": "navigation",
+          "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "nexflow.build",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+      }
+    ],
+    "configuration": {
+      "title": "Nexflow",
+      "properties": {
+        "nexflow.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Python interpreter for the LSP server. Leave empty to use system Python."
+        },
+        "nexflow.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace communication between VS Code and the Nexflow language server."
+        },
+        "nexflow.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time diagnostics."
+        },
+        "nexflow.build.outputDirectory": {
+          "type": "string",
+          "default": "src/main/java/com/nexflow/generated",
+          "description": "Output directory for generated Java code (relative to workspace root)."
+        },
+        "nexflow.build.packageName": {
+          "type": "string",
+          "default": "com.nexflow.generated",
+          "description": "Java package name for generated code."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:webview && npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts",
+    "build:webview": "cd webview && npm run build",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.2.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

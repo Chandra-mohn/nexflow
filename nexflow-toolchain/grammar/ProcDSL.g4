@@ -461,16 +461,20 @@ embeddedLookup
     ;
 
 onSuccessBlock
-    : ON_SUCCESS actionContent
+    : ON_SUCCESS actionContent END
     ;
 
 onFailureBlock
-    : ON_FAILURE actionContent
+    : ON_FAILURE actionContent END
     ;
 
 actionContent
     : (processingStatement | emitDecl | CONTINUE | TERMINATE)+
     ;
+
+// Note: END is required for on_success/on_failure blocks to avoid parsing ambiguity
+// with following statements. Without END, the actionContent rule's + quantifier
+// would greedily consume all subsequent processingStatements.
 
 inlineTransformBody
     : assignment+

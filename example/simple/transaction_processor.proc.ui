@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "id": "stream:card_transactions",
+      "type": "stream",
+      "position": {
+        "x": 50,
+        "y": 65
+      },
+      "data": {
+        "label": "card_transactions",
+        "source": "card_transactions",
+        "alias": "card_transactions",
+        "schema": "card_transaction"
+      },
+      "measured": {
+        "width": 120,
+        "height": 34
+      }
+    },
+    {
+      "id": "xform-ref:validate_basic",
+      "type": "xform-ref",
+      "position": {
+        "x": 280,
+        "y": 50
+      },
+      "data": {
+        "label": "validate_basic",
+        "transformName": "validate_basic"
+      },
+      "measured": {
+        "width": 150,
+        "height": 80
+      }
+    },
+    {
+      "id": "rules-ref:simple_approval",
+      "type": "rules-ref",
+      "position": {
+        "x": 510,
+        "y": 50
+      },
+      "data": {
+        "label": "simple_approval",
+        "ruleName": "simple_approval"
+      },
+      "measured": {
+        "width": 150,
+        "height": 111
+      }
+    },
+    {
+      "id": "stream:approved_transactions",
+      "type": "stream",
+      "position": {
+        "x": 740,
+        "y": 65
+      },
+      "data": {
+        "label": "approved_transactions",
+        "target": "approved_transactions",
+        "schema": null,
+        "isOutput": true
+      },
+      "measured": {
+        "width": 144,
+        "height": 24
+      }
+    },
+    {
+      "id": "stream:declined_transactions",
+      "type": "stream",
+      "position": {
+        "x": 740,
+        "y": 165
+      },
+      "data": {
+        "label": "declined_transactions",
+        "target": "declined_transactions",
+        "schema": null,
+        "isOutput": true
+      },
+      "measured": {
+        "width": 140,
+        "height": 24
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_0",
+      "source": "stream:card_transactions",
+      "target": "xform-ref:validate_basic",
+      "type": "smoothstep",
+      "animated": false
+    },
+    {
+      "id": "edge_1",
+      "source": "xform-ref:validate_basic",
+      "target": "rules-ref:simple_approval",
+      "type": "smoothstep",
+      "animated": false
+    },
+    {
+      "id": "edge_2",
+      "source": "rules-ref:simple_approval",
+      "target": "stream:approved_transactions",
+      "type": "smoothstep",
+      "animated": false
+    },
+    {
+      "id": "edge_3",
+      "source": "rules-ref:simple_approval",
+      "target": "stream:declined_transactions",
+      "type": "smoothstep",
+      "animated": false
+    }
+  ],
+  "processConfig": {
+    "processName": "simple_transaction_processor"
+  }
+}
