@@ -26,6 +26,7 @@ class JobImportsMixin:
         imports.extend(self._get_correlation_imports(process))
         imports.extend(self._get_completion_imports(process))
         imports.extend(self._get_persistence_imports(process))
+        imports.extend(self._get_source_connector_imports(process))
 
         # Remove duplicates and sort
         imports = sorted(set(imports))
@@ -60,6 +61,7 @@ class JobImportsMixin:
         has_window = False
         has_join = False
         has_late_data = False
+        has_sql = False
 
         if process.processing:
             for op in process.processing:
@@ -77,6 +79,8 @@ class JobImportsMixin:
                         has_late_data = True
                 elif isinstance(op, ast.JoinDecl):
                     has_join = True
+                elif isinstance(op, ast.SqlTransformDecl):
+                    has_sql = True
 
         # Check global late data config
         if process.execution and process.execution.time and process.execution.time.late_data:
@@ -113,6 +117,13 @@ class JobImportsMixin:
 
         if has_join:
             imports.append("org.apache.flink.streaming.api.windowing.time.Time")
+
+        # SQL transform imports (Flink SQL / Table API)
+        if has_sql:
+            imports.extend([
+                "org.apache.flink.table.api.Table",
+                "org.apache.flink.table.api.bridge.java.StreamTableEnvironment",
+            ])
 
         # Checkpoint imports
         if process.resilience and process.resilience.checkpoint:
@@ -253,5 +264,45 @@ class JobImportsMixin:
                     else:
                         schema_class = to_pascal_case(emit.target)
                     imports.append(f"{serializer_package}.{schema_class}MongoSerializer")
+
+        return imports
+
+    def _get_source_connector_imports(self, process: ast.ProcessDefinition) -> list:
+        """Get source connector imports based on connector types (v0.8.0+).
+
+        Supports Parquet, CSV, and other file-based connectors.
+        """
+        imports = []
+
+        has_parquet = False
+        has_csv = False
+
+        if process.receives:
+            for receive in process.receives:
+                connector_type = getattr(receive, 'connector_type', None)
+                if connector_type:
+                    if connector_type == ast.ConnectorType.PARQUET:
+                        has_parquet = True
+                    elif connector_type == ast.ConnectorType.CSV:
+                        has_csv = True
+
+        # Parquet source imports
+        if has_parquet:
+            imports.extend([
+                "org.apache.flink.connector.file.src.FileSource",
+                "org.apache.flink.core.fs.Path",
+                "org.apache.flink.formats.parquet.ParquetColumnarRowInputFormat",
+                "org.apache.flink.formats.parquet.avro.AvroParquetReaders",
+                "org.apache.flink.table.types.logical.RowType",
+            ])
+
+        # CSV source imports
+        if has_csv:
+            imports.extend([
+                "org.apache.flink.connector.file.src.FileSource",
+                "org.apache.flink.core.fs.Path",
+                "org.apache.flink.formats.csv.CsvReaderFormat",
+                "org.apache.flink.formats.csv.CsvRowDataDeserializationSchema",
+            ])
 
         return imports

@@ -24,6 +24,7 @@ from .enums import (
     CompletionConditionType,
     PhaseType,
     MarkerConditionType,
+    ScheduleType,  # v0.8.0+
 )
 
 # Common types
@@ -53,6 +54,9 @@ from .input import (
     RedisConfig,
     StateStoreConfig,
     SchedulerConfig,
+    TimestampBounds,  # v0.8.0+
+    ParquetConfig,    # v0.8.0+
+    CsvConfig,        # v0.8.0+
     ReceiveDecl,
     InputBlock,
 )
@@ -80,6 +84,7 @@ from .processing import (
     CallDecl,
     ScheduleDecl,
     SetDecl,
+    SqlTransformDecl,     # v0.8.0+
 )
 
 # Correlation block
@@ -167,20 +172,23 @@ __all__ = [
     'ModeType', 'WindowType', 'JoinType', 'StateType', 'BufferType', 'TtlType',
     'CleanupStrategy', 'TimeoutActionType', 'ErrorType', 'ErrorActionType',
     'BackpressureStrategy', 'FanoutType', 'CompletionConditionType',
-    'PhaseType', 'MarkerConditionType',
+    'PhaseType', 'MarkerConditionType', 'ScheduleType',
     # Common
     'SourceLocation', 'Duration', 'FieldPath',
     # Execution
     'WatermarkDecl', 'LateDataDecl', 'LatenessDecl', 'TimeDecl', 'ModeDecl', 'ExecutionBlock',
     # Input
     'ConnectorType', 'SchemaDecl', 'ProjectClause', 'StoreAction', 'MatchAction',
-    'RedisConfig', 'StateStoreConfig', 'SchedulerConfig', 'ReceiveDecl', 'InputBlock',
+    'RedisConfig', 'StateStoreConfig', 'SchedulerConfig',
+    'TimestampBounds', 'ParquetConfig', 'CsvConfig',  # v0.8.0+
+    'ReceiveDecl', 'InputBlock',
     # Processing
     'EnrichDecl', 'TransformDecl', 'RouteDecl', 'AggregateDecl', 'MergeDecl',
     'WindowOptions', 'WindowDecl', 'JoinDecl',
     'EvaluateDecl', 'TransitionDecl', 'EmitAuditDecl', 'DeduplicateDecl',
     'LookupDecl', 'BranchDecl', 'ParallelDecl', 'ValidateInputDecl',
     'ForeachDecl', 'CallDecl', 'ScheduleDecl', 'SetDecl',
+    'SqlTransformDecl',  # v0.8.0+
     # Correlation
     'TimeoutAction', 'CompletionCondition', 'CompletionClause', 'AwaitDecl', 'HoldDecl',
     # Output

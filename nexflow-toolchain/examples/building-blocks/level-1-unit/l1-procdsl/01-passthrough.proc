@@ -7,13 +7,14 @@
 // =============================================================================
 
 process order_forwarder
-    description "Forward orders from input to output without modification"
-
-    // Read from source Kafka topic
-    receive orders from orders_input
+    // Read from source Kafka topic with schema
+    receive orders
+        from kafka "orders_input"
+        schema order
 
     // Write to destination Kafka topic (unchanged)
-    send to orders_output
+    emit to orders_output
+        schema order
 end
 
 // =============================================================================
@@ -22,7 +23,10 @@ end
 // - Exactly-once semantics (default)
 // - No transformation logic - pure passthrough
 //
+// Schema Reference:
+// - order: L2 SchemaDSL definition for order events
+//
 // Next Steps:
-// → L1-02: Add filtering with `where` clause
+// → L1-02: Add filtering with route using rules
 // → L12-01: Add schema validation (L1+L2)
 // =============================================================================

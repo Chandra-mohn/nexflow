@@ -106,3 +106,9 @@ class MarkerConditionType(Enum):
     TIME_BASED = "time_based"        # Time threshold reached
     API_CHECK = "api_check"          # External service ready
     COMPOUND = "compound"            # AND/OR of other conditions
+
+
+class ScheduleType(Enum):
+    """Schedule types for process execution."""
+    DURATION = "duration"            # After X duration
+    CRON = "cron"                    # Cron expression

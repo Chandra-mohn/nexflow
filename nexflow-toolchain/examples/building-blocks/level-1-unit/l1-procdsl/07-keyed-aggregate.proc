@@ -1,47 +1,46 @@
 // =============================================================================
-// L1-07: Keyed Aggregate (Group By Aggregation)
+// L1-07: Keyed Aggregate (Group By Aggregation via L3 Transform)
 // =============================================================================
 // Use Case: Aggregate events grouped by a key field
-// Pattern:  Keyed stream aggregation
+// Pattern:  Keyed stream aggregation with L3 transform
 // When:     Per-customer totals, category summaries, regional metrics
 // =============================================================================
 
 process sales_by_region
-    description "Calculate sales totals grouped by region"
-
-    receive orders from orders_stream
+    receive orders
+        from kafka "orders_stream"
+        schema order
 
     // Group by region, aggregate over 1-hour window
-    group by orders.region
     window tumbling 1 hour
+        key by region
 
-    aggregate
-        region_sales = sum(orders.amount)
-        order_count = count()
-        avg_order = avg(orders.amount)
-    end
+    aggregate using regional_sales_aggregator
 
-    send to regional_metrics
+    emit to regional_metrics
+        schema regional_sales_metric
 end
 
 // -----------------------------------------------------------------------------
-// Variation: Group by multiple keys
+// Variation: Composite key via L3 transform
+// For multi-field grouping, use L3 transform that creates composite key
 // -----------------------------------------------------------------------------
 
 process sales_by_region_category
-    description "Sales by region and product category"
+    receive orders
+        from kafka "orders_stream"
+        schema order
 
-    receive orders from orders_stream
+    // Transform creates composite key: region_category
+    transform using create_region_category_key
 
-    group by orders.region, orders.category
     window tumbling 1 hour
+        key by composite_key
 
-    aggregate
-        total_sales = sum(orders.amount)
-        item_count = sum(orders.quantity)
-    end
+    aggregate using category_sales_aggregator
 
-    send to category_regional_metrics
+    emit to category_regional_metrics
+        schema category_regional_metric
 end
 
 // -----------------------------------------------------------------------------
@@ -49,21 +48,17 @@ end
 // -----------------------------------------------------------------------------
 
 process customer_activity_summary
-    description "Track activity per customer"
+    receive user_events
+        from kafka "user_events"
+        schema user_event
 
-    receive events from user_events
-
-    group by events.customer_id
     window tumbling 15 minutes
+        key by customer_id
 
-    aggregate
-        event_count = count()
-        page_views = count(events.type = "page_view")
-        purchases = count(events.type = "purchase")
-        total_spent = sum(events.amount)
-    end
+    aggregate using customer_activity_aggregator
 
-    send to customer_analytics
+    emit to customer_analytics
+        schema customer_activity_metric
 end
 
 // -----------------------------------------------------------------------------
@@ -71,21 +66,18 @@ end
 // -----------------------------------------------------------------------------
 
 process user_session_metrics
-    description "Aggregate user activity by session"
+    receive clicks
+        from kafka "clickstream"
+        schema click_event
 
-    receive clicks from clickstream
-
-    group by clicks.user_id
     // Session window: new session after 30 min inactivity
     window session gap 30 minutes
+        key by user_id
 
-    aggregate
-        session_duration = max(clicks.timestamp) - min(clicks.timestamp)
-        click_count = count()
-        pages_visited = count_distinct(clicks.page_url)
-    end
+    aggregate using session_metrics_aggregator
 
-    send to session_analytics
+    emit to session_analytics
+        schema session_metric
 end
 
 // =============================================================================
@@ -95,9 +87,26 @@ end
 // - Keyed state management per group
 //
 // Key Concepts:
-// - `group by`: Partition stream by key
+// - `key by`: Partition stream by single key field
 // - `window`: Time boundary for aggregation
-// - `aggregate`: Compute summary metrics
+// - `aggregate using`: L3 transform for computing metrics
+// - For multi-field keys: Use L3 transform to create composite key first
+//
+// L3 Transform Reference:
+// - create_region_category_key: Creates composite key from region + category
+// - regional_sales_aggregator: Computes per-region sales metrics
+// - category_sales_aggregator: Computes per-composite-key metrics
+// - customer_activity_aggregator: Computes per-customer activity
+// - session_metrics_aggregator: Computes per-session analytics
+//
+// Schema Reference:
+// - order: L2 SchemaDSL input with region, category, amount fields
+// - user_event: L2 SchemaDSL input with customer_id, type, amount fields
+// - click_event: L2 SchemaDSL input with user_id, timestamp, page_url fields
+// - regional_sales_metric: L2 output schema for regional aggregates
+// - category_regional_metric: L2 output schema for category/region aggregates
+// - customer_activity_metric: L2 output schema for customer summaries
+// - session_metric: L2 output schema for session analytics
 //
 // Next Steps:
 // → L1-08: Handle aggregation errors

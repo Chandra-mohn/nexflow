@@ -30,7 +30,8 @@ class ProcProcessingVisitorMixin:
         ast.WindowDecl, ast.JoinDecl, ast.MergeDecl, ast.EvaluateDecl,
         ast.TransitionDecl, ast.EmitAuditDecl, ast.DeduplicateDecl,
         ast.LookupDecl, ast.BranchDecl, ast.ParallelDecl, ast.ValidateInputDecl,
-        ast.ForeachDecl, ast.CallDecl, ast.ScheduleDecl, ast.SetDecl
+        ast.ForeachDecl, ast.CallDecl, ast.ScheduleDecl, ast.SetDecl,
+        ast.SqlTransformDecl
     ]:
         if ctx.enrichDecl():
             return self.visitEnrichDecl(ctx.enrichDecl())
@@ -71,6 +72,9 @@ class ProcProcessingVisitorMixin:
             return self.visitScheduleStatement(ctx.scheduleStatement())
         elif ctx.setStatement():
             return self.visitSetStatement(ctx.setStatement())
+        # v0.8.0+: SQL statement
+        elif hasattr(ctx, 'sqlStatement') and ctx.sqlStatement():
+            return self.visitSqlStatement(ctx.sqlStatement())
         return None
 
     def visitEnrichDecl(self, ctx: ProcDSLParser.EnrichDeclContext) -> ast.EnrichDecl:
@@ -478,10 +482,15 @@ class ProcProcessingVisitorMixin:
         )
 
     def visitScheduleStatement(self, ctx) -> ast.ScheduleDecl:
-        """Visit schedule statement."""
-        target = self._get_identifier_text(ctx.IDENTIFIER())
+        """Visit schedule statement.
+
+        Grammar: SCHEDULE IDENTIFIER AFTER scheduleDuration ACTION IDENTIFIER (REPEAT UNTIL expression)?
+        """
+        target = self._get_identifier_text(ctx.IDENTIFIER()) if ctx.IDENTIFIER() else ""
         delay = None
-        if hasattr(ctx, 'duration') and ctx.duration():
+        if hasattr(ctx, 'scheduleDuration') and ctx.scheduleDuration():
+            delay = self.visitScheduleDuration(ctx.scheduleDuration())
+        elif hasattr(ctx, 'duration') and ctx.duration():
             delay = self.visitDuration(ctx.duration())
         return ast.ScheduleDecl(
             delay=delay,
@@ -500,5 +509,37 @@ class ProcProcessingVisitorMixin:
         return ast.SetDecl(
             variable=variable,
             value=value,
+            location=self._get_location(ctx)
+        )
+
+    # =========================================================================
+    # v0.8.0+ Statement Visitors
+    # =========================================================================
+
+    def visitSqlStatement(self, ctx) -> ast.SqlTransformDecl:
+        """Visit SQL statement: SQL SQL_BLOCK (AS IDENTIFIER)?
+
+        Example:
+            sql ```
+                SELECT region, SUM(amount) as total
+                FROM sales
+                GROUP BY region
+            ```
+            as SalesSummary
+        """
+        sql_content = ""
+        if hasattr(ctx, 'SQL_BLOCK') and ctx.SQL_BLOCK():
+            # Extract SQL content from triple-backtick block
+            raw_block = ctx.SQL_BLOCK().getText()
+            # Remove the surrounding ``` markers
+            sql_content = raw_block[3:-3].strip()
+
+        output_type = None
+        if hasattr(ctx, 'IDENTIFIER') and ctx.IDENTIFIER():
+            output_type = self._get_identifier_text(ctx.IDENTIFIER())
+
+        return ast.SqlTransformDecl(
+            sql_content=sql_content,
+            output_type=output_type,
             location=self._get_location(ctx)
         )

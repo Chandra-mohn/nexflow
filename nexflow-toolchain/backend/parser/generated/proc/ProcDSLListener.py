@@ -1,7 +1,4 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
-
-# Generated from grammar/ProcDSL.g4 by ANTLR 4.13.2
+# Generated from ProcDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .ProcDSLParser import ProcDSLParser
@@ -20,12 +17,57 @@ class ProcDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by ProcDSLParser#importStatement.
+    def enterImportStatement(self, ctx:ProcDSLParser.ImportStatementContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#importStatement.
+    def exitImportStatement(self, ctx:ProcDSLParser.ImportStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#importPath.
+    def enterImportPath(self, ctx:ProcDSLParser.ImportPathContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#importPath.
+    def exitImportPath(self, ctx:ProcDSLParser.ImportPathContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#importPathSegment.
+    def enterImportPathSegment(self, ctx:ProcDSLParser.ImportPathSegmentContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#importPathSegment.
+    def exitImportPathSegment(self, ctx:ProcDSLParser.ImportPathSegmentContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#importFileExtension.
+    def enterImportFileExtension(self, ctx:ProcDSLParser.ImportFileExtensionContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#importFileExtension.
+    def exitImportFileExtension(self, ctx:ProcDSLParser.ImportFileExtensionContext):
+        pass
+
+
     # Enter a parse tree produced by ProcDSLParser#processDefinition.
     def enterProcessDefinition(self, ctx:ProcDSLParser.ProcessDefinitionContext):
         pass
 
     # Exit a parse tree produced by ProcDSLParser#processDefinition.
     def exitProcessDefinition(self, ctx:ProcDSLParser.ProcessDefinitionContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#processBodyOrPhases.
+    def enterProcessBodyOrPhases(self, ctx:ProcDSLParser.ProcessBodyOrPhasesContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#processBodyOrPhases.
+    def exitProcessBodyOrPhases(self, ctx:ProcDSLParser.ProcessBodyOrPhasesContext):
         pass
 
 
@@ -146,6 +188,96 @@ class ProcDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by ProcDSLParser#businessDateDecl.
+    def enterBusinessDateDecl(self, ctx:ProcDSLParser.BusinessDateDeclContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#businessDateDecl.
+    def exitBusinessDateDecl(self, ctx:ProcDSLParser.BusinessDateDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#processingDateDecl.
+    def enterProcessingDateDecl(self, ctx:ProcDSLParser.ProcessingDateDeclContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#processingDateDecl.
+    def exitProcessingDateDecl(self, ctx:ProcDSLParser.ProcessingDateDeclContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#markersBlock.
+    def enterMarkersBlock(self, ctx:ProcDSLParser.MarkersBlockContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#markersBlock.
+    def exitMarkersBlock(self, ctx:ProcDSLParser.MarkersBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#markerDef.
+    def enterMarkerDef(self, ctx:ProcDSLParser.MarkerDefContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#markerDef.
+    def exitMarkerDef(self, ctx:ProcDSLParser.MarkerDefContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#markerCondition.
+    def enterMarkerCondition(self, ctx:ProcDSLParser.MarkerConditionContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#markerCondition.
+    def exitMarkerCondition(self, ctx:ProcDSLParser.MarkerConditionContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#timeSpec.
+    def enterTimeSpec(self, ctx:ProcDSLParser.TimeSpecContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#timeSpec.
+    def exitTimeSpec(self, ctx:ProcDSLParser.TimeSpecContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#phaseBlock.
+    def enterPhaseBlock(self, ctx:ProcDSLParser.PhaseBlockContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#phaseBlock.
+    def exitPhaseBlock(self, ctx:ProcDSLParser.PhaseBlockContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#phaseSpec.
+    def enterPhaseSpec(self, ctx:ProcDSLParser.PhaseSpecContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#phaseSpec.
+    def exitPhaseSpec(self, ctx:ProcDSLParser.PhaseSpecContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#onCompleteClause.
+    def enterOnCompleteClause(self, ctx:ProcDSLParser.OnCompleteClauseContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#onCompleteClause.
+    def exitOnCompleteClause(self, ctx:ProcDSLParser.OnCompleteClauseContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#signalStatement.
+    def enterSignalStatement(self, ctx:ProcDSLParser.SignalStatementContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#signalStatement.
+    def exitSignalStatement(self, ctx:ProcDSLParser.SignalStatementContext):
+        pass
+
+
     # Enter a parse tree produced by ProcDSLParser#stateMachineDecl.
     def enterStateMachineDecl(self, ctx:ProcDSLParser.StateMachineDeclContext):
         pass
@@ -224,6 +356,33 @@ class ProcDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by ProcDSLParser#connectorOptions.
     def exitConnectorOptions(self, ctx:ProcDSLParser.ConnectorOptionsContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#timestampBounds.
+    def enterTimestampBounds(self, ctx:ProcDSLParser.TimestampBoundsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#timestampBounds.
+    def exitTimestampBounds(self, ctx:ProcDSLParser.TimestampBoundsContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#parquetOptions.
+    def enterParquetOptions(self, ctx:ProcDSLParser.ParquetOptionsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#parquetOptions.
+    def exitParquetOptions(self, ctx:ProcDSLParser.ParquetOptionsContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#csvOptions.
+    def enterCsvOptions(self, ctx:ProcDSLParser.CsvOptionsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#csvOptions.
+    def exitCsvOptions(self, ctx:ProcDSLParser.CsvOptionsContext):
         pass
 
 
@@ -938,6 +1097,15 @@ class ProcDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by ProcDSLParser#sqlStatement.
+    def enterSqlStatement(self, ctx:ProcDSLParser.SqlStatementContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#sqlStatement.
+    def exitSqlStatement(self, ctx:ProcDSLParser.SqlStatementContext):
+        pass
+
+
     # Enter a parse tree produced by ProcDSLParser#setStatement.
     def enterSetStatement(self, ctx:ProcDSLParser.SetStatementContext):
         pass
@@ -998,6 +1166,42 @@ class ProcDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by ProcDSLParser#emitClause.
     def exitEmitClause(self, ctx:ProcDSLParser.EmitClauseContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#persistClause.
+    def enterPersistClause(self, ctx:ProcDSLParser.PersistClauseContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#persistClause.
+    def exitPersistClause(self, ctx:ProcDSLParser.PersistClauseContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#persistTarget.
+    def enterPersistTarget(self, ctx:ProcDSLParser.PersistTargetContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#persistTarget.
+    def exitPersistTarget(self, ctx:ProcDSLParser.PersistTargetContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#persistOption.
+    def enterPersistOption(self, ctx:ProcDSLParser.PersistOptionContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#persistOption.
+    def exitPersistOption(self, ctx:ProcDSLParser.PersistOptionContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#persistErrorAction.
+    def enterPersistErrorAction(self, ctx:ProcDSLParser.PersistErrorActionContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#persistErrorAction.
+    def exitPersistErrorAction(self, ctx:ProcDSLParser.PersistErrorActionContext):
         pass
 
 

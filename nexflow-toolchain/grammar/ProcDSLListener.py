@@ -359,6 +359,33 @@ class ProcDSLListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by ProcDSLParser#timestampBounds.
+    def enterTimestampBounds(self, ctx:ProcDSLParser.TimestampBoundsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#timestampBounds.
+    def exitTimestampBounds(self, ctx:ProcDSLParser.TimestampBoundsContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#parquetOptions.
+    def enterParquetOptions(self, ctx:ProcDSLParser.ParquetOptionsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#parquetOptions.
+    def exitParquetOptions(self, ctx:ProcDSLParser.ParquetOptionsContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#csvOptions.
+    def enterCsvOptions(self, ctx:ProcDSLParser.CsvOptionsContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#csvOptions.
+    def exitCsvOptions(self, ctx:ProcDSLParser.CsvOptionsContext):
+        pass
+
+
     # Enter a parse tree produced by ProcDSLParser#headerBindings.
     def enterHeaderBindings(self, ctx:ProcDSLParser.HeaderBindingsContext):
         pass
@@ -1067,6 +1094,15 @@ class ProcDSLListener(ParseTreeListener):
 
     # Exit a parse tree produced by ProcDSLParser#scheduleDuration.
     def exitScheduleDuration(self, ctx:ProcDSLParser.ScheduleDurationContext):
+        pass
+
+
+    # Enter a parse tree produced by ProcDSLParser#sqlStatement.
+    def enterSqlStatement(self, ctx:ProcDSLParser.SqlStatementContext):
+        pass
+
+    # Exit a parse tree produced by ProcDSLParser#sqlStatement.
+    def exitSqlStatement(self, ctx:ProcDSLParser.SqlStatementContext):
         pass
 
 

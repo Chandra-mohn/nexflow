@@ -7,18 +7,25 @@
 // =============================================================================
 
 process multi_region_merger
-    description "Merge orders from multiple regional streams"
+    // Read from multiple source streams (all same schema)
+    receive us_orders
+        from kafka "orders_us"
+        schema order
 
-    // Read from multiple source streams
-    receive us_orders from orders_us
-    receive eu_orders from orders_eu
-    receive apac_orders from orders_apac
+    receive eu_orders
+        from kafka "orders_eu"
+        schema order
+
+    receive apac_orders
+        from kafka "orders_apac"
+        schema order
 
     // Union all streams into one
-    union us_orders, eu_orders, apac_orders
+    merge us_orders, eu_orders, apac_orders
 
     // Output merged stream
-    send to global_orders
+    emit to global_orders
+        schema order
 end
 
 // -----------------------------------------------------------------------------
@@ -26,34 +33,45 @@ end
 // -----------------------------------------------------------------------------
 
 process online_offline_merger
-    description "Combine online and offline order streams"
+    receive online_orders
+        from kafka "online_channel"
+        schema order
 
-    receive online_orders from online_channel
-    receive offline_orders from pos_channel
+    receive offline_orders
+        from kafka "pos_channel"
+        schema order
 
-    union online_orders, offline_orders
+    merge online_orders, offline_orders
 
-    send to all_orders
+    emit to all_orders
+        schema order
 end
 
 // -----------------------------------------------------------------------------
-// Variation: Union with downstream processing
+// Variation: Union with downstream transformation
 // -----------------------------------------------------------------------------
 
 process event_consolidator
-    description "Merge events and filter for processing"
+    receive app_events
+        from kafka "mobile_app_events"
+        schema user_event
 
-    receive app_events from mobile_app_events
-    receive web_events from web_app_events
-    receive api_events from api_events
+    receive web_events
+        from kafka "web_app_events"
+        schema user_event
+
+    receive api_events
+        from kafka "api_events"
+        schema user_event
 
     // First merge all streams
-    union app_events, web_events, api_events
+    merge app_events, web_events, api_events
 
-    // Then filter the merged stream
-    where event_type = "purchase"
+    // Apply L3 transform to normalize merged events
+    transform using normalize_events
 
-    send to purchase_events
+    emit to normalized_events
+        schema user_event
 end
 
 // =============================================================================
@@ -65,9 +83,13 @@ end
 //
 // Key Differences from Join:
 // - Join: Matches records by key
-// - Union: Simply merges all records
+// - Merge/Union: Simply combines all records
+//
+// Schema Reference:
+// - order: L2 SchemaDSL for order events (same across all regions)
+// - user_event: L2 SchemaDSL for user activity events
 //
 // Next Steps:
 // → L1-06: Aggregate the merged stream
-// → L12-01: Add schema validation before union
+// → L12-01: Add schema validation before merge
 // =============================================================================

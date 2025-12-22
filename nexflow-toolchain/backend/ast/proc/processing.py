@@ -198,3 +198,22 @@ class SetDecl:
     variable: str
     value: str
     location: Optional[SourceLocation] = None
+
+
+@dataclass
+class SqlTransformDecl:
+    """Embedded SQL transform statement (v0.8.0+).
+
+    Allows embedding SQL directly in the ProcDSL for Flink SQL or Spark SQL execution.
+
+    Example:
+        sql ```
+            SELECT region, SUM(amount) as total
+            FROM sales
+            GROUP BY region
+        ```
+        as SalesSummary
+    """
+    sql_content: str                          # Raw SQL content
+    output_type: Optional[str] = None         # Optional output schema name
+    location: Optional[SourceLocation] = None

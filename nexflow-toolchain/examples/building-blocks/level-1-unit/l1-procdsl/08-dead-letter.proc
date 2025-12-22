@@ -7,22 +7,24 @@
 // =============================================================================
 
 process order_processor_with_dlq
-    description "Process orders with dead letter queue for failures"
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    // Main processing
-    validate orders
+    // Main processing with error handling
+    // on_success is required before on_failure per grammar
     transform using order_normalizer
-
-    // Error handling: route failures to dead letter queue
-    on_error
-        send to orders_dead_letter
-        with error_details
-    end
+        on_success
+            continue
+        end
+        on_failure
+            emit to orders_dead_letter
+                schema error_envelope
+        end
 
     // Success path
-    send to processed_orders
+    emit to processed_orders
+        schema order
 end
 
 // -----------------------------------------------------------------------------
@@ -30,60 +32,66 @@ end
 // -----------------------------------------------------------------------------
 
 process multi_error_handler
-    description "Route different error types to different queues"
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    validate orders
-        on_error
-            send to validation_errors
-            with error_code = "VALIDATION_FAILED"
+    // Validation transform with specific error routing
+    transform using order_validator
+        on_success
+            continue
+        end
+        on_failure
+            emit to validation_errors
+                schema validation_error
         end
 
+    // Enrichment via transform (enrich doesn't support on_failure)
+    transform using customer_enrichment_transform
+        on_success
+            continue
+        end
+        on_failure
+            emit to enrichment_errors
+                schema enrichment_error
+        end
+
+    emit to enriched_orders
+        schema enriched_order
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Transform chain with error handling
+// -----------------------------------------------------------------------------
+
+process order_pipeline_with_dlq
+    receive orders
+        from kafka "orders_input"
+        schema order
+
+    // First transform: normalize with audit
+    transform using order_normalizer
+        on_success
+            emit to audit_events
+                schema audit_event
+        end
+        on_failure
+            emit to normalization_dlq
+                schema normalization_error
+        end
+
+    // Second transform: enrich
     transform using order_enricher
-        on_error
-            send to processing_errors
-            with error_code = "TRANSFORM_FAILED"
+        on_success
+            continue
+        end
+        on_failure
+            emit to enrichment_dlq
+                schema enrichment_error
         end
 
-    send to enriched_orders
-end
-
-// -----------------------------------------------------------------------------
-// Variation: Retry with eventual DLQ
-// -----------------------------------------------------------------------------
-
-process order_with_retry
-    description "Retry failed operations before sending to DLQ"
-
-    receive orders from orders_input
-
-    enrich using customer_lookup
-        retry 3 times
-        with backoff 1 second
-        on_error
-            send to enrichment_dlq
-        end
-
-    send to enriched_orders
-end
-
-// -----------------------------------------------------------------------------
-// Variation: Log and continue (soft failure)
-// -----------------------------------------------------------------------------
-
-process tolerant_processor
-    description "Log errors but continue processing"
-
-    receive events from event_stream
-
-    transform using event_normalizer
-        on_error
-            log warning "Transform failed for event: {event.id}"
-            continue  // Skip failed record, don't stop processing
-        end
-
-    send to normalized_events
+    emit to processed_orders
+        schema enriched_order
 end
 
 // =============================================================================
@@ -93,12 +101,27 @@ end
 // - Error context capture (original record + error details)
 //
 // Error Handling Patterns:
-// - `send to <dlq>`: Route to dead letter queue
-// - `retry N times`: Attempt operation multiple times
-// - `continue`: Skip failed record
-// - `fail`: Stop processing (default for critical errors)
+// - `on_success ... end on_failure ... end`: Required pattern for error handling
+// - `continue`: Continue processing on success
+// - `emit to <dlq>`: Route failures to dead letter queue
+// - Error envelopes wrap original record with error metadata
+//
+// L3 Transform Reference:
+// - order_normalizer: Normalizes order format
+// - order_validator: Validates order data
+// - customer_enrichment_transform: Enriches with customer data
+// - order_enricher: Adds additional order data
+//
+// Schema Reference:
+// - order: L2 SchemaDSL input schema
+// - enriched_order: L2 output schema for enriched orders
+// - error_envelope: L2 schema wrapping original + error metadata
+// - validation_error: L2 schema for validation failures
+// - enrichment_error: L2 schema for enrichment failures
+// - normalization_error: L2 schema for normalization failures
+// - audit_event: L2 schema for audit trail events
 //
 // Next Steps:
-// → L12-01: Add schema validation to catch errors early
-// → Level 4: Complete error handling in full applications
+// -> L12-01: Add schema validation to catch errors early
+// -> Level 4: Complete error handling in full applications
 // =============================================================================

@@ -204,6 +204,21 @@ class ProcDSLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by ProcDSLParser#timestampBounds.
+    def visitTimestampBounds(self, ctx:ProcDSLParser.TimestampBoundsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#parquetOptions.
+    def visitParquetOptions(self, ctx:ProcDSLParser.ParquetOptionsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#csvOptions.
+    def visitCsvOptions(self, ctx:ProcDSLParser.CsvOptionsContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by ProcDSLParser#headerBindings.
     def visitHeaderBindings(self, ctx:ProcDSLParser.HeaderBindingsContext):
         return self.visitChildren(ctx)
@@ -596,6 +611,11 @@ class ProcDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by ProcDSLParser#scheduleDuration.
     def visitScheduleDuration(self, ctx:ProcDSLParser.ScheduleDurationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#sqlStatement.
+    def visitSqlStatement(self, ctx:ProcDSLParser.SqlStatementContext):
         return self.visitChildren(ctx)
 
 

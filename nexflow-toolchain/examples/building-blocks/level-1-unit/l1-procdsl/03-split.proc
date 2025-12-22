@@ -1,25 +1,25 @@
 // =============================================================================
-// L1-03: Split (Route to Multiple Outputs)
+// L1-03: Split (Route to Multiple Outputs via L4 Rules)
 // =============================================================================
 // Use Case: Route events to different destinations based on conditions
-// Pattern:  Content-based routing / fan-out
+// Pattern:  Content-based routing / fan-out using L4 rules
 // When:     Priority queues, type-based processing, regional routing
 // =============================================================================
 
 process order_router
-    description "Route orders to different queues based on priority"
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    // Route based on priority field
-    route
-        when orders.priority = "high" then
-            send to high_priority_queue
-        when orders.priority = "medium" then
-            send to medium_priority_queue
-        otherwise
-            send to standard_queue
-    end
+    // Route based on priority field using L4 rules table
+    // L4 rules: priority_routing_rules
+    //   - when priority = "high" → "high"
+    //   - when priority = "medium" → "medium"
+    //   - otherwise → "standard"
+    route using priority_routing_rules
+        "high" to high_priority_queue
+        "medium" to medium_priority_queue
+        "standard" to standard_queue
 end
 
 // -----------------------------------------------------------------------------
@@ -27,20 +27,16 @@ end
 // -----------------------------------------------------------------------------
 
 process order_type_splitter
-    description "Split orders by product category"
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    route
-        when orders.category = "electronics" then
-            send to electronics_fulfillment
-        when orders.category = "clothing" then
-            send to clothing_fulfillment
-        when orders.category = "food" then
-            send to food_fulfillment
-        otherwise
-            send to general_fulfillment
-    end
+    // Route by category using L4 rules
+    route using category_routing_rules
+        "electronics" to electronics_fulfillment
+        "clothing" to clothing_fulfillment
+        "food" to food_fulfillment
+        "other" to general_fulfillment
 end
 
 // -----------------------------------------------------------------------------
@@ -48,27 +44,37 @@ end
 // -----------------------------------------------------------------------------
 
 process value_tier_router
-    description "Route by order value tiers"
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    route
-        when orders.total_amount >= 10000 then
-            send to enterprise_orders
-        when orders.total_amount >= 1000 then
-            send to business_orders
-        otherwise
-            send to consumer_orders
-    end
+    // Route by value tiers using L4 rules
+    // L4 rules: value_tier_rules
+    //   - when total_amount >= 10000 → "enterprise"
+    //   - when total_amount >= 1000 → "business"
+    //   - otherwise → "consumer"
+    route using value_tier_rules
+        "enterprise" to enterprise_orders
+        "business" to business_orders
+        "consumer" to consumer_orders
 end
 
 // =============================================================================
 // What This Generates:
 // - Flink ProcessFunction with OutputTag side outputs
+// - L4 rules evaluated per record
 // - Each route becomes a separate DataStream
-// - Non-matching records go to "otherwise" branch
+// - All destinations inherit the source schema (order)
+//
+// L4 Rules Reference:
+// - priority_routing_rules: Routes by priority field
+// - category_routing_rules: Routes by category field
+// - value_tier_rules: Routes by total_amount thresholds
+//
+// Schema Reference:
+// - order: L2 SchemaDSL with priority, category, total_amount fields
 //
 // Next Steps:
 // → L1-04: Join split streams back together
-// → L12-03: Add business rules to determine routing (L1+L4)
+// → L12-03: Modify business rules without code changes (L1+L4)
 // =============================================================================

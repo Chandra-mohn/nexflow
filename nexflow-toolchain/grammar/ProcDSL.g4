@@ -134,6 +134,7 @@ processingBlock
     | setStatement
     | lookupStatement
     | signalStatement         // v0.6.0+: signal emission
+    | sqlStatement            // v0.8.0+: embedded SQL block
     ;
 
 // ----------------------------------------------------------------------------
@@ -300,6 +301,8 @@ connectorType
     | REDIS
     | SCHEDULER
     | STATE_STORE
+    | PARQUET
+    | CSV
     | IDENTIFIER
     ;
 
@@ -320,6 +323,30 @@ connectorOptions
     | HEADERS COLON (paramBlock | headerBindings)
     | TEMPLATE STRING
     | CHANNEL COLON expression
+    | timestampBounds                              // Kafka/Parquet timestamp bounds
+    | parquetOptions                               // Parquet-specific options
+    | csvOptions                                   // CSV-specific options
+    ;
+
+// Timestamp bounds for bounded reads (Kafka/Parquet)
+timestampBounds
+    : FROM TIMESTAMP STRING (TO TIMESTAMP STRING)?   // from timestamp "2024-01-01T00:00:00Z" to timestamp "2024-12-31T23:59:59Z"
+    | TO TIMESTAMP STRING                            // to timestamp "2024-12-31T23:59:59Z" (from earliest)
+    ;
+
+// Parquet-specific options
+parquetOptions
+    : PARTITION_BY fieldList                        // partition by year, month
+    | SCHEMA_PATH STRING                            // schema_path "schemas/sales.avsc"
+    ;
+
+// CSV-specific options
+csvOptions
+    : DELIMITER STRING                              // delimiter ","
+    | QUOTE STRING                                  // quote "\""
+    | ESCAPE_CHAR STRING                            // escape_char "\\"
+    | HEADER booleanLiteral                         // header true
+    | NULL_VALUE STRING                             // null_value ""
     ;
 
 headerBindings
@@ -788,6 +815,17 @@ scheduleStatement
 scheduleDuration
     : duration                        // Static: 30 seconds, 5 minutes
     | expression timeUnit             // Dynamic: routing_result.sla_hours hours
+    ;
+
+// ----------------------------------------------------------------------------
+// SQL Statement (v0.8.0+)
+// ----------------------------------------------------------------------------
+
+// Embedded SQL block for Flink SQL / Spark SQL transformations
+// Uses SQL keyword followed by multi-line string
+sqlStatement
+    : SQL SQL_BLOCK                   // sql ```...```
+        (AS IDENTIFIER)?              // Optional output type: as SalesSummary
     ;
 
 // Set statement for field updates
@@ -1380,6 +1418,8 @@ MONGODB       : 'mongodb' ;
 REDIS         : 'redis' ;
 SCHEDULER     : 'scheduler' ;
 STATE_STORE   : 'state_store' ;
+PARQUET       : 'parquet' ;        // v0.8.0+: Parquet file source/sink
+CSV           : 'csv' ;            // v0.8.0+: CSV file source/sink
 GROUP         : 'group' ;
 OFFSET        : 'offset' ;
 LATEST        : 'latest' ;
@@ -1396,6 +1436,14 @@ INDEX         : 'index' ;
 TEMPLATE      : 'template' ;
 CHANNEL       : 'channel' ;
 PAYLOAD       : 'payload' ;
+TIMESTAMP     : 'timestamp' ;      // v0.8.0+: For timestamp bounds
+PARTITION_BY  : 'partition_by' ;   // v0.8.0+: Parquet partitioning
+SCHEMA_PATH   : 'schema_path' ;    // v0.8.0+: External schema reference
+DELIMITER     : 'delimiter' ;      // v0.8.0+: CSV delimiter
+QUOTE         : 'quote' ;          // v0.8.0+: CSV quote character
+ESCAPE_CHAR   : 'escape_char' ;    // v0.8.0+: CSV escape character
+HEADER        : 'header' ;         // v0.8.0+: CSV header flag
+NULL_VALUE    : 'null_value' ;     // v0.8.0+: CSV null representation
 
 // ----------------------------------------------------------------------------
 // Keywords - Processing
@@ -1695,6 +1743,18 @@ COLON         : ':' ;
 COMMA         : ',' ;
 DOTDOT        : '..' ;  // v0.7.0+: Must come before DOT for correct lexing
 DOT           : '.' ;
+
+// ----------------------------------------------------------------------------
+// SQL Block and Keywords (v0.8.0+)
+// ----------------------------------------------------------------------------
+
+// SQL keyword for embedded SQL statements
+SQL           : 'sql' ;
+
+// SQL block using triple backticks - captures entire SQL content as single token
+SQL_BLOCK
+    : '```' .*? '```'
+    ;
 
 // ----------------------------------------------------------------------------
 // Literals

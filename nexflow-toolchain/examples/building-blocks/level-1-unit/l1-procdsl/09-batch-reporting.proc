@@ -1,0 +1,179 @@
+// =============================================================================
+// L1-09: Batch Reporting (v0.8.0+ Features)
+// =============================================================================
+// Use Case: Batch processing with file sources and SQL transforms
+// Pattern:  Parquet/CSV → SQL Transform → Emit
+// Features: Parquet sources, CSV sources, embedded SQL, timestamp bounds
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Example 1: Parquet Source with SQL Aggregation
+// Monthly sales report from bounded Parquet files
+// -----------------------------------------------------------------------------
+
+process monthly_sales_report
+    mode batch
+
+    // Bounded batch read from Parquet files with timestamp bounds
+    receive sales_data
+        from parquet "s3://datalake/sales/*.parquet"
+        from timestamp "2024-01-01T00:00:00Z"
+        to timestamp "2024-01-31T23:59:59Z"
+        schema sales_transaction
+
+    // Aggregate using embedded SQL for complex grouping
+    sql ```
+        SELECT
+            region,
+            product_category,
+            SUM(sale_amount) as total_sales,
+            COUNT(*) as transaction_count,
+            AVG(sale_amount) as avg_sale
+        FROM sales_data
+        GROUP BY region, product_category
+    ``` as SalesSummary
+
+    // Write aggregated results
+    emit to regional_sales
+        schema sales_summary
+end
+
+
+// -----------------------------------------------------------------------------
+// Example 2: CSV Source Processing
+// Import customer data from CSV files with custom format
+// -----------------------------------------------------------------------------
+
+process customer_import
+    mode batch
+
+    // Read from CSV with custom delimiters
+    receive customer_data
+        from csv "s3://uploads/customers/*.csv"
+        delimiter "|"
+        header true
+        schema customer_profile
+
+    // Normalize using L3 transform
+    transform using normalize_customer
+
+    // Output to Kafka topic
+    emit to normalized_customers
+        schema customer_profile
+end
+
+
+// -----------------------------------------------------------------------------
+// Example 3: Event-Triggered Reconciliation
+// Monthly reconciliation triggered by marker event
+// -----------------------------------------------------------------------------
+
+process monthly_reconciliation
+    mode batch
+
+    // Triggered by end-of-month marker from enterprise calendar
+    // The L4 rules layer filters for MONTH_END events
+    receive reconciliation_trigger
+        from kafka "enterprise.calendar.month_end"
+        schema calendar_event
+
+    // Read transactions from Parquet (bounded by business date)
+    receive transactions
+        from parquet "s3://datalake/transactions/*.parquet"
+        schema transaction
+
+    // Read settlements from CSV
+    receive settlements
+        from csv "sftp://partner/settlements.csv"
+        delimiter ","
+        header true
+        schema settlement
+
+    // Join using SQL
+    sql ```
+        SELECT
+            t.transaction_id,
+            t.amount as transaction_amount,
+            s.settled_amount,
+            CASE
+                WHEN t.amount = s.settled_amount THEN 'matched'
+                WHEN s.settled_amount IS NULL THEN 'missing'
+                ELSE 'mismatch'
+            END as status
+        FROM transactions t
+        LEFT JOIN settlements s
+            ON t.transaction_id = s.transaction_ref
+    ``` as ReconciliationResult
+
+    // Route based on status
+    route using reconciliation_routing
+
+    // Output results
+    emit to matched_records
+        schema reconciliation_result
+    emit to discrepancies
+        schema reconciliation_result
+end
+
+
+// -----------------------------------------------------------------------------
+// Example 4: Marker-Triggered Analytics
+// Daily analytics triggered by end-of-day marker
+// -----------------------------------------------------------------------------
+
+process daily_analytics
+    mode batch
+
+    // Triggered by end-of-day marker from business calendar
+    // External orchestrator publishes to this topic at EOD
+    receive analytics_trigger
+        from kafka "business.markers.end_of_day"
+        schema marker_event
+
+    // Orders from Parquet
+    receive orders
+        from parquet "s3://analytics/orders/"
+        schema order
+
+    // Complex analytics query
+    sql ```
+        SELECT
+            category,
+            brand,
+            COUNT(order_id) as order_count,
+            SUM(quantity) as units_sold
+        FROM orders
+        WHERE status = 'completed'
+        GROUP BY category, brand
+    ``` as DailyMetrics
+
+    // Emit to analytics topic
+    emit to daily_metrics
+        schema daily_analytics_report
+end
+
+
+// =============================================================================
+// What This Generates:
+// - FileSource with ParquetColumnarRowInputFormat for Parquet inputs
+// - FileSource with CsvReaderFormat for CSV inputs
+// - StreamTableEnvironment for SQL execution
+// - Table API registration and query execution
+// - Event-driven triggers via marker events (no cron scheduling)
+//
+// Architecture Note:
+// - All batch jobs are event-driven, triggered by business markers
+// - Enterprise calendars emit END_OF_DAY, MONTH_END, etc. events
+// - External orchestrators (Airflow, etc.) publish trigger events to Kafka
+// - This enables dynamic scheduling based on business conditions
+//
+// Dependencies:
+// - flink-connector-files (FileSource)
+// - flink-parquet (Parquet format)
+// - flink-csv (CSV format)
+// - flink-table-api-java-bridge (Table API)
+//
+// Next Steps:
+// → L12-09: Add schema validation for file sources (L1+L2)
+// → L13-09: Add L3 transforms for data cleansing
+// =============================================================================

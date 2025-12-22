@@ -1,61 +1,57 @@
 // =============================================================================
-// L1-02: Filter (Conditional Routing)
+// L1-02: Filter (Conditional Routing via L4 Rules)
 // =============================================================================
 // Use Case: Only pass events that meet specific criteria
-// Pattern:  Filter stream based on field conditions
+// Pattern:  Filter stream using L4 rules table
 // When:     Data quality, selective processing, routing by attribute
 // =============================================================================
 
 process active_order_filter
-    description "Filter orders to only process active ones"
+    // Read from source with schema
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    // Read from source
-    receive orders from orders_input
+    // Filter using L4 rules: only orders with status "active"
+    // L4 rules table defines: active_order_rules
+    //   - when status = "active" → "pass"
+    //   - otherwise → "reject"
+    route using active_order_rules
+        "pass" to active_orders
 
-    // Filter: only orders with status "active"
-    where orders.status = "active"
-
-    // Write filtered results
-    send to active_orders
+    // Rejected orders are dropped (no destination for "reject")
 end
 
 // -----------------------------------------------------------------------------
-// Variation: Multiple conditions with AND/OR
+// Variation: Route with explicit reject destination
 // -----------------------------------------------------------------------------
 
-process high_value_active_filter
-    description "Filter for high-value active orders"
+process order_filter_with_reject
+    receive orders
+        from kafka "orders_input"
+        schema order
 
-    receive orders from orders_input
-
-    // Multiple conditions combined
-    where orders.status = "active"
-      and orders.total_amount > 1000
-
-    send to high_value_orders
-end
-
-// -----------------------------------------------------------------------------
-// Variation: Numeric comparison
-// -----------------------------------------------------------------------------
-
-process large_quantity_filter
-    description "Filter orders with quantity above threshold"
-
-    receive orders from orders_input
-
-    where orders.quantity >= 100
-
-    send to bulk_orders
+    // Route using L4 rules with explicit pass/reject destinations
+    route using order_filter_rules
+        "pass" to valid_orders
+        "reject" to rejected_orders
 end
 
 // =============================================================================
 // What This Generates:
-// - Flink DataStream with .filter() operator
-// - Condition compiled to Java predicate
-// - Non-matching records are dropped
+// - Flink ProcessFunction with side outputs
+// - L4 rules evaluated per record
+// - Records routed to appropriate destinations based on rule result
+// - Each destination inherits the source schema (order)
+//
+// L4 Rules Reference:
+// - active_order_rules: Rules table checking status = "active"
+// - order_filter_rules: Rules table with pass/reject routing
+//
+// Schema Reference:
+// - order: L2 SchemaDSL definition with status field
 //
 // Next Steps:
-// → L1-03: Route to different outputs instead of dropping
+// → L1-03: Route to multiple outputs based on different criteria
 // → L1-08: Send filtered-out records to dead letter queue
 // =============================================================================

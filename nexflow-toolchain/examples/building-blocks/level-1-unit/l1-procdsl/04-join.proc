@@ -7,37 +7,44 @@
 // =============================================================================
 
 process order_payment_matcher
-    description "Join orders with their corresponding payments"
+    // Read from two source streams with their schemas
+    receive orders
+        from kafka "orders_stream"
+        schema order
 
-    // Read from two source streams
-    receive orders from orders_stream
-    receive payments from payments_stream
+    receive payments
+        from kafka "payments_stream"
+        schema payment
 
     // Join on matching order_id within 5-minute window
-    join orders, payments
-        on orders.order_id = payments.order_id
+    join orders with payments
+        on order_id
         within 5 minutes
 
     // Output combined record
-    send to matched_transactions
+    emit to matched_transactions
+        schema matched_transaction
 end
 
 // -----------------------------------------------------------------------------
-// Variation: Join with explicit output fields
+// Variation: Join with explicit output alias
 // -----------------------------------------------------------------------------
 
 process order_customer_join
-    description "Enrich orders with customer information"
+    receive orders
+        from kafka "orders_stream"
+        schema order
 
-    receive orders from orders_stream
-    receive customers from customers_stream
+    receive customers
+        from kafka "customers_stream"
+        schema customer
 
-    join orders, customers
-        on orders.customer_id = customers.id
+    join orders with customers
+        on customer_id
         within 10 minutes
-    as enriched_order
 
-    send to enriched_orders
+    emit to enriched_orders
+        schema enriched_order
 end
 
 // -----------------------------------------------------------------------------
@@ -45,16 +52,21 @@ end
 // -----------------------------------------------------------------------------
 
 process order_shipment_left_join
-    description "Match orders with shipments, keep unshipped orders"
+    receive orders
+        from kafka "orders_stream"
+        schema order
 
-    receive orders from orders_stream
-    receive shipments from shipments_stream
+    receive shipments
+        from kafka "shipments_stream"
+        schema shipment
 
-    left join orders, shipments
-        on orders.order_id = shipments.order_id
+    join orders with shipments
+        on order_id
         within 1 hour
+        type left
 
-    send to order_shipment_status
+    emit to order_shipment_status
+        schema order_shipment_status
 end
 
 // =============================================================================
@@ -64,9 +76,19 @@ end
 // - Time-bounded join window
 //
 // Key Concepts:
-// - `join`: Inner join - only matched pairs
-// - `left join`: Keep left side even without match
+// - `join ... with`: Combine two streams
+// - `on`: Join key field
 // - `within`: Time window for matching
+// - `type left`: Left join keeps unmatched left records
+//
+// Schema Reference:
+// - order: L2 SchemaDSL with order_id, customer_id fields
+// - payment: L2 SchemaDSL with order_id, amount fields
+// - customer: L2 SchemaDSL with id, name fields
+// - shipment: L2 SchemaDSL with order_id, tracking fields
+// - matched_transaction: L2 output schema combining order + payment
+// - enriched_order: L2 output schema combining order + customer
+// - order_shipment_status: L2 output schema combining order + shipment
 //
 // Next Steps:
 // → L1-05: Union (merge without matching)
