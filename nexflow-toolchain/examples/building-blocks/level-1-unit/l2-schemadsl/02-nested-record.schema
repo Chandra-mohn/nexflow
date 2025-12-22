@@ -1,0 +1,134 @@
+// =============================================================================
+// L2-02: Nested Record (Nested Object Structures)
+// =============================================================================
+// Use Case: Define complex data with embedded objects
+// Pattern:  Records containing other records
+// When:     Rich domain models, nested JSON, aggregated data
+// =============================================================================
+
+// First define the nested types
+record Address
+    description "Postal address"
+
+    street: string
+    city: string
+    state: string
+    postal_code: string
+    country: string
+end
+
+record ContactInfo
+    description "Contact information"
+
+    email: string
+    phone: string
+    mobile: string
+end
+
+// Main record with nested objects
+record CustomerProfile
+    description "Complete customer profile with nested information"
+
+    // Basic fields
+    customer_id: string
+    first_name: string
+    last_name: string
+
+    // Nested records
+    billing_address: Address
+    shipping_address: Address
+    contact: ContactInfo
+
+    // Additional fields
+    tier: string
+    created_date: date
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Order with nested line items and shipping
+// -----------------------------------------------------------------------------
+
+record LineItem
+    description "Order line item"
+
+    product_id: string
+    product_name: string
+    quantity: integer
+    unit_price: money
+    discount: decimal
+end
+
+record ShippingInfo
+    description "Shipping details"
+
+    carrier: string
+    tracking_number: string
+    estimated_delivery: date
+    address: Address
+end
+
+record OrderWithDetails
+    description "Complete order with nested structures"
+
+    order_id: string
+    customer_id: string
+    status: string
+
+    // Nested single object
+    shipping: ShippingInfo
+
+    // Nested list (see L2-03 for more on collections)
+    items: list of LineItem
+
+    // Calculated fields
+    subtotal: money
+    tax: money
+    total: money
+
+    order_date: timestamp
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Deep nesting (3+ levels)
+// -----------------------------------------------------------------------------
+
+record Department
+    description "Company department"
+
+    name: string
+    code: string
+end
+
+record Employee
+    description "Employee record"
+
+    employee_id: string
+    name: string
+    department: Department
+end
+
+record Project
+    description "Project with team lead"
+
+    project_id: string
+    name: string
+    lead: Employee
+    status: string
+    start_date: date
+end
+
+// =============================================================================
+// What This Generates:
+// - Java Records for each type
+// - Proper nesting in generated code
+// - JSON/Avro serialization handles nesting
+// - Type-safe field access: order.shipping.address.city
+//
+// Nesting Patterns:
+// - Direct embedding: `address: Address`
+// - Lists of nested: `items: list of LineItem` (see L2-03)
+//
+// Next Steps:
+// → L2-03: Add collection fields (lists, arrays)
+// → L3-01: Map between nested structures
+// =============================================================================

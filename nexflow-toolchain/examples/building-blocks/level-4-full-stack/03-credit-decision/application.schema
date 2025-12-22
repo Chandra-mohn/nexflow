@@ -1,0 +1,123 @@
+// =============================================================================
+// L12345-03: Loan Application Schema (L2)
+// =============================================================================
+
+record LoanApplication
+    description "Consumer loan application"
+
+    application_id: string
+        required
+        pattern "^APP-[0-9]{10}$"
+
+    applicant: Applicant
+        required
+
+    loan_request: LoanRequest
+        required
+
+    employment: Employment
+        required
+
+    financial: FinancialInfo
+        required
+
+    submitted_at: timestamp
+        required
+
+    channel: string
+        required
+        values "online", "branch", "phone", "partner"
+end
+
+record Applicant
+    ssn: string
+        required
+        pattern "^[0-9]{9}$"
+
+    first_name: string
+        required
+
+    last_name: string
+        required
+
+    date_of_birth: date
+        required
+
+    email: string
+        required
+
+    phone: string
+        required
+
+    address: Address
+        required
+end
+
+record Address
+    street: string
+        required
+
+    city: string
+        required
+
+    state: string
+        required
+        pattern "^[A-Z]{2}$"
+
+    zip: string
+        required
+        pattern "^[0-9]{5}$"
+
+    residence_months: integer
+        range 0 to 600
+end
+
+record LoanRequest
+    product: string
+        required
+        values "personal", "auto", "mortgage", "heloc", "credit_card"
+
+    amount: decimal
+        required
+        range 1000 to 1000000
+
+    term_months: integer
+        required
+        range 6 to 360
+
+    purpose: string
+        required
+end
+
+record Employment
+    status: string
+        required
+        values "employed", "self_employed", "retired", "unemployed", "student"
+
+    employer_name: string
+        optional
+
+    job_title: string
+        optional
+
+    months_employed: integer
+        range 0 to 600
+
+    annual_income: decimal
+        required
+        range 0 to 10000000
+end
+
+record FinancialInfo
+    monthly_housing: decimal
+        range 0 to 100000
+
+    monthly_debt: decimal
+        range 0 to 100000
+
+    assets: decimal
+        range 0 to 100000000
+
+    existing_customer: boolean
+        default false
+end

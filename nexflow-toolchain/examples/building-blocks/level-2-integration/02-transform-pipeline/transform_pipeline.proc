@@ -1,0 +1,59 @@
+// =============================================================================
+// L12-02: Transform Pipeline (L1 + L3)
+// =============================================================================
+// Use Case: Read orders, transform with calculations, write enriched output
+// Layers:   L1 ProcDSL (flow) + L3 TransformDSL (transform)
+// Pattern:  Apply transform to every record in stream
+// =============================================================================
+
+import ./order_transform.xform
+
+process order_enrichment_pipeline
+    description "Enrich orders with calculated totals"
+
+    receive orders from raw_orders
+
+    // Apply transform to each record
+    transform using order_enricher
+
+    send to enriched_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Transform then filter
+// -----------------------------------------------------------------------------
+
+process transform_and_filter
+    description "Transform then filter by calculated value"
+
+    receive orders from raw_orders
+
+    transform using order_enricher
+
+    // Filter on transformed field
+    where total >= 500
+
+    send to high_value_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Transform then route
+// -----------------------------------------------------------------------------
+
+process transform_and_route
+    description "Transform then route by tier"
+
+    receive orders from raw_orders
+
+    transform using order_enricher
+
+    // Route based on transformed price_tier
+    route
+        when price_tier = "premium" then
+            send to premium_orders
+        when price_tier = "standard" then
+            send to standard_orders
+        otherwise
+            send to basic_orders
+    end
+end

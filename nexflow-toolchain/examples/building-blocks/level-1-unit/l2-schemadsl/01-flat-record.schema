@@ -1,0 +1,97 @@
+// =============================================================================
+// L2-01: Flat Record (Simple Field Definitions)
+// =============================================================================
+// Use Case: Define a simple data structure with basic fields
+// Pattern:  Flat record with primitive types
+// When:     Simple messages, API payloads, basic events
+// =============================================================================
+
+record Order
+    description "Basic order record with essential fields"
+
+    // String fields
+    order_id: string
+    customer_id: string
+    status: string
+
+    // Numeric fields
+    quantity: integer
+    total_amount: decimal
+
+    // Boolean field
+    is_priority: boolean
+
+    // Date/time fields
+    order_date: date
+    created_at: timestamp
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Customer record
+// -----------------------------------------------------------------------------
+
+record Customer
+    description "Customer profile information"
+
+    id: string
+    email: string
+    name: string
+    phone: string
+    tier: string           // "bronze", "silver", "gold", "platinum"
+    active: boolean
+    created_date: date
+    last_login: timestamp
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Transaction record
+// -----------------------------------------------------------------------------
+
+record Transaction
+    description "Financial transaction record"
+
+    transaction_id: string
+    account_id: string
+    type: string           // "credit", "debit", "transfer"
+    amount: money          // Special money type for currency
+    currency: string
+    timestamp: timestamp
+    reference: string
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Event record
+// -----------------------------------------------------------------------------
+
+record UserEvent
+    description "Generic user activity event"
+
+    event_id: string
+    user_id: string
+    event_type: string
+    page_url: string
+    session_id: string
+    event_time: timestamp
+end
+
+// =============================================================================
+// What This Generates:
+// - Java Record class with all fields
+// - Serialization/deserialization support
+// - Builder pattern for construction
+// - Accessor methods (record-style)
+//
+// Field Types:
+// - string: String
+// - integer: Long
+// - decimal: BigDecimal
+// - boolean: Boolean
+// - date: LocalDate
+// - timestamp: Instant
+// - money: BigDecimal (with currency semantics)
+//
+// Next Steps:
+// → L2-02: Add nested structures
+// → L2-04: Add validation constraints
+// → L12-01: Use schema in process flow
+// =============================================================================

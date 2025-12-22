@@ -1,0 +1,39 @@
+// =============================================================================
+// L124-02: Claim Decision Schema (L2)
+// =============================================================================
+
+record ClaimDecision
+    description "Claim processing decision output"
+
+    claim_id: string
+        required
+
+    policy_id: string
+        required
+
+    decision: string
+        required
+        values "auto_approve", "manual_review", "expedited", "denied"
+
+    approved_amount: decimal
+        description "0 if denied, otherwise approved amount"
+
+    processing_tier: string
+        values "fast_track", "standard", "complex", "fraud_review"
+
+    required_documents: list of string
+        optional
+
+    denial_reasons: list of string
+        optional
+
+    assigned_adjuster_level: string
+        values "junior", "senior", "specialist", "supervisor"
+        optional
+
+    sla_hours: integer
+        description "Expected processing time"
+
+    decision_timestamp: timestamp
+        required
+end

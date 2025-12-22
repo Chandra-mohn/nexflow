@@ -43,13 +43,23 @@ class FunctionProcessMixin:
             "",
         ]
 
+        # Add params declarations if defined
+        if block.params:
+            lines.append(self.generate_params_declarations(block.params))
+            lines.append(self.generate_params_accessor_object(block.params))
+
+        # Add lookups declarations if defined
+        if block.lookups:
+            lines.append(self.generate_lookups_declarations(block.lookups))
+            lines.append(self.generate_lookups_object_field(block.lookups))
+
         # Collect all transform references (deduplicated)
         all_transform_refs = self._collect_all_transform_refs(block)
         if all_transform_refs:
             lines.append(self._generate_transform_fields(all_transform_refs))
             lines.append("")
 
-        # Add open method for initialization
+        # Add open method for initialization (includes lookups init)
         lines.append(self._generate_open_method_with_refs(block, all_transform_refs))
         lines.append("")
 
@@ -91,6 +101,19 @@ class FunctionProcessMixin:
         if block.on_change:
             lines.append(self._generate_on_change_handler(block.on_change))
             lines.append("")
+
+        # Add params accessor class and methods if defined
+        if block.params:
+            lines.append(self.generate_params_accessor_class(block.params))
+            lines.append(self.generate_params_setters(block.params))
+            lines.append(self.generate_params_validation(block.params))
+            lines.append(self.generate_params_from_config(block.params))
+
+        # Add lookups accessor class and methods if defined
+        if block.lookups:
+            lines.append(self.generate_lookups_accessor_class(block.lookups))
+            lines.append(self.generate_lookup_accessor_methods(block.lookups))
+            lines.append(self.generate_async_lookup_methods(block.lookups))
 
         lines.append("}")
 
@@ -158,6 +181,10 @@ class FunctionProcessMixin:
         # Initialize all transform references
         for _, class_name, field_name in refs:
             lines.append(f"        {field_name} = new {class_name}();")
+
+        # Initialize lookups if present
+        if block.lookups:
+            lines.append(self.generate_lookups_init(block.lookups))
 
         lines.append("    }")
         return '\n'.join(lines)
@@ -263,6 +290,14 @@ class FunctionProcessMixin:
         # Add compose imports (for parallel composition with CompletableFuture)
         if block.compose:
             imports.update(self.get_compose_imports())
+
+        # Add lookups imports if lookups block is present
+        if block.lookups:
+            imports.update(self.get_lookups_imports())
+
+        # Add params imports if params block is present
+        if block.params:
+            imports.update(self.get_params_imports())
 
         return imports
 

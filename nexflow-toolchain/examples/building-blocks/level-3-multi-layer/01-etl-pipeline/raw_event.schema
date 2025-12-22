@@ -1,0 +1,30 @@
+// =============================================================================
+// L123-01: Raw Event Schema (L2)
+// =============================================================================
+
+record RawEvent
+    description "Raw event from source systems"
+
+    event_id: string
+        required
+
+    event_type: string
+        required
+
+    timestamp_str: string
+        description "ISO timestamp as string"
+        required
+
+    user_id: string
+        required
+
+    payload: string
+        description "JSON payload as string"
+        required
+
+    source_system: string
+        required
+
+    ip_address: string
+        optional
+end

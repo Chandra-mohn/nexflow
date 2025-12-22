@@ -1,0 +1,47 @@
+// =============================================================================
+// L12-01: Typed Stream (L1 + L2)
+// =============================================================================
+// Use Case: Process orders with schema validation
+// Layers:   L1 ProcDSL (flow) + L2 SchemaDSL (schema)
+// Pattern:  Validate incoming records against schema, route invalid to DLQ
+// =============================================================================
+
+import ./order.schema
+
+process validated_order_processor
+    description "Process orders with schema validation"
+
+    // Receive with schema type - enables validation
+    receive orders: Order from orders_input
+
+    // Validation happens automatically due to schema reference
+    // Invalid records are routed to error handler
+
+    on_validation_error
+        send to orders_invalid
+        with validation_errors
+    end
+
+    // Valid records continue
+    send to orders_valid
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Validate and then filter
+// -----------------------------------------------------------------------------
+
+process validated_and_filtered
+    description "Validate schema then apply business filter"
+
+    receive orders: Order from orders_raw
+
+    on_validation_error
+        send to validation_failures
+    end
+
+    // Business filter on valid records
+    where orders.status = "confirmed"
+      and orders.total_amount >= 100
+
+    send to confirmed_orders
+end

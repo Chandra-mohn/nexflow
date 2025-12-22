@@ -1,0 +1,83 @@
+// =============================================================================
+// L234-04: Order Output Schema (L2)
+// =============================================================================
+
+record ProcessedOrder
+    description "Fully processed order ready for fulfillment"
+
+    order_id: string
+        required
+
+    customer_id: string
+        required
+
+    order_date: timestamp
+        required
+
+    // Calculated totals
+    subtotal: decimal
+        required
+
+    discount_amount: decimal
+        required
+
+    tax_amount: decimal
+        required
+
+    shipping_cost: decimal
+        required
+
+    total_amount: decimal
+        required
+
+    // Fulfillment details
+    fulfillment_priority: string
+        required
+        values "express", "standard", "economy"
+
+    estimated_delivery_date: date
+        required
+
+    warehouse_id: string
+        required
+
+    shipping_carrier: string
+        required
+
+    // Status
+    order_status: string
+        required
+        values "confirmed", "pending_payment", "hold", "cancelled"
+
+    hold_reasons: list of string
+        optional
+
+    // Processed items
+    line_items: list of ProcessedLineItem
+        required
+end
+
+record ProcessedLineItem
+    description "Processed line item with calculated values"
+
+    sku: string
+        required
+
+    product_name: string
+        required
+
+    quantity: integer
+        required
+
+    unit_price: decimal
+        required
+
+    line_discount: decimal
+        required
+
+    line_total: decimal
+        required
+
+    inventory_status: string
+        values "in_stock", "low_stock", "backordered"
+end

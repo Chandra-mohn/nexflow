@@ -1,0 +1,41 @@
+// =============================================================================
+// L123-01: Event Transformation (L3)
+// =============================================================================
+// Transform raw events to enriched format with lookups
+
+transform raw_to_enriched
+    description "Clean and enrich raw events for analytics"
+
+    // Direct mappings
+    mappings:
+        event_id = event_id
+        event_type = lower(event_type)
+        event_timestamp = parse_timestamp(timestamp_str, "ISO8601")
+        user_id = user_id
+        source_system = source_system
+        processed_at = now()
+
+    // Lookup user segment from user service
+    lookups:
+        user_info = lookup user_id from "user-service"
+            cache ttl 5 minutes
+            on_miss use default { segment: "unknown" }
+
+    // Lookup geo from IP
+    lookups:
+        geo_info = lookup ip_address from "geo-service"
+            cache ttl 1 hour
+            on_miss use default { region: null }
+
+    // Calculated/derived fields
+    mappings:
+        user_segment = user_info.segment
+
+        geo_region = when ip_address != null then geo_info.region
+                     otherwise null
+
+        // Parse JSON payload into structured data
+        event_data.item_id = json_extract(payload, "$.item_id")
+        event_data.amount = json_extract_decimal(payload, "$.amount")
+        event_data.category = json_extract(payload, "$.category")
+end

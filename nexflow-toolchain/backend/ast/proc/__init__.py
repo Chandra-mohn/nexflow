@@ -45,10 +45,14 @@ from .execution import (
 
 # Input block
 from .input import (
+    ConnectorType,
     SchemaDecl,
     ProjectClause,
     StoreAction,
     MatchAction,
+    RedisConfig,
+    StateStoreConfig,
+    SchedulerConfig,
     ReceiveDecl,
     InputBlock,
 )
@@ -130,6 +134,15 @@ from .program import (
     Program,
 )
 
+# Metrics
+from .metrics import (
+    MetricType,
+    MetricScope,
+    MetricDecl,
+    MetricUpdateDecl,
+    MetricsBlock,
+)
+
 # Markers and Phases (EOD markers, business date)
 from .markers import (
     SignalCondition,
@@ -160,7 +173,8 @@ __all__ = [
     # Execution
     'WatermarkDecl', 'LateDataDecl', 'LatenessDecl', 'TimeDecl', 'ModeDecl', 'ExecutionBlock',
     # Input
-    'SchemaDecl', 'ProjectClause', 'StoreAction', 'MatchAction', 'ReceiveDecl', 'InputBlock',
+    'ConnectorType', 'SchemaDecl', 'ProjectClause', 'StoreAction', 'MatchAction',
+    'RedisConfig', 'StateStoreConfig', 'SchedulerConfig', 'ReceiveDecl', 'InputBlock',
     # Processing
     'EnrichDecl', 'TransformDecl', 'RouteDecl', 'AggregateDecl', 'MergeDecl',
     'WindowOptions', 'WindowDecl', 'JoinDecl',
@@ -180,6 +194,8 @@ __all__ = [
     'BackpressureBlock', 'ResilienceBlock',
     # Program
     'ProcessDefinition', 'Program',
+    # Metrics
+    'MetricType', 'MetricScope', 'MetricDecl', 'MetricUpdateDecl', 'MetricsBlock',
     # Markers and Phases
     'SignalCondition', 'MarkerRefCondition', 'StreamDrainedCondition',
     'CountThresholdCondition', 'TimeBasedCondition', 'ApiCheckCondition', 'CompoundCondition',

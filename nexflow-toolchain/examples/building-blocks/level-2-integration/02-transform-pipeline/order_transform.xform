@@ -1,0 +1,49 @@
+// =============================================================================
+// L12-02: Order Transform (L3)
+// =============================================================================
+// Transform order data with calculations and mappings
+// =============================================================================
+
+transform order_enricher
+    description "Enrich and calculate order totals"
+
+    input:
+        order_id: string
+        customer_id: string
+        quantity: integer
+        unit_price: decimal
+        discount_percent: decimal
+        tax_rate: decimal
+    end
+
+    output:
+        order_id: string
+        customer_id: string
+        quantity: integer
+        unit_price: decimal
+        subtotal: decimal
+        discount_amount: decimal
+        tax_amount: decimal
+        total: decimal
+        price_tier: string
+    end
+
+    mappings:
+        // Direct mappings
+        order_id -> order_id
+        customer_id -> customer_id
+        quantity -> quantity
+        unit_price -> unit_price
+
+        // Calculated fields
+        subtotal -> quantity * unit_price
+        discount_amount -> subtotal * (discount_percent / 100)
+        tax_amount -> (subtotal - discount_amount) * tax_rate
+        total -> subtotal - discount_amount + tax_amount
+
+        // Derived category
+        price_tier -> when total >= 1000 then "premium"
+                      when total >= 100 then "standard"
+                      otherwise "basic"
+    end
+end

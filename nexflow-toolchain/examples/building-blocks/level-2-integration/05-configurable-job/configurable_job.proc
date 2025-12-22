@@ -1,0 +1,40 @@
+// =============================================================================
+// L12-05: Configurable Job (L1 + L5)
+// =============================================================================
+// Use Case: Process that adapts to environment configuration
+// Layers:   L1 ProcDSL (flow) + L5 ConfigDSL (config)
+// Pattern:  Same process, different environments
+// =============================================================================
+
+// Config values are injected at build time based on environment
+process configurable_order_processor
+    description "Order processor with environment-aware configuration"
+
+    // Topic names come from config: ${topics.input}
+    receive orders from ${topics.input}
+
+    // Process logic is the same regardless of environment
+    where orders.status != "cancelled"
+
+    on_error
+        send to ${topics.errors}
+    end
+
+    send to ${topics.output}
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Config-driven parallelism and buffering
+// -----------------------------------------------------------------------------
+
+process batch_aware_processor
+    description "Process with config-driven batching"
+
+    receive orders from ${topics.input}
+
+    // Batch size can be configured per environment
+    batch size ${batch.size:100}
+    batch timeout ${batch.timeout:5000}
+
+    send to ${topics.output}
+end

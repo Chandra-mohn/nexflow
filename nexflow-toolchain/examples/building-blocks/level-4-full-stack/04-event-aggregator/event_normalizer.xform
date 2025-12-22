@@ -1,0 +1,65 @@
+// =============================================================================
+// L12345-04: Event Normalizer (L3)
+// =============================================================================
+// Normalize raw events for aggregation
+
+import ./event.schema
+import ./metrics.schema
+
+transform normalize_event
+    description "Normalize raw events with enrichment"
+
+    // Direct mappings
+    mappings:
+        event_id = event_id
+        event_type = event_type
+        source = source
+        timestamp = timestamp
+        user_id = coalesce(user_id, "anonymous")
+        session_id = coalesce(session_id, event_id)
+
+    // Lookup geo data from IP
+    lookups:
+        geo = lookup context.ip_address from "geo-service"
+            cache ttl 1 hour
+            on_miss use default {
+                country: coalesce(context.country, "unknown"),
+                region: "unknown",
+                city: "unknown"
+            }
+
+    // Normalize context
+    mappings:
+        normalized_country = geo.country
+
+        normalized_device = when context.device_type != null
+                              then context.device_type
+                            when contains(context.user_agent, "Mobile")
+                              then "mobile"
+                            when contains(context.user_agent, "Tablet")
+                              then "tablet"
+                            otherwise "desktop"
+
+    // Extract value for aggregation
+    mappings:
+        event_value = when event_type = "purchase"
+                        then coalesce(properties.value, 0)
+                      otherwise 0
+
+        is_error = event_type = "error"
+
+        // Create aggregation keys
+        minute_bucket = truncate_to_minute(timestamp)
+        hour_bucket = truncate_to_hour(timestamp)
+end
+
+// Helper to create dimension-specific record
+transform create_dimension_record
+    params:
+        dimension_type: string
+        dimension_value: string
+
+    mappings:
+        result.dimension_type = dimension_type
+        result.dimension_value = dimension_value
+end

@@ -1,0 +1,114 @@
+// =============================================================================
+// L12345-03: Credit Decision Pipeline (All Layers)
+// =============================================================================
+// Automated credit decisioning using all five DSL layers
+
+import ./application.schema
+import ./decision.schema
+import ./credit_enrichment.xform
+import ./underwriting_rules.rules
+
+process credit_decision_pipeline
+    description "End-to-end credit underwriting using all layers"
+
+    // L5: Config-driven topics
+    receive applications from ${topics.applications.name}
+        as LoanApplication
+
+    // L2: Schema validation
+    validate input
+        on_invalid send to ${topics.declined.name}
+
+    // Track processing
+    let start_time = now()
+
+    // L3: Enrich with credit data
+    transform using enrich_credit_data
+        as CreditDecision
+
+    // L4: Check knockout rules
+    evaluate using knockout_rules
+
+    // If not knocked out, continue pricing
+    route by is_knockout
+        when false
+            // L4: Calculate pricing
+            evaluate using base_rate_rules
+            evaluate using risk_adjustment_rules
+            evaluate using relationship_discount
+            evaluate using amount_limits
+            evaluate using final_decision
+            evaluate using calculate_payment
+    end
+
+    // Record processing time
+    let processing_time_ms = elapsed_ms(start_time)
+
+    // Error handling
+    on_error
+        send to ${topics.review.name}
+    end
+
+    // Route by decision
+    route by decision
+        when "approved"
+            send to ${topics.approved.name}
+
+        when "counter_offer"
+            send to ${topics.approved.name}
+
+        when "manual_review"
+            send to ${topics.review.name}
+
+        when "declined"
+            send to ${topics.declined.name}
+
+        default
+            send to ${topics.review.name}
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Credit decision with FCRA compliance
+// -----------------------------------------------------------------------------
+
+process credit_decision_compliant
+    description "Credit decision with regulatory compliance logging"
+
+    receive applications from ${topics.applications.name}
+        as LoanApplication
+
+    validate input
+        on_invalid send to ${topics.declined.name}
+
+    // Enrich with credit data
+    transform using enrich_credit_data
+        as CreditDecision
+
+    // Apply all rules
+    evaluate using knockout_rules
+    evaluate using base_rate_rules
+    evaluate using risk_adjustment_rules
+    evaluate using relationship_discount
+    evaluate using amount_limits
+    evaluate using final_decision
+    evaluate using calculate_payment
+
+    // Compliance: Log adverse action reasons
+    when decision in ["declined", "counter_offer"]
+        emit to "compliance-audit-log"
+            fields application_id, decision, decline_reasons, credit_score,
+                   dti_ratio, risk_score, rules_applied
+    end
+
+    on_error
+        send to ${topics.review.name}
+    end
+
+    route by decision
+        when "approved" send to ${topics.approved.name}
+        when "counter_offer" send to ${topics.approved.name}
+        when "manual_review" send to ${topics.review.name}
+        default send to ${topics.declined.name}
+    end
+end

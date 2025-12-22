@@ -1,0 +1,140 @@
+// =============================================================================
+// L12345-02: Fraud Detection Rules (L4)
+// =============================================================================
+
+import ./transaction.schema
+import ./fraud_alert.schema
+
+// -----------------------------------------------------------------------------
+// Velocity-based scoring (collect all triggered rules)
+// -----------------------------------------------------------------------------
+
+decision_table velocity_rules
+    description "Score based on transaction velocity"
+    hit_policy collect_all
+
+    decide:
+        | velocity_metrics.txn_count_1h | velocity_metrics.amount_sum_1h | rule_name              | points |
+        |==============================|================================|========================|========|
+        | >= 10                        | *                              | "high_velocity_count"  | 30     |
+        | >= 5                         | *                              | "medium_velocity_count"| 15     |
+        | *                            | >= $5000                       | "high_velocity_amount" | 25     |
+        | *                            | >= $2000                       | "medium_velocity_amt"  | 10     |
+end
+
+// -----------------------------------------------------------------------------
+// Geographic risk scoring
+// -----------------------------------------------------------------------------
+
+decision_table geo_rules
+    description "Score based on geographic patterns"
+    hit_policy collect_all
+
+    decide:
+        | is_foreign | distance_from_last | velocity_metrics.unique_countries_24h | rule_name              | points |
+        |============|====================|=======================================|========================|========|
+        | true       | *                  | >= 3                                  | "multi_country_24h"    | 40     |
+        | true       | > 5000             | *                                     | "impossible_travel"    | 50     |
+        | true       | *                  | *                                     | "foreign_transaction"  | 15     |
+        | *          | > 1000             | *                                     | "location_jump"        | 20     |
+end
+
+// -----------------------------------------------------------------------------
+// Amount-based scoring
+// -----------------------------------------------------------------------------
+
+decision_table amount_rules
+    description "Score based on transaction amount patterns"
+    hit_policy collect_all
+
+    given: FraudAlert
+
+    decide:
+        | amount    | is_high_amount | channel  | rule_name              | points |
+        |===========|================|==========|========================|========|
+        | >= $5000  | *              | "online" | "high_amount_online"   | 35     |
+        | >= $1000  | true           | *        | "above_avg_amount"     | 20     |
+        | >= $500   | *              | "atm"    | "high_atm_withdrawal"  | 25     |
+end
+
+// -----------------------------------------------------------------------------
+// Card profile scoring
+// -----------------------------------------------------------------------------
+
+decision_table profile_rules
+    description "Score based on card profile"
+    hit_policy collect_all
+
+    decide:
+        | is_new_card | is_new_merchant | merchant_category    | rule_name              | points |
+        |=============|=================|======================|========================|========|
+        | true        | true            | *                    | "new_card_new_merchant"| 25     |
+        | true        | *               | *                    | "new_card"             | 10     |
+        | *           | true            | "high_risk_mcc"      | "new_high_risk_merch"  | 30     |
+        | *           | true            | *                    | "new_merchant"         | 5      |
+end
+
+// -----------------------------------------------------------------------------
+// ML model integration
+// -----------------------------------------------------------------------------
+
+decision_table ml_rules
+    description "Score based on ML model output"
+    hit_policy first_match
+
+    decide:
+        | ml_score | rule_name        | points |
+        |==========|==================|========|
+        | >= 0.9   | "ml_high_risk"   | 40     |
+        | >= 0.7   | "ml_medium_risk" | 25     |
+        | >= 0.5   | "ml_elevated"    | 10     |
+        | *        | "ml_low_risk"    | 0      |
+end
+
+// -----------------------------------------------------------------------------
+// Calculate total fraud score
+// -----------------------------------------------------------------------------
+
+procedural_rule calculate_fraud_score
+    description "Sum all rule scores into final fraud score"
+
+    calculate:
+        fraud_score = min(100, sum(rule_scores[].points))
+end
+
+// -----------------------------------------------------------------------------
+// Risk level determination
+// -----------------------------------------------------------------------------
+
+decision_table risk_level_rules
+    description "Determine risk level from score"
+    hit_policy first_match
+
+    decide:
+        | fraud_score | risk_level |
+        |=============|============|
+        | >= 80       | "critical" |
+        | >= 60       | "high"     |
+        | >= 40       | "medium"   |
+        | *           | "low"      |
+end
+
+// -----------------------------------------------------------------------------
+// Final decision
+// -----------------------------------------------------------------------------
+
+decision_table decision_rules
+    description "Make final fraud decision"
+    hit_policy first_match
+
+    decide:
+        | risk_level | amount    | card_profile.is_premium | decision   | recommended_action |
+        |============|===========|=========================|============|====================|
+        | "critical" | *         | *                       | "decline"  | "block_card"       |
+        | "high"     | >= $1000  | *                       | "decline"  | "call_customer"    |
+        | "high"     | *         | false                   | "decline"  | "sms_otp"          |
+        | "high"     | *         | true                    | "challenge"| "sms_otp"          |
+        | "medium"   | >= $500   | *                       | "challenge"| "sms_otp"          |
+        | "medium"   | *         | *                       | "review"   | "manual_review"    |
+        | *          | *         | *                       | "approve"  | "none"             |
+end

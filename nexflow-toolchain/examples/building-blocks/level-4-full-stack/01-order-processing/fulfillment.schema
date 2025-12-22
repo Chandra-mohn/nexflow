@@ -1,0 +1,95 @@
+// =============================================================================
+// L12345-01: Fulfillment Schema (L2)
+// =============================================================================
+
+record FulfillmentOrder
+    description "Order ready for warehouse fulfillment"
+
+    order_id: string
+        required
+
+    customer_id: string
+        required
+
+    // Pricing
+    subtotal: decimal
+        required
+
+    discount_total: decimal
+        required
+
+    tax_total: decimal
+        required
+
+    shipping_total: decimal
+        required
+
+    grand_total: decimal
+        required
+
+    // Fulfillment routing
+    warehouse_id: string
+        required
+
+    carrier: string
+        required
+
+    service_level: string
+        required
+        values "ground", "2day", "overnight", "freight"
+
+    estimated_ship_date: date
+        required
+
+    estimated_delivery_date: date
+        required
+
+    // Picklist
+    pick_items: list of PickItem
+        required
+
+    // Packaging
+    package_type: string
+        values "envelope", "small_box", "medium_box", "large_box", "pallet"
+
+    total_weight_kg: decimal
+        required
+
+    // Status
+    fulfillment_status: string
+        required
+        values "pending", "allocated", "picking", "packing", "shipped", "hold"
+
+    hold_reason: string
+        optional
+
+    // Metadata
+    priority_score: integer
+        range 1 to 100
+
+    sla_hours: integer
+        required
+
+    created_at: timestamp
+        required
+end
+
+record PickItem
+    sku: string
+        required
+
+    name: string
+        required
+
+    quantity: integer
+        required
+
+    bin_location: string
+        required
+
+    inventory_status: string
+        values "available", "reserved", "backordered"
+
+    substitution_sku: string
+        optional
+end

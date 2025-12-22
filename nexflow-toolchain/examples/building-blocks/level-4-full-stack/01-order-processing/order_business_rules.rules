@@ -1,0 +1,178 @@
+// =============================================================================
+// L12345-01: Order Business Rules (L4)
+// =============================================================================
+
+import ./order.schema
+import ./fulfillment.schema
+
+// -----------------------------------------------------------------------------
+// Discount calculation
+// -----------------------------------------------------------------------------
+
+decision_table discount_rules
+    description "Calculate order discounts"
+    hit_policy collect_sum
+
+    given: FulfillmentOrder
+
+    decide:
+        | subtotal  | customer.tier | channel  | discount_percent |
+        |===========|===============|==========|==================|
+        | >= $500   | "premium"     | *        | 10               |
+        | >= $500   | *             | *        | 5                |
+        | >= $200   | "premium"     | *        | 5                |
+        | *         | *             | "mobile" | 2                |
+        | *         | "premium"     | *        | 3                |
+
+    post_calculate:
+        discount_total = subtotal * (discount_percent / 100)
+end
+
+// -----------------------------------------------------------------------------
+// Shipping rules
+// -----------------------------------------------------------------------------
+
+decision_table shipping_rules
+    description "Calculate shipping cost and carrier"
+    hit_policy first_match
+
+    given: FulfillmentOrder
+
+    decide:
+        | shipping.method | total_weight_kg | shipping.address.country | shipping_total | carrier  | service_level |
+        |=================|=================|==========================|================|==========|===============|
+        | "pickup"        | *               | *                        | $0             | "PICKUP" | "ground"      |
+        | "overnight"     | <= 5            | "US"                     | $29.99         | "FedEx"  | "overnight"   |
+        | "overnight"     | > 5             | "US"                     | $49.99         | "FedEx"  | "overnight"   |
+        | "express"       | <= 5            | "US"                     | $14.99         | "UPS"    | "2day"        |
+        | "express"       | > 5             | "US"                     | $24.99         | "UPS"    | "2day"        |
+        | "standard"      | *               | "US"                     | $5.99          | "USPS"   | "ground"      |
+        | *               | *               | "CA"                     | $19.99         | "DHL"    | "ground"      |
+        | *               | *               | *                        | $39.99         | "DHL"    | "ground"      |
+
+    post_calculate:
+        // Free shipping for large orders
+        shipping_total = when subtotal >= 100 and shipping.method = "standard"
+                           then 0
+                         otherwise shipping_total
+end
+
+// -----------------------------------------------------------------------------
+// Tax rules
+// -----------------------------------------------------------------------------
+
+decision_table tax_rules
+    description "Calculate tax by state"
+    hit_policy first_match
+
+    given: FulfillmentOrder
+
+    decide:
+        | shipping.address.country | shipping.address.state | tax_rate |
+        |==========================|========================|==========|
+        | "US"                     | "CA"                   | 0.0725   |
+        | "US"                     | "NY"                   | 0.08     |
+        | "US"                     | "TX"                   | 0.0625   |
+        | "US"                     | "WA"                   | 0.065    |
+        | "US"                     | "OR"                   | 0        |
+        | "US"                     | "MT"                   | 0        |
+        | "US"                     | "NH"                   | 0        |
+        | "US"                     | "DE"                   | 0        |
+        | "US"                     | *                      | 0.06     |
+        | *                        | *                      | 0        |
+
+    post_calculate:
+        tax_total = (subtotal - discount_total) * tax_rate
+        grand_total = subtotal - discount_total + tax_total + shipping_total
+end
+
+// -----------------------------------------------------------------------------
+// Warehouse assignment
+// -----------------------------------------------------------------------------
+
+decision_table warehouse_rules
+    description "Assign fulfillment warehouse"
+    hit_policy first_match
+
+    given: FulfillmentOrder
+
+    decide:
+        | customer.preferred_warehouse | shipping.address.state   | any(pick_items.inventory_status = "backordered") | warehouse_id |
+        |==============================|==========================|==================================================|==============|
+        | not null                     | *                        | false                                            | customer.preferred_warehouse |
+        | *                            | in ["CA","WA","OR","NV"] | false                                            | "WH-WEST"    |
+        | *                            | in ["NY","NJ","PA","MA"] | false                                            | "WH-EAST"    |
+        | *                            | in ["TX","FL","GA","NC"] | false                                            | "WH-SOUTH"   |
+        | *                            | *                        | true                                             | "WH-CENTRAL" |
+        | *                            | *                        | *                                                | "WH-CENTRAL" |
+end
+
+// -----------------------------------------------------------------------------
+// SLA and priority
+// -----------------------------------------------------------------------------
+
+decision_table priority_rules
+    description "Set fulfillment priority and SLA"
+    hit_policy first_match
+
+    given: FulfillmentOrder
+
+    decide:
+        | shipping.method | customer.tier | grand_total | priority_score | sla_hours |
+        |=================|===============|=============|================|===========|
+        | "overnight"     | *             | *           | 100            | 4         |
+        | "express"       | "premium"     | *           | 90             | 8         |
+        | "express"       | *             | *           | 80             | 12        |
+        | "standard"      | "premium"     | >= $200     | 70             | 24        |
+        | "standard"      | "premium"     | *           | 60             | 48        |
+        | "standard"      | *             | >= $200     | 50             | 48        |
+        | *               | *             | *           | 30             | 72        |
+end
+
+// -----------------------------------------------------------------------------
+// Fulfillment status determination
+// -----------------------------------------------------------------------------
+
+procedural_rule status_determination
+    description "Determine initial fulfillment status"
+
+    given: FulfillmentOrder
+
+    when any(pick_items.inventory_status = "backordered")
+        then
+            fulfillment_status = "hold"
+            hold_reason = "One or more items backordered"
+
+    when grand_total > 5000 and payment.method = "credit"
+        then
+            fulfillment_status = "hold"
+            hold_reason = "Large order requires fraud review"
+
+    otherwise
+        fulfillment_status = "pending"
+        hold_reason = null
+end
+
+// -----------------------------------------------------------------------------
+// Delivery date estimation
+// -----------------------------------------------------------------------------
+
+procedural_rule delivery_estimation
+    description "Estimate ship and delivery dates"
+
+    given: FulfillmentOrder
+
+    // Ship date based on SLA
+    calculate:
+        estimated_ship_date = add_business_days(today(), ceil(sla_hours / 24))
+
+    // Delivery based on service level
+    when service_level = "overnight"
+        then estimated_delivery_date = add_business_days(estimated_ship_date, 1)
+    when service_level = "2day"
+        then estimated_delivery_date = add_business_days(estimated_ship_date, 2)
+    when service_level = "ground"
+        then estimated_delivery_date = add_business_days(estimated_ship_date, 5)
+    otherwise
+        estimated_delivery_date = add_business_days(estimated_ship_date, 7)
+end

@@ -1,0 +1,174 @@
+// =============================================================================
+// L12345-03: Underwriting Rules (L4)
+// =============================================================================
+
+import ./application.schema
+import ./decision.schema
+
+// -----------------------------------------------------------------------------
+// Knockout rules (auto-decline)
+// -----------------------------------------------------------------------------
+
+decision_table knockout_rules
+    description "Auto-decline criteria"
+    hit_policy collect_all
+
+    decide:
+        | credit_score | dti_ratio | bureau_delinquencies | employment.status | decline_reason                    |
+        |==============|===========|======================|===================|===================================|
+        | < 500        | *         | *                    | *                 | "Credit score below minimum"      |
+        | *            | > 0.50    | *                    | *                 | "Debt-to-income ratio too high"   |
+        | *            | *         | >= 3                 | *                 | "Too many recent delinquencies"   |
+        | *            | *         | *                    | "unemployed"      | "Applicant unemployed"            |
+
+    post_calculate:
+        is_knockout = count(decline_reasons) > 0
+end
+
+// -----------------------------------------------------------------------------
+// Credit grade pricing
+// -----------------------------------------------------------------------------
+
+decision_table base_rate_rules
+    description "Base rate by credit grade and product"
+    hit_policy first_match
+
+    given: CreditDecision
+
+    decide:
+        | credit_grade | loan_request.product | base_rate |
+        |==============|======================|===========|
+        | "A"          | "personal"           | 7.99      |
+        | "A"          | "auto"               | 4.99      |
+        | "B"          | "personal"           | 10.99     |
+        | "B"          | "auto"               | 6.49      |
+        | "C"          | "personal"           | 14.99     |
+        | "C"          | "auto"               | 8.99      |
+        | "D"          | "personal"           | 18.99     |
+        | "D"          | "auto"               | 12.99     |
+        | "E"          | "personal"           | 24.99     |
+        | "E"          | "auto"               | 16.99     |
+        | *            | *                    | 29.99     |
+end
+
+// -----------------------------------------------------------------------------
+// Risk adjustments
+// -----------------------------------------------------------------------------
+
+decision_table risk_adjustment_rules
+    description "Rate adjustments for risk factors"
+    hit_policy collect_sum
+
+    decide:
+        | dti_ratio    | bureau_utilization | bureau_inquiries | employment.months_employed | risk_adjustment |
+        |==============|====================|==================|============================|=================|
+        | > 0.40       | *                  | *                | *                          | 1.50            |
+        | > 0.35       | *                  | *                | *                          | 0.75            |
+        | *            | > 0.70             | *                | *                          | 1.25            |
+        | *            | > 0.50             | *                | *                          | 0.50            |
+        | *            | *                  | >= 5             | *                          | 1.00            |
+        | *            | *                  | *                | < 12                       | 0.75            |
+        | *            | *                  | *                | < 24                       | 0.25            |
+
+    post_calculate:
+        final_rate = base_rate + risk_adjustment
+end
+
+// -----------------------------------------------------------------------------
+// Existing customer discount
+// -----------------------------------------------------------------------------
+
+decision_table relationship_discount
+    description "Rate discount for existing customers"
+    hit_policy first_match
+
+    decide:
+        | is_existing_customer | relationship.relationship_months | relationship.products_held | rate_discount |
+        |======================|==================================|============================|===============|
+        | true                 | >= 60                            | >= 3                       | 1.50          |
+        | true                 | >= 36                            | >= 2                       | 1.00          |
+        | true                 | >= 12                            | *                          | 0.50          |
+        | *                    | *                                | *                          | 0.00          |
+
+    post_calculate:
+        final_rate = max(base_rate, final_rate - rate_discount)
+end
+
+// -----------------------------------------------------------------------------
+// Amount limits
+// -----------------------------------------------------------------------------
+
+decision_table amount_limits
+    description "Maximum approved amount by risk tier"
+    hit_policy first_match
+
+    given: CreditDecision
+
+    decide:
+        | risk_tier      | loan_request.product | credit_score | max_amount |
+        |================|======================|==============|============|
+        | "prime"        | "personal"           | *            | $100,000   |
+        | "prime"        | "auto"               | *            | $150,000   |
+        | "near_prime"   | "personal"           | *            | $50,000    |
+        | "near_prime"   | "auto"               | *            | $75,000    |
+        | "subprime"     | "personal"           | *            | $25,000    |
+        | "subprime"     | "auto"               | *            | $35,000    |
+        | "deep_subprime"| *                    | >= 550       | $10,000    |
+        | *              | *                    | *            | $5,000     |
+end
+
+// -----------------------------------------------------------------------------
+// Final decision
+// -----------------------------------------------------------------------------
+
+procedural_rule final_decision
+    description "Make final underwriting decision"
+
+    given: CreditDecision
+
+    // Knockout = decline
+    when is_knockout = true
+        then
+            decision = "declined"
+            approved_amount = 0
+
+    // Amount exceeds max = counter offer
+    when loan_request.amount > max_amount
+        then
+            decision = "counter_offer"
+            approved_amount = max_amount
+            counter_offer.offered_amount = max_amount
+            counter_offer.offered_rate = final_rate
+            counter_offer.offered_term = loan_request.term_months
+            counter_offer.reason = "Requested amount exceeds maximum for credit profile"
+
+    // High risk tier = manual review
+    when risk_tier = "deep_subprime" and loan_request.amount > 5000
+        then
+            decision = "manual_review"
+            conditions = ["Senior underwriter review required"]
+
+    // Otherwise approve
+    otherwise
+        decision = "approved"
+        approved_amount = loan_request.amount
+        approved_rate = final_rate
+        approved_term = loan_request.term_months
+end
+
+// -----------------------------------------------------------------------------
+// Calculate monthly payment
+// -----------------------------------------------------------------------------
+
+procedural_rule calculate_payment
+    description "Calculate monthly payment for approved loans"
+
+    given: CreditDecision
+
+    when decision in ["approved", "counter_offer"]
+        calculate:
+            monthly_rate = approved_rate / 100 / 12
+            monthly_payment = approved_amount *
+                (monthly_rate * power(1 + monthly_rate, approved_term)) /
+                (power(1 + monthly_rate, approved_term) - 1)
+end

@@ -1,0 +1,131 @@
+// =============================================================================
+// L234-04: Order Business Rules (L4)
+// =============================================================================
+// Business rules for order processing
+
+import ./order_input.schema
+import ./order_output.schema
+
+// -----------------------------------------------------------------------------
+// Shipping cost calculation
+// -----------------------------------------------------------------------------
+
+decision_table shipping_cost_rules
+    description "Calculate shipping based on total and destination"
+    hit_policy first_match
+
+    given: ProcessedOrder
+
+    decide:
+        | subtotal  | shipping_address.country | fulfillment_priority | shipping_cost |
+        |===========|==========================|======================|===============|
+        | >= $100   | "US"                     | "economy"            | $0.00         |
+        | >= $100   | "US"                     | "standard"           | $5.99         |
+        | >= $100   | "US"                     | "express"            | $12.99        |
+        | < $100    | "US"                     | "economy"            | $4.99         |
+        | < $100    | "US"                     | "standard"           | $9.99         |
+        | < $100    | "US"                     | "express"            | $19.99        |
+        | *         | "CA"                     | *                    | $14.99        |
+        | *         | "MX"                     | *                    | $14.99        |
+        | *         | *                        | *                    | $29.99        |
+end
+
+// -----------------------------------------------------------------------------
+// Fulfillment priority determination
+// -----------------------------------------------------------------------------
+
+decision_table fulfillment_priority_rules
+    description "Determine fulfillment priority"
+    hit_policy first_match
+
+    given: OrderInput
+
+    decide:
+        | payment_method   | subtotal  | customer_tier | fulfillment_priority |
+        |==================|===========|===============|======================|
+        | "apple_pay"      | >= $200   | "premium"     | "express"            |
+        | "credit_card"    | >= $200   | "premium"     | "express"            |
+        | *                | >= $500   | *             | "express"            |
+        | *                | >= $100   | *             | "standard"           |
+        | *                | *         | *             | "economy"            |
+
+    // Customer tier comes from lookup
+    lookups:
+        customer_info = lookup customer_id from "customer-service"
+            cache ttl 5 minutes
+            on_miss use default { tier: "standard" }
+
+    mappings:
+        customer_tier = customer_info.tier
+end
+
+// -----------------------------------------------------------------------------
+// Warehouse assignment
+// -----------------------------------------------------------------------------
+
+decision_table warehouse_assignment
+    description "Assign fulfillment warehouse"
+    hit_policy first_match
+
+    given: ProcessedOrder
+
+    decide:
+        | shipping_address.state | any(line_items.inventory_status = "backordered") | warehouse_id |
+        |========================|==================================================|==============|
+        | in ["CA", "WA", "OR"]  | false                                            | "WH-WEST"    |
+        | in ["NY", "NJ", "PA"]  | false                                            | "WH-EAST"    |
+        | in ["TX", "FL", "GA"]  | false                                            | "WH-SOUTH"   |
+        | *                      | true                                             | "WH-CENTRAL" |
+        | *                      | *                                                | "WH-CENTRAL" |
+end
+
+// -----------------------------------------------------------------------------
+// Order validation and status
+// -----------------------------------------------------------------------------
+
+procedural_rule order_validation
+    description "Validate order and set status"
+
+    given: ProcessedOrder
+
+    // Check for issues
+    when any(line_items.inventory_status = "backordered") and fulfillment_priority = "express"
+        then
+            order_status = "hold"
+            hold_reasons = ["Backordered items cannot be express shipped"]
+
+    when total_amount > 10000 and payment_method = "bank_transfer"
+        then
+            order_status = "pending_payment"
+            hold_reasons = ["Large order awaiting bank transfer confirmation"]
+
+    when all(line_items.inventory_status in ["in_stock", "low_stock"])
+        then
+            order_status = "confirmed"
+            hold_reasons = []
+
+    otherwise
+        order_status = "confirmed"
+        hold_reasons = []
+end
+
+// -----------------------------------------------------------------------------
+// Carrier selection
+// -----------------------------------------------------------------------------
+
+decision_table carrier_selection
+    description "Select shipping carrier"
+    hit_policy first_match
+
+    given: ProcessedOrder
+
+    decide:
+        | fulfillment_priority | shipping_address.country | total_amount | shipping_carrier |
+        |======================|==========================|==============|==================|
+        | "express"            | "US"                     | *            | "FedEx"          |
+        | "express"            | *                        | *            | "DHL"            |
+        | "standard"           | "US"                     | >= $50       | "UPS"            |
+        | "standard"           | "US"                     | < $50        | "USPS"           |
+        | "economy"            | "US"                     | *            | "USPS"           |
+        | *                    | *                        | *            | "DHL"            |
+end

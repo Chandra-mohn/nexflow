@@ -1,0 +1,68 @@
+// =============================================================================
+// L124-02: Claim Processing Rules (L4)
+// =============================================================================
+// Business rules for insurance claim processing
+
+import ./insurance_claim.schema
+import ./claim_decision.schema
+
+// -----------------------------------------------------------------------------
+// Primary routing decision table
+// -----------------------------------------------------------------------------
+
+decision_table claim_routing
+    description "Route claims based on amount, history, and documentation"
+    hit_policy first_match
+
+    given: InsuranceClaim
+
+    decide:
+        | claim_amount | policy_years | prior_claims_count | documentation_complete | decision        | tier           |
+        |==============|==============|====================|========================|=================|================|
+        | <= $1,000    | >= 3         | <= 1               | true                   | "auto_approve"  | "fast_track"   |
+        | <= $5,000    | >= 5         | 0                  | true                   | "auto_approve"  | "fast_track"   |
+        | <= $10,000   | >= 5         | <= 1               | true                   | "expedited"     | "standard"     |
+        | > $100,000   | *            | *                  | *                      | "manual_review" | "complex"      |
+        | *            | *            | >= 5               | *                      | "manual_review" | "fraud_review" |
+        | *            | *            | *                  | false                  | "manual_review" | "standard"     |
+        | *            | *            | *                  | *                      | "manual_review" | "standard"     |
+
+    return: ClaimDecision
+end
+
+// -----------------------------------------------------------------------------
+// SLA assignment rules
+// -----------------------------------------------------------------------------
+
+decision_table sla_assignment
+    description "Assign SLA based on processing tier"
+    hit_policy first_match
+
+    decide:
+        | tier           | sla_hours |
+        |================|===========|
+        | "fast_track"   | 4         |
+        | "standard"     | 24        |
+        | "complex"      | 72        |
+        | "fraud_review" | 168       |
+        | *              | 48        |
+end
+
+// -----------------------------------------------------------------------------
+// Adjuster assignment rules
+// -----------------------------------------------------------------------------
+
+procedural_rule adjuster_assignment
+    description "Assign adjuster level based on claim characteristics"
+
+    given: InsuranceClaim
+
+    when claim_amount > 50000 and claim_type = "liability"
+        then assigned_adjuster_level = "supervisor"
+    when claim_amount > 25000
+        then assigned_adjuster_level = "specialist"
+    when prior_claims_count >= 3
+        then assigned_adjuster_level = "senior"
+    otherwise
+        assigned_adjuster_level = "junior"
+end

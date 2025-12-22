@@ -1,0 +1,30 @@
+// =============================================================================
+// L12-04: Output Summary Schema (L2)
+// =============================================================================
+
+record OrderSummary
+    description "Flattened order summary for analytics"
+
+    // Identifiers
+    order_id: string
+    customer_id: string
+    customer_name: string
+    customer_email: string
+
+    // Location (flattened from nested)
+    ship_city: string
+    ship_country: string
+
+    // Product info
+    product_code: string
+    quantity: integer
+
+    // Calculated amounts
+    subtotal: decimal
+    discount_amount: decimal
+    tax_amount: decimal
+    total_amount: decimal
+
+    // Date only (not full timestamp)
+    order_date: date
+end

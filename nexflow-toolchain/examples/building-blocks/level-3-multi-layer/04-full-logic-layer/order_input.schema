@@ -1,0 +1,78 @@
+// =============================================================================
+// L234-04: Order Input Schema (L2)
+// =============================================================================
+
+record OrderInput
+    description "Raw order from e-commerce system"
+
+    order_id: string
+        required
+        pattern "^ORD-[0-9]{10}$"
+
+    customer_id: string
+        required
+
+    order_date: timestamp
+        required
+
+    items: list of OrderItem
+        required
+        min_count 1
+
+    shipping_address: Address
+        required
+
+    billing_address: Address
+        optional
+
+    coupon_code: string
+        optional
+
+    payment_method: string
+        required
+        values "credit_card", "debit_card", "paypal", "apple_pay", "bank_transfer"
+
+    customer_notes: string
+        optional
+end
+
+record OrderItem
+    description "Individual line item"
+
+    sku: string
+        required
+
+    product_name: string
+        required
+
+    quantity: integer
+        required
+        range 1 to 1000
+
+    unit_price: decimal
+        required
+        range 0.01 to 100000
+
+    discount_percent: decimal
+        optional
+        range 0 to 100
+end
+
+record Address
+    description "Shipping or billing address"
+
+    street: string
+        required
+
+    city: string
+        required
+
+    state: string
+        optional
+
+    postal_code: string
+        required
+
+    country: string
+        required
+end

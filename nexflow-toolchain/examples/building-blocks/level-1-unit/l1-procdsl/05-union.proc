@@ -1,0 +1,73 @@
+// =============================================================================
+// L1-05: Union (Merge Multiple Streams)
+// =============================================================================
+// Use Case: Combine multiple streams of same type into one
+// Pattern:  Fan-in / stream merge without key matching
+// When:     Multi-region consolidation, source aggregation, log merging
+// =============================================================================
+
+process multi_region_merger
+    description "Merge orders from multiple regional streams"
+
+    // Read from multiple source streams
+    receive us_orders from orders_us
+    receive eu_orders from orders_eu
+    receive apac_orders from orders_apac
+
+    // Union all streams into one
+    union us_orders, eu_orders, apac_orders
+
+    // Output merged stream
+    send to global_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Two-stream union
+// -----------------------------------------------------------------------------
+
+process online_offline_merger
+    description "Combine online and offline order streams"
+
+    receive online_orders from online_channel
+    receive offline_orders from pos_channel
+
+    union online_orders, offline_orders
+
+    send to all_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Union with downstream processing
+// -----------------------------------------------------------------------------
+
+process event_consolidator
+    description "Merge events and filter for processing"
+
+    receive app_events from mobile_app_events
+    receive web_events from web_app_events
+    receive api_events from api_events
+
+    // First merge all streams
+    union app_events, web_events, api_events
+
+    // Then filter the merged stream
+    where event_type = "purchase"
+
+    send to purchase_events
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink .union() operator
+// - All streams must have compatible schema
+// - No key matching required (unlike join)
+// - Preserves event order per source
+//
+// Key Differences from Join:
+// - Join: Matches records by key
+// - Union: Simply merges all records
+//
+// Next Steps:
+// → L1-06: Aggregate the merged stream
+// → L12-01: Add schema validation before union
+// =============================================================================

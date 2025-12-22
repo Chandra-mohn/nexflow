@@ -61,7 +61,21 @@ class FunctionGeneratorMixin(FunctionProcessMixin):
         if transform.pure:
             lines.append("    // Pure function - no side effects")
 
+        # Add idempotent annotation if applicable
+        if transform.idempotent:
+            lines.append("    // Idempotent function - repeated calls produce same result")
+
         lines.append("")
+
+        # Add params declarations if defined
+        if transform.params:
+            lines.append(self.generate_params_declarations(transform.params))
+            lines.append(self.generate_params_accessor_object(transform.params))
+
+        # Add lookups declarations if defined
+        if transform.lookups:
+            lines.append(self.generate_lookups_declarations(transform.lookups))
+            lines.append(self.generate_lookups_object_field(transform.lookups))
 
         # Add cache if defined
         if transform.cache:
@@ -116,6 +130,19 @@ class FunctionGeneratorMixin(FunctionProcessMixin):
             lines.append(self.generate_exception_classes())
             lines.append("")
 
+        # Add params accessor class and methods if defined
+        if transform.params:
+            lines.append(self.generate_params_accessor_class(transform.params))
+            lines.append(self.generate_params_setters(transform.params))
+            lines.append(self.generate_params_validation(transform.params))
+            lines.append(self.generate_params_from_config(transform.params))
+
+        # Add lookups accessor class and methods if defined
+        if transform.lookups:
+            lines.append(self.generate_lookups_accessor_class(transform.lookups))
+            lines.append(self.generate_lookup_accessor_methods(transform.lookups))
+            lines.append(self.generate_async_lookup_methods(transform.lookups))
+
         lines.append("}")
 
         return '\n'.join(lines)
@@ -147,6 +174,12 @@ class FunctionGeneratorMixin(FunctionProcessMixin):
 
         if transform.on_error:
             imports.update(self.get_error_imports())
+
+        if transform.lookups:
+            imports.update(self.get_lookups_imports())
+
+        if transform.params:
+            imports.update(self.get_params_imports())
 
         return imports
 

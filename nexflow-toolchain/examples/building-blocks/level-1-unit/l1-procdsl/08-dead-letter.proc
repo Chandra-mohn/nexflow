@@ -1,0 +1,104 @@
+// =============================================================================
+// L1-08: Dead Letter Queue (Error Handling)
+// =============================================================================
+// Use Case: Route failed/invalid records to error queue for investigation
+// Pattern:  Error handling with dead letter routing
+// When:     Data quality issues, processing failures, audit requirements
+// =============================================================================
+
+process order_processor_with_dlq
+    description "Process orders with dead letter queue for failures"
+
+    receive orders from orders_input
+
+    // Main processing
+    validate orders
+    transform using order_normalizer
+
+    // Error handling: route failures to dead letter queue
+    on_error
+        send to orders_dead_letter
+        with error_details
+    end
+
+    // Success path
+    send to processed_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Separate DLQ for validation vs processing errors
+// -----------------------------------------------------------------------------
+
+process multi_error_handler
+    description "Route different error types to different queues"
+
+    receive orders from orders_input
+
+    validate orders
+        on_error
+            send to validation_errors
+            with error_code = "VALIDATION_FAILED"
+        end
+
+    transform using order_enricher
+        on_error
+            send to processing_errors
+            with error_code = "TRANSFORM_FAILED"
+        end
+
+    send to enriched_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Retry with eventual DLQ
+// -----------------------------------------------------------------------------
+
+process order_with_retry
+    description "Retry failed operations before sending to DLQ"
+
+    receive orders from orders_input
+
+    enrich using customer_lookup
+        retry 3 times
+        with backoff 1 second
+        on_error
+            send to enrichment_dlq
+        end
+
+    send to enriched_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Log and continue (soft failure)
+// -----------------------------------------------------------------------------
+
+process tolerant_processor
+    description "Log errors but continue processing"
+
+    receive events from event_stream
+
+    transform using event_normalizer
+        on_error
+            log warning "Transform failed for event: {event.id}"
+            continue  // Skip failed record, don't stop processing
+        end
+
+    send to normalized_events
+end
+
+// =============================================================================
+// What This Generates:
+// - ProcessFunction with try-catch handling
+// - OutputTag for error side output
+// - Error context capture (original record + error details)
+//
+// Error Handling Patterns:
+// - `send to <dlq>`: Route to dead letter queue
+// - `retry N times`: Attempt operation multiple times
+// - `continue`: Skip failed record
+// - `fail`: Stop processing (default for critical errors)
+//
+// Next Steps:
+// → L12-01: Add schema validation to catch errors early
+// → Level 4: Complete error handling in full applications
+// =============================================================================

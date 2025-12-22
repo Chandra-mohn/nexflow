@@ -1,0 +1,89 @@
+// =============================================================================
+// L12345-03: Credit Enrichment (L3)
+// =============================================================================
+// Enrich application with credit bureau and model data
+
+import ./application.schema
+import ./decision.schema
+
+transform enrich_credit_data
+    description "Enrich application with credit data"
+    from LoanApplication
+    to CreditDecision
+
+    // Direct mappings
+    mappings:
+        application_id = application_id
+        decision_timestamp = now()
+
+    // Pull credit bureau data
+    lookups:
+        bureau = lookup applicant.ssn from "credit-bureau-service"
+            timeout 10 seconds
+            on_miss fail with "Credit bureau unavailable"
+
+    // Get ML model score
+    lookups:
+        model = lookup application_id from "credit-model-service"
+            timeout 5 seconds
+            on_miss use default { risk_score: 500 }
+
+    // Check existing relationship
+    lookups:
+        relationship = lookup applicant.ssn from "customer-service"
+            cache ttl 5 minutes
+            on_miss use default {
+                is_existing: false,
+                relationship_months: 0,
+                products_held: 0,
+                delinquency_history: false
+            }
+
+    // Credit score from bureau
+    mappings:
+        credit_score = bureau.fico_score
+
+        credit_grade = when bureau.fico_score >= 750 then "A"
+                       when bureau.fico_score >= 700 then "B"
+                       when bureau.fico_score >= 650 then "C"
+                       when bureau.fico_score >= 600 then "D"
+                       when bureau.fico_score >= 550 then "E"
+                       otherwise "F"
+
+    // Calculate DTI
+    mappings:
+        monthly_income = employment.annual_income / 12
+        total_monthly_debt = financial.monthly_housing + financial.monthly_debt
+        proposed_payment = estimate_payment(loan_request.amount, 0.10, loan_request.term_months)
+        dti_ratio = (total_monthly_debt + proposed_payment) / monthly_income
+
+    // Risk score from model
+    mappings:
+        risk_score = model.risk_score
+
+        risk_tier = when model.risk_score <= 300 then "prime"
+                    when model.risk_score <= 500 then "near_prime"
+                    when model.risk_score <= 700 then "subprime"
+                    otherwise "deep_subprime"
+
+    // Derived flags for rules
+    mappings:
+        is_existing_customer = relationship.is_existing
+        has_delinquency = relationship.delinquency_history
+        bureau_delinquencies = bureau.delinquencies_90d
+        bureau_inquiries = bureau.inquiries_6mo
+        bureau_utilization = bureau.credit_utilization
+end
+
+// Helper for payment estimation
+transform estimate_payment
+    params:
+        principal: decimal
+        rate: decimal
+        term: integer
+
+    mappings:
+        monthly_rate = rate / 12
+        result = principal * (monthly_rate * power(1 + monthly_rate, term))
+                 / (power(1 + monthly_rate, term) - 1)
+end

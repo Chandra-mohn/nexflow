@@ -1,0 +1,58 @@
+// =============================================================================
+// L12-06: Typed Decision Table (L2 + L4)
+// =============================================================================
+// Decision table with schema-typed input and output
+// =============================================================================
+
+import ./application.schema
+import ./decision_result.schema
+
+decision_table loan_decision_table
+    description "Loan approval decision with typed schemas"
+    hit_policy first_match
+
+    // Input is typed to schema
+    given: LoanApplication
+
+    decide:
+        | credit_score | annual_income | requested_amount | employment_years | decision      | rate    |
+        |==============|===============|==================|==================|===============|=========|
+        | >= 750       | >= $100,000   | <= $500,000      | >= 3             | "approved"    | 5.5%    |
+        | >= 750       | >= $75,000    | <= $250,000      | >= 2             | "approved"    | 6.0%    |
+        | >= 700       | >= $75,000    | <= $150,000      | >= 3             | "approved"    | 7.0%    |
+        | >= 700       | >= $50,000    | <= $100,000      | >= 2             | "approved"    | 8.0%    |
+        | >= 650       | >= $50,000    | <= $50,000       | >= 1             | "conditional" | 9.5%    |
+        | >= 650       | *             | <= $25,000       | *                | "conditional" | 10.5%   |
+        | *            | *             | *                | *                | "declined"    | 0%      |
+
+    // Output is typed to schema
+    return: LoanDecision
+
+    // Map decision table results to output schema
+    post_calculate:
+        application_id = application_id
+        decision = decision
+        interest_rate = rate
+
+        // Calculate approved amount (may be less than requested)
+        approved_amount = when decision = "declined" then 0
+                          when decision = "conditional" then min(requested_amount, 25000)
+                          otherwise requested_amount
+
+        // Standard 60-month term
+        term_months = 60
+
+        // Calculate monthly payment
+        let monthly_rate = rate / 12
+        monthly_payment = approved_amount * (monthly_rate * power(1 + monthly_rate, term_months))
+                          / (power(1 + monthly_rate, term_months) - 1)
+
+        // Add conditions for conditional approval
+        conditions = when decision = "conditional" then
+                        ["Requires co-signer", "Additional documentation needed"]
+                     otherwise []
+
+        decline_reasons = when decision = "declined" then
+                            ["Does not meet minimum credit requirements"]
+                          otherwise []
+end

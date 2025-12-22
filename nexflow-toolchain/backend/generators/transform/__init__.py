@@ -15,6 +15,8 @@ from .compose_generator import ComposeGeneratorMixin
 from .onchange_generator import OnChangeGeneratorMixin
 from .record_generator import TransformRecordGeneratorMixin
 from .metadata_generator import MetadataGeneratorMixin
+from .lookups_generator import LookupsGeneratorMixin
+from .params_generator import ParamsGeneratorMixin
 
 __all__ = [
     'TransformGenerator',
@@ -28,4 +30,6 @@ __all__ = [
     'OnChangeGeneratorMixin',
     'TransformRecordGeneratorMixin',
     'MetadataGeneratorMixin',
+    'LookupsGeneratorMixin',
+    'ParamsGeneratorMixin',
 ]

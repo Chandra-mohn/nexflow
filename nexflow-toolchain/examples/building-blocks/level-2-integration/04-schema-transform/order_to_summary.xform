@@ -1,0 +1,40 @@
+// =============================================================================
+// L12-04: Order to Summary Transform (L3)
+// =============================================================================
+// Transform nested InputOrder to flat OrderSummary
+// =============================================================================
+
+import ./input_order.schema
+import ./output_summary.schema
+
+transform order_to_summary
+    description "Transform full order to analytics summary"
+
+    input: InputOrder
+    output: OrderSummary
+
+    mappings:
+        // Direct mappings
+        order_id -> order_id
+        product_code -> product_code
+        quantity -> quantity
+
+        // Nested field access - customer
+        customer_id -> customer.customer_id
+        customer_name -> customer.first_name + " " + customer.last_name
+        customer_email -> customer.email
+
+        // Deep nested - address
+        ship_city -> customer.shipping_address.city
+        ship_country -> customer.shipping_address.country
+
+        // Calculations
+        subtotal -> quantity * unit_price
+        discount_amount -> (quantity * unit_price) * (discount_percent / 100)
+        tax_amount -> ((quantity * unit_price) - discount_amount) * tax_rate
+        total_amount -> subtotal - discount_amount + tax_amount
+
+        // Type conversion (timestamp to date)
+        order_date -> order_date.toLocalDate()
+    end
+end

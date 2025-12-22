@@ -1,0 +1,62 @@
+// =============================================================================
+// L12345-02: Transaction Schema (L2)
+// =============================================================================
+
+record Transaction
+    description "Payment transaction for fraud analysis"
+
+    transaction_id: string
+        required
+        pattern "^TXN-[0-9]{16}$"
+
+    card_id: string
+        required
+
+    merchant_id: string
+        required
+
+    amount: decimal
+        required
+        range 0.01 to 1000000
+
+    currency: string
+        required
+        pattern "^[A-Z]{3}$"
+
+    transaction_type: string
+        required
+        values "purchase", "withdrawal", "transfer", "refund"
+
+    channel: string
+        required
+        values "pos", "online", "atm", "mobile"
+
+    timestamp: timestamp
+        required
+
+    location: GeoLocation
+        optional
+
+    device_fingerprint: string
+        optional
+
+    ip_address: string
+        optional
+
+    merchant_category: string
+        required
+end
+
+record GeoLocation
+    latitude: decimal
+        range -90 to 90
+
+    longitude: decimal
+        range -180 to 180
+
+    country: string
+        pattern "^[A-Z]{2}$"
+
+    city: string
+        optional
+end

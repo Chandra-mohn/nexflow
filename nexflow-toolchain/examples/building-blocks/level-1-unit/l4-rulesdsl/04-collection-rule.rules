@@ -1,0 +1,220 @@
+// =============================================================================
+// L4-04: Collection Rules (List Predicates)
+// =============================================================================
+// Use Case: Make decisions based on collections/arrays
+// Pattern:  any/all/none/sum/count predicates on lists
+// When:     Portfolio analysis, batch validation, aggregate conditions
+// =============================================================================
+
+decision_table portfolio_risk_assessment
+    description "Assess portfolio risk based on holdings"
+    hit_policy first_match
+
+    given:
+        holdings: holding[]
+        total_value: money
+        account_type: text
+    end
+
+    decide:
+        | any(holdings, value > $100000) | sum(holdings, value) | risk_level   |
+        |================================|======================|==============|
+        | true                           | >= $1,000,000        | "very_high"  |
+        | true                           | >= $500,000          | "high"       |
+        | false                          | >= $500,000          | "moderate"   |
+        | false                          | >= $100,000          | "low"        |
+        | *                              | *                    | "minimal"    |
+
+    return:
+        risk_level: text
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Order validation with line items
+// -----------------------------------------------------------------------------
+
+decision_table order_approval
+    description "Approve order based on line items"
+    hit_policy first_match
+
+    given:
+        items: line_item[]
+        customer_tier: text
+    end
+
+    decide:
+        | any(items, quantity > 100) | all(items, in_stock = true) | sum(items, price * quantity) | decision    |
+        |============================|=============================|==============================|=============|
+        | true                       | false                       | *                            | "reject"    |
+        | true                       | true                        | >= $50,000                   | "review"    |
+        | false                      | false                       | *                            | "backorder" |
+        | false                      | true                        | *                            | "approve"   |
+        | *                          | *                           | *                            | "review"    |
+
+    return:
+        decision: text
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Fraud detection with transaction history
+// -----------------------------------------------------------------------------
+
+decision_table transaction_fraud_check
+    description "Check for fraud patterns in transaction history"
+    hit_policy first_match
+
+    given:
+        current_amount: money
+        recent_transactions: transaction[]
+        customer_age_days: number
+    end
+
+    decide:
+        | count(recent_transactions, amount > $1000) | sum(recent_transactions, amount) | current_amount | risk_action    |
+        |============================================|==================================|================|================|
+        | > 5                                        | >= $20,000                       | >= $5,000      | "block"        |
+        | > 3                                        | >= $10,000                       | >= $2,000      | "review"       |
+        | > 0                                        | *                                | >= $10,000     | "verify"       |
+        | *                                          | >= $50,000                       | *              | "monitor"      |
+        | *                                          | *                                | *              | "approve"      |
+
+    return:
+        risk_action: text
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Procedural rule with collection operations
+// -----------------------------------------------------------------------------
+
+rule order_fulfillment_rule:
+    description "Process order fulfillment with item-level logic"
+
+    // Check if all items are available
+    if all(items, available_quantity >= ordered_quantity) then
+        set fulfillment_status = "complete"
+    elseif any(items, available_quantity > 0) then
+        set fulfillment_status = "partial"
+    else
+        set fulfillment_status = "backordered"
+    endif
+
+    // Calculate totals
+    let total_items = count(items)
+    let available_items = count(items, available_quantity >= ordered_quantity)
+    let total_value = sum(items, unit_price * ordered_quantity)
+
+    // Check for high-value items requiring approval
+    if any(items, unit_price > 1000) then
+        set requires_approval = true
+    else
+        set requires_approval = false
+    endif
+
+    // Find the most expensive item
+    let max_item_value = max(items, unit_price * ordered_quantity)
+
+    // Route based on status
+    if fulfillment_status = "complete" then
+        if requires_approval then
+            route_for_approval()
+        else
+            start_fulfillment()
+        endif
+    elseif fulfillment_status = "partial" then
+        notify_customer_partial()
+    else
+        notify_customer_backorder()
+    endif
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Batch validation rule
+// -----------------------------------------------------------------------------
+
+rule batch_validation_rule:
+    description "Validate a batch of records"
+
+    // Count validation results
+    let valid_count = count(records, is_valid = true)
+    let invalid_count = count(records, is_valid = false)
+    let total_count = count(records)
+
+    // Check batch quality
+    let valid_percentage = (valid_count / total_count) * 100
+
+    if valid_percentage >= 95 then
+        set batch_status = "accepted"
+    elseif valid_percentage >= 80 then
+        set batch_status = "accepted_with_warnings"
+        // Get list of invalid records
+        let failed_records = filter(records, is_valid = false)
+        log_validation_failures(failed_records)
+    else
+        set batch_status = "rejected"
+        // All invalid records need review
+        let failed_records = filter(records, is_valid = false)
+        route_for_manual_review(failed_records)
+    endif
+
+    // Check for any critical errors
+    if any(records, error_severity = "critical") then
+        set batch_status = "rejected"
+        let critical_records = filter(records, error_severity = "critical")
+        escalate_critical_errors(critical_records)
+    endif
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Insurance claim analysis
+// -----------------------------------------------------------------------------
+
+decision_table claim_risk_analysis
+    description "Analyze insurance claim based on history"
+    hit_policy first_match
+
+    given:
+        claim_amount: money
+        prior_claims: claim[]
+        policy_age_months: number
+    end
+
+    decide:
+        | count(prior_claims) | sum(prior_claims, amount) | claim_amount | policy_age_months | risk_tier  |
+        |=====================|===========================|==============|===================|============|
+        | > 3                 | >= $50,000                | *            | < 12              | "critical" |
+        | > 3                 | *                         | >= $10,000   | *                 | "high"     |
+        | > 1                 | >= $20,000                | >= $5,000    | *                 | "high"     |
+        | > 0                 | *                         | >= $25,000   | < 24              | "elevated" |
+        | 0                   | *                         | >= $50,000   | *                 | "elevated" |
+        | *                   | *                         | *            | *                 | "standard" |
+
+    return:
+        risk_tier: text
+end
+
+// =============================================================================
+// What This Generates:
+// - Java Stream operations for collections
+// - Predicate evaluation on list elements
+// - Aggregate calculations (sum, count, max, min, avg)
+// - Filter operations returning sub-lists
+//
+// Collection Functions:
+// - any(list, predicate): True if any element matches
+// - all(list, predicate): True if all elements match
+// - none(list, predicate): True if no element matches
+// - count(list): Count of elements
+// - count(list, predicate): Count matching predicate
+// - sum(list, field): Sum of field values
+// - sum(list, expression): Sum of calculated values
+// - max(list, field): Maximum value
+// - min(list, field): Minimum value
+// - avg(list, field): Average value
+// - filter(list, predicate): Filtered sub-list
+// - find(list, predicate): First matching element
+// - distinct(list, field): Unique values
+//
+// Next Steps:
+// → Level 2: Integrate rules with process flows
+// → Level 3: Combine schemas, transforms, and rules
+// =============================================================================

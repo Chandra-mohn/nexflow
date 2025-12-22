@@ -1,0 +1,19 @@
+// =============================================================================
+// L12-06: Decision Result Schema (L2)
+// =============================================================================
+
+record LoanDecision
+    description "Loan decision output from rules engine"
+
+    application_id: string
+    decision: string
+        values "approved", "conditional", "declined"
+
+    approved_amount: decimal
+    interest_rate: decimal
+    term_months: integer
+    monthly_payment: decimal
+
+    conditions: list of string optional
+    decline_reasons: list of string optional
+end

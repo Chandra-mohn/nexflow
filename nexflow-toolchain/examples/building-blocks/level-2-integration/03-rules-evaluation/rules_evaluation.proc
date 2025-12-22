@@ -1,0 +1,47 @@
+// =============================================================================
+// L12-03: Rules Evaluation (L1 + L4)
+// =============================================================================
+// Use Case: Evaluate credit applications using decision table
+// Layers:   L1 ProcDSL (flow) + L4 RulesDSL (rules)
+// Pattern:  Apply business rules, route by decision
+// =============================================================================
+
+import ./credit_rules.rules
+
+process credit_application_processor
+    description "Process credit applications with decision rules"
+
+    receive applications from credit_applications
+
+    // Evaluate using decision table
+    evaluate using credit_decision_table
+
+    // Route based on decision result
+    route
+        when decision = "approved" then
+            send to approved_applications
+        when decision = "review" then
+            send to manual_review_queue
+        otherwise
+            send to declined_applications
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Evaluate and enrich with decision
+// -----------------------------------------------------------------------------
+
+process credit_evaluation_with_enrichment
+    description "Evaluate and attach decision details to record"
+
+    receive applications from credit_applications
+
+    // Evaluate returns decision, max_limit, rate
+    evaluate using credit_decision_table
+    as credit_decision
+
+    // Original record now has credit_decision attached
+    // Access: credit_decision.max_limit, credit_decision.rate
+
+    send to processed_applications
+end

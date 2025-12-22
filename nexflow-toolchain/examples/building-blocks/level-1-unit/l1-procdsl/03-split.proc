@@ -1,0 +1,74 @@
+// =============================================================================
+// L1-03: Split (Route to Multiple Outputs)
+// =============================================================================
+// Use Case: Route events to different destinations based on conditions
+// Pattern:  Content-based routing / fan-out
+// When:     Priority queues, type-based processing, regional routing
+// =============================================================================
+
+process order_router
+    description "Route orders to different queues based on priority"
+
+    receive orders from orders_input
+
+    // Route based on priority field
+    route
+        when orders.priority = "high" then
+            send to high_priority_queue
+        when orders.priority = "medium" then
+            send to medium_priority_queue
+        otherwise
+            send to standard_queue
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Route by order type
+// -----------------------------------------------------------------------------
+
+process order_type_splitter
+    description "Split orders by product category"
+
+    receive orders from orders_input
+
+    route
+        when orders.category = "electronics" then
+            send to electronics_fulfillment
+        when orders.category = "clothing" then
+            send to clothing_fulfillment
+        when orders.category = "food" then
+            send to food_fulfillment
+        otherwise
+            send to general_fulfillment
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Numeric threshold routing
+// -----------------------------------------------------------------------------
+
+process value_tier_router
+    description "Route by order value tiers"
+
+    receive orders from orders_input
+
+    route
+        when orders.total_amount >= 10000 then
+            send to enterprise_orders
+        when orders.total_amount >= 1000 then
+            send to business_orders
+        otherwise
+            send to consumer_orders
+    end
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink ProcessFunction with OutputTag side outputs
+// - Each route becomes a separate DataStream
+// - Non-matching records go to "otherwise" branch
+//
+// Next Steps:
+// → L1-04: Join split streams back together
+// → L12-03: Add business rules to determine routing (L1+L4)
+// =============================================================================

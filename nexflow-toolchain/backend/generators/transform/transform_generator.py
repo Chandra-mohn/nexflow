@@ -35,6 +35,8 @@ from backend.generators.transform.compose_generator import ComposeGeneratorMixin
 from backend.generators.transform.onchange_generator import OnChangeGeneratorMixin
 from backend.generators.transform.record_generator import TransformRecordGeneratorMixin
 from backend.generators.transform.metadata_generator import MetadataGeneratorMixin
+from backend.generators.transform.lookups_generator import LookupsGeneratorMixin
+from backend.generators.transform.params_generator import ParamsGeneratorMixin
 
 
 class TransformGenerator(
@@ -48,6 +50,8 @@ class TransformGenerator(
     OnChangeGeneratorMixin,
     TransformRecordGeneratorMixin,
     MetadataGeneratorMixin,
+    LookupsGeneratorMixin,
+    ParamsGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -237,5 +241,18 @@ class TransformGenerator(
             # Add on_change imports if on_change block is present
             if transform.on_change:
                 imports.update(self.get_onchange_imports())
+            # Add lookups imports if lookups block is present
+            if transform.lookups:
+                imports.update(self.get_lookups_imports())
+            # Add params imports if params block is present
+            if transform.params:
+                imports.update(self.get_params_imports())
+
+        # Also check for lookups/params on simple transforms (TransformDef)
+        if isinstance(transform, ast.TransformDef):
+            if transform.lookups:
+                imports.update(self.get_lookups_imports())
+            if transform.params:
+                imports.update(self.get_params_imports())
 
         return imports

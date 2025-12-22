@@ -1,0 +1,176 @@
+// =============================================================================
+// L12345-04: Event Aggregator Pipeline (All Layers)
+// =============================================================================
+// Real-time event aggregation using all five DSL layers
+
+import ./event.schema
+import ./metrics.schema
+import ./event_normalizer.xform
+import ./alert_rules.rules
+
+process event_aggregator_pipeline
+    description "Event aggregation with alerting using all layers"
+
+    // L5: Config-driven topics
+    receive events from ${topics.events.name}
+        as RawEvent
+
+    // L2: Schema validation
+    validate input
+        on_invalid send to "invalid-events"
+
+    // L3: Normalize events
+    transform using normalize_event
+
+    // Windowed aggregation - Global metrics
+    window tumbling ${windows.minute_window}
+        allowed_lateness ${windows.allowed_lateness}
+        aggregate:
+            total_events = count()
+            unique_users = count_distinct(user_id)
+            unique_sessions = count_distinct(session_id)
+            page_views = count() where event_type = "page_view"
+            clicks = count() where event_type = "click"
+            purchases = count() where event_type = "purchase"
+            signups = count() where event_type = "signup"
+            errors = count() where event_type = "error"
+            total_revenue = sum(event_value) where event_type = "purchase"
+            purchase_count = count() where event_type = "purchase"
+        as AggregatedMetrics
+
+    // Calculate derived metrics
+    calculate:
+        error_rate = (errors * 1000.0) / total_events
+        avg_purchase_value = when purchase_count > 0
+                               then total_revenue / purchase_count
+                             otherwise 0
+        dimension_type = "global"
+        dimension_value = "all"
+        computed_at = now()
+
+    // L4: Apply alerting rules
+    evaluate using error_rate_alerts
+    evaluate using traffic_spike_alerts
+    evaluate using traffic_drop_alerts
+    evaluate using revenue_alerts
+    evaluate using consolidate_alerts
+
+    // Error handling
+    on_error
+        send to "aggregation-errors"
+    end
+
+    // Output metrics
+    send to ${topics.metrics.name}
+
+    // Route alerts
+    when alert_triggered = true
+        evaluate using generate_alert
+        send to ${topics.alerts.name}
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Multi-dimension aggregator
+// -----------------------------------------------------------------------------
+
+process multi_dimension_aggregator
+    description "Aggregate by multiple dimensions"
+
+    receive events from ${topics.events.name}
+        as RawEvent
+
+    validate input
+        on_invalid send to "invalid-events"
+
+    transform using normalize_event
+
+    // Split into dimension-specific streams
+    parallel
+        // By source
+        branch "by_source"
+            window tumbling ${windows.minute_window}
+                keyed_by source
+                aggregate:
+                    total_events = count()
+                    unique_users = count_distinct(user_id)
+                    errors = count() where event_type = "error"
+                as AggregatedMetrics
+            calculate:
+                dimension_type = "source"
+                dimension_value = source
+        end
+
+        // By country
+        branch "by_country"
+            window tumbling ${windows.minute_window}
+                keyed_by normalized_country
+                aggregate:
+                    total_events = count()
+                    unique_users = count_distinct(user_id)
+                    total_revenue = sum(event_value)
+                as AggregatedMetrics
+            calculate:
+                dimension_type = "country"
+                dimension_value = normalized_country
+        end
+
+        // By device
+        branch "by_device"
+            window tumbling ${windows.minute_window}
+                keyed_by normalized_device
+                aggregate:
+                    total_events = count()
+                    unique_users = count_distinct(user_id)
+                as AggregatedMetrics
+            calculate:
+                dimension_type = "device"
+                dimension_value = normalized_device
+        end
+    end
+
+    // Merge all dimension metrics
+    union all
+
+    // Apply alerting
+    evaluate using error_rate_alerts
+    evaluate using consolidate_alerts
+
+    on_error
+        send to "aggregation-errors"
+    end
+
+    send to ${topics.metrics.name}
+
+    when alert_triggered = true
+        evaluate using generate_alert
+        send to ${topics.alerts.name}
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Hourly rollup
+// -----------------------------------------------------------------------------
+
+process hourly_rollup
+    description "Hourly rollup of minute metrics"
+
+    receive metrics from ${topics.metrics.name}
+        as AggregatedMetrics
+
+    window tumbling ${windows.hourly_window}
+        keyed_by dimension_type, dimension_value
+        aggregate:
+            total_events = sum(total_events)
+            unique_users = max(unique_users)  // Approximation
+            total_revenue = sum(total_revenue)
+            errors = sum(errors)
+            window_duration_minutes = 60
+        as AggregatedMetrics
+
+    calculate:
+        error_rate = (errors * 1000.0) / total_events
+        computed_at = now()
+
+    send to "hourly-metrics"
+end

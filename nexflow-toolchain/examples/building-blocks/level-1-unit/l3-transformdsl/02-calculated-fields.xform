@@ -1,0 +1,168 @@
+// =============================================================================
+// L3-02: Calculated Fields (Expressions)
+// =============================================================================
+// Use Case: Compute derived values from input fields
+// Pattern:  Arithmetic and function expressions
+// When:     Derived metrics, unit conversions, calculations
+// =============================================================================
+
+transform calculate_order_totals
+    description "Calculate order totals and derived fields"
+
+    input:
+        order_id: string
+        quantity: integer
+        unit_price: decimal
+        discount_percent: decimal
+        tax_rate: decimal
+    end
+
+    output:
+        order_id: string
+        quantity: integer
+        unit_price: decimal
+        subtotal: decimal
+        discount_amount: decimal
+        tax_amount: decimal
+        total: decimal
+    end
+
+    mappings:
+        // Direct mappings
+        order_id -> order_id
+        quantity -> quantity
+        unit_price -> unit_price
+
+        // Calculated fields
+        subtotal -> quantity * unit_price
+        discount_amount -> (quantity * unit_price) * (discount_percent / 100)
+        tax_amount -> (quantity * unit_price - discount_amount) * tax_rate
+        total -> subtotal - discount_amount + tax_amount
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: String manipulation
+// -----------------------------------------------------------------------------
+
+transform format_customer_display
+    description "Format customer data for display"
+
+    input:
+        first_name: string
+        last_name: string
+        email: string
+        phone: string
+        tier: string
+    end
+
+    output:
+        display_name: string
+        full_name: string
+        masked_email: string
+        formatted_phone: string
+        tier_label: string
+    end
+
+    mappings:
+        display_name -> first_name + " " + substring(last_name, 0, 1) + "."
+        full_name -> upper(first_name) + " " + upper(last_name)
+        masked_email -> substring(email, 0, 3) + "***" + substring(email, indexOf(email, "@"), length(email))
+        formatted_phone -> "(" + substring(phone, 0, 3) + ") " + substring(phone, 3, 6) + "-" + substring(phone, 6, 10)
+        tier_label -> upper(tier) + " Member"
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Date calculations
+// -----------------------------------------------------------------------------
+
+transform calculate_shipping_dates
+    description "Calculate shipping and delivery dates"
+
+    input:
+        order_id: string
+        order_date: date
+        shipping_speed: string    // "standard", "express", "overnight"
+        is_weekend: boolean
+    end
+
+    output:
+        order_id: string
+        order_date: date
+        ship_date: date
+        estimated_delivery: date
+        days_to_delivery: integer
+    end
+
+    mappings:
+        order_id -> order_id
+        order_date -> order_date
+
+        // Ship next business day
+        ship_date -> add_business_days(order_date, 1)
+
+        // Delivery based on speed
+        estimated_delivery -> when shipping_speed = "overnight" then add_business_days(ship_date, 1)
+                              when shipping_speed = "express" then add_business_days(ship_date, 3)
+                              otherwise add_business_days(ship_date, 7)
+
+        days_to_delivery -> diff_days(order_date, estimated_delivery)
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Financial calculations
+// -----------------------------------------------------------------------------
+
+transform calculate_loan_payment
+    description "Calculate monthly loan payment"
+
+    input:
+        loan_id: string
+        principal: decimal
+        annual_rate: decimal      // e.g., 5.5 for 5.5%
+        term_months: integer
+    end
+
+    output:
+        loan_id: string
+        principal: decimal
+        monthly_rate: decimal
+        monthly_payment: decimal
+        total_interest: decimal
+        total_repayment: decimal
+    end
+
+    mappings:
+        loan_id -> loan_id
+        principal -> principal
+
+        // Monthly rate from annual
+        monthly_rate -> annual_rate / 12 / 100
+
+        // PMT formula: P * (r * (1+r)^n) / ((1+r)^n - 1)
+        monthly_payment -> principal * (monthly_rate * power(1 + monthly_rate, term_months))
+                           / (power(1 + monthly_rate, term_months) - 1)
+
+        total_repayment -> monthly_payment * term_months
+        total_interest -> total_repayment - principal
+    end
+end
+
+// =============================================================================
+// What This Generates:
+// - Java expressions for each calculation
+// - BigDecimal-safe arithmetic for money
+// - Function calls to utility methods
+//
+// Available Functions:
+// Arithmetic: +, -, *, /, %, power(), abs(), round()
+// String: upper(), lower(), substring(), concat(), trim(), length()
+// Date: add_days(), add_months(), diff_days(), add_business_days()
+// Logic: when/then/otherwise (see L3-03)
+//
+// Next Steps:
+// → L3-03: Add conditional logic
+// → L3-04: Add external lookups
+// =============================================================================

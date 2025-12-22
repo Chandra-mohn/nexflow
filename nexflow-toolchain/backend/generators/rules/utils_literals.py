@@ -180,6 +180,26 @@ def generate_value_expr(expr, log_unsupported: bool = True) -> str:
         operand = generate_value_expr(getattr(expr, 'operand', None), log_unsupported)
         return f'-({operand})'
 
+    # Handle CollectionExpr - particularly min/max which are simple Math functions
+    if isinstance(expr, ast.CollectionExpr):
+        func_type = expr.function_type
+        # Handle min/max as Java Math.min/Math.max
+        if hasattr(func_type, 'value'):
+            func_name = func_type.value
+        else:
+            func_name = str(func_type)
+
+        if func_name in ('min', 'max'):
+            # For min(a, b) style - two arguments
+            collection_code = generate_value_expr(expr.collection, log_unsupported)
+            if expr.field_extractor:
+                field_code = generate_value_expr(expr.field_extractor, log_unsupported)
+                return f'Math.{func_name}({collection_code}, {field_code})'
+            return f'Math.{func_name}({collection_code})'
+
+        # For other collection functions, generate a placeholder comment
+        return f'/* {func_name}(...) - collection operation */'
+
     # Fallback: try to use as literal
     if hasattr(expr, 'value'):
         return generate_literal(expr, log_unsupported)

@@ -1,0 +1,57 @@
+// =============================================================================
+// L123-01: ETL Pipeline (L1 + L2 + L3)
+// =============================================================================
+// Complete ETL pipeline with schema validation and transformations
+
+import ./raw_event.schema
+import ./enriched_event.schema
+import ./event_transform.xform
+
+process etl_event_pipeline
+    description "Extract, transform, and load events with full type safety"
+
+    // Receive typed input
+    receive raw_events from "raw-events-topic"
+        as RawEvent
+
+    // Validate raw input
+    validate input
+        on_invalid send to "etl-invalid-events"
+
+    // Apply transformation
+    transform using raw_to_enriched
+        as EnrichedEvent
+
+    // Error handling for transformation failures
+    on_error
+        send to "etl-transform-errors"
+    end
+
+    // Send validated and enriched output
+    send to "enriched-events-topic"
+end
+
+// -----------------------------------------------------------------------------
+// Variation: ETL with routing by event type
+// -----------------------------------------------------------------------------
+
+process etl_with_routing
+    description "ETL pipeline that routes by event type"
+
+    receive raw_events from "raw-events-topic"
+        as RawEvent
+
+    validate input
+        on_invalid send to "etl-invalid-events"
+
+    transform using raw_to_enriched
+        as EnrichedEvent
+
+    // Route to type-specific topics
+    route by event_type
+        when "click" send to "click-events"
+        when "view" send to "view-events"
+        when "purchase" send to "purchase-events"
+        default send to "other-events"
+    end
+end

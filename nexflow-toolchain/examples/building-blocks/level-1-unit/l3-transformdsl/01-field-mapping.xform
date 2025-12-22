@@ -1,0 +1,138 @@
+// =============================================================================
+// L3-01: Field Mapping (Direct Field Copy)
+// =============================================================================
+// Use Case: Map fields from input to output schema
+// Pattern:  Direct field assignment and renaming
+// When:     Schema transformation, field renaming, output projection
+// =============================================================================
+
+transform order_to_summary
+    description "Map order fields to summary output"
+
+    input:
+        order_id: string
+        customer_id: string
+        product_name: string
+        quantity: integer
+        unit_price: decimal
+        order_date: timestamp
+    end
+
+    output:
+        id: string
+        customer: string
+        product: string
+        qty: integer
+        price: decimal
+        date: date
+    end
+
+    mappings:
+        // Direct mapping (same name)
+        id -> order_id
+
+        // Renamed mappings
+        customer -> customer_id
+        product -> product_name
+        qty -> quantity
+        price -> unit_price
+
+        // Type conversion (timestamp to date)
+        date -> order_date.toLocalDate()
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Flatten nested structure
+// -----------------------------------------------------------------------------
+
+transform flatten_customer
+    description "Flatten nested customer to flat structure"
+
+    input:
+        customer_id: string
+        profile:
+            first_name: string
+            last_name: string
+        contact:
+            email: string
+            phone: string
+        address:
+            city: string
+            country: string
+    end
+
+    output:
+        id: string
+        full_name: string
+        email: string
+        phone: string
+        city: string
+        country: string
+    end
+
+    mappings:
+        id -> customer_id
+        full_name -> profile.first_name + " " + profile.last_name
+        email -> contact.email
+        phone -> contact.phone
+        city -> address.city
+        country -> address.country
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Select subset of fields (projection)
+// -----------------------------------------------------------------------------
+
+transform order_projection
+    description "Select only required fields from order"
+
+    input:
+        order_id: string
+        customer_id: string
+        product_id: string
+        product_name: string
+        quantity: integer
+        unit_price: decimal
+        discount: decimal
+        tax: decimal
+        shipping_cost: decimal
+        total: decimal
+        status: string
+        created_at: timestamp
+        updated_at: timestamp
+        notes: string
+    end
+
+    output:
+        order_id: string
+        customer_id: string
+        total: decimal
+        status: string
+    end
+
+    mappings:
+        // Only map the fields we need
+        order_id -> order_id
+        customer_id -> customer_id
+        total -> total
+        status -> status
+    end
+end
+
+// =============================================================================
+// What This Generates:
+// - Java MapFunction implementation
+// - Field-by-field assignment
+// - Type-safe accessors and setters
+//
+// Mapping Patterns:
+// - `output_field -> input_field`: Direct copy
+// - `output -> input.nested.field`: Nested access
+// - `output -> expression`: Calculated value (see L3-02)
+//
+// Next Steps:
+// → L3-02: Add calculated expressions
+// → L12-02: Use transform in process flow
+// =============================================================================

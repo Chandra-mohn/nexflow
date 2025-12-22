@@ -1,0 +1,105 @@
+// =============================================================================
+// L1-07: Keyed Aggregate (Group By Aggregation)
+// =============================================================================
+// Use Case: Aggregate events grouped by a key field
+// Pattern:  Keyed stream aggregation
+// When:     Per-customer totals, category summaries, regional metrics
+// =============================================================================
+
+process sales_by_region
+    description "Calculate sales totals grouped by region"
+
+    receive orders from orders_stream
+
+    // Group by region, aggregate over 1-hour window
+    group by orders.region
+    window tumbling 1 hour
+
+    aggregate
+        region_sales = sum(orders.amount)
+        order_count = count()
+        avg_order = avg(orders.amount)
+    end
+
+    send to regional_metrics
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Group by multiple keys
+// -----------------------------------------------------------------------------
+
+process sales_by_region_category
+    description "Sales by region and product category"
+
+    receive orders from orders_stream
+
+    group by orders.region, orders.category
+    window tumbling 1 hour
+
+    aggregate
+        total_sales = sum(orders.amount)
+        item_count = sum(orders.quantity)
+    end
+
+    send to category_regional_metrics
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Per-customer aggregation
+// -----------------------------------------------------------------------------
+
+process customer_activity_summary
+    description "Track activity per customer"
+
+    receive events from user_events
+
+    group by events.customer_id
+    window tumbling 15 minutes
+
+    aggregate
+        event_count = count()
+        page_views = count(events.type = "page_view")
+        purchases = count(events.type = "purchase")
+        total_spent = sum(events.amount)
+    end
+
+    send to customer_analytics
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Session window (activity-based)
+// -----------------------------------------------------------------------------
+
+process user_session_metrics
+    description "Aggregate user activity by session"
+
+    receive clicks from clickstream
+
+    group by clicks.user_id
+    // Session window: new session after 30 min inactivity
+    window session gap 30 minutes
+
+    aggregate
+        session_duration = max(clicks.timestamp) - min(clicks.timestamp)
+        click_count = count()
+        pages_visited = count_distinct(clicks.page_url)
+    end
+
+    send to session_analytics
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink KeyedStream with .keyBy()
+// - WindowedStream with aggregation
+// - Keyed state management per group
+//
+// Key Concepts:
+// - `group by`: Partition stream by key
+// - `window`: Time boundary for aggregation
+// - `aggregate`: Compute summary metrics
+//
+// Next Steps:
+// → L1-08: Handle aggregation errors
+// → L12-03: Apply rules to aggregated results
+// =============================================================================

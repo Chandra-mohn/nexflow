@@ -41,6 +41,8 @@ from backend.generators.proc.resilience_generator import ResilienceGeneratorMixi
 from backend.generators.proc.job_generator import JobGeneratorMixin
 from backend.generators.proc.proc_process_function import ProcProcessFunctionMixin
 from backend.generators.proc.mongo_sink_generator import MongoSinkGeneratorMixin
+from backend.generators.proc.metrics_generator import MetricsGeneratorMixin
+from backend.generators.proc.phase_generator import PhaseGeneratorMixin
 
 
 class ProcGenerator(
@@ -54,6 +56,8 @@ class ProcGenerator(
     JobGeneratorMixin,
     ProcProcessFunctionMixin,
     MongoSinkGeneratorMixin,
+    MetricsGeneratorMixin,
+    PhaseGeneratorMixin,
     BaseGenerator
 ):
     """
@@ -61,12 +65,14 @@ class ProcGenerator(
 
     Generates Apache Flink streaming jobs:
     - Main job class with StreamExecutionEnvironment
-    - Kafka source/sink configurations
-    - Processing operators (transform, enrich, route)
+    - Kafka/Redis/StateStore/MongoDB/Scheduler source configurations
+    - Processing operators (transform, enrich, route, validate, evaluate, lookup, parallel)
     - Windowing and aggregation
     - State management with TTL
     - Checkpointing and error handling
     - MongoDB async sinks (L5 integration)
+    - Flink metrics (counter, gauge, histogram, meter)
+    - Business date and phase-based execution (EOD markers)
     """
 
     def __init__(self, config: GeneratorConfig, infra_config: Optional[InfraConfig] = None):

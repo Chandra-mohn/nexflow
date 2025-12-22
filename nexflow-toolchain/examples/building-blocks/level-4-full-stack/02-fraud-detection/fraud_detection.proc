@@ -1,0 +1,112 @@
+// =============================================================================
+// L12345-02: Fraud Detection Pipeline (All Layers)
+// =============================================================================
+// Real-time fraud detection with all five DSL layers
+
+import ./transaction.schema
+import ./fraud_alert.schema
+import ./feature_extraction.xform
+import ./fraud_rules.rules
+
+process fraud_detection_pipeline
+    description "Real-time fraud detection using all layers"
+
+    // L5: Config-driven topics
+    receive transactions from ${topics.transactions.name}
+        as Transaction
+
+    // L2: Schema validation
+    validate input
+        on_invalid send to ${topics.alerts.name}
+
+    // Track processing time
+    let start_time = now()
+
+    // L3: Extract features
+    transform using extract_fraud_features
+        as FraudAlert
+
+    // L4: Apply all scoring rules
+    evaluate using velocity_rules
+    evaluate using geo_rules
+    evaluate using amount_rules
+    evaluate using profile_rules
+    evaluate using ml_rules
+
+    // L4: Calculate total score
+    evaluate using calculate_fraud_score
+
+    // L4: Determine risk level
+    evaluate using risk_level_rules
+
+    // L4: Make final decision
+    evaluate using decision_rules
+
+    // Calculate processing time
+    let processing_time_ms = elapsed_ms(start_time)
+
+    // Error handling
+    on_error
+        send to ${topics.alerts.name}
+    end
+
+    // Route by decision
+    route by decision
+        when "approve"
+            send to ${topics.approved.name}
+
+        when in ["decline", "challenge", "review"]
+            // Send to both alerts and appropriate queue
+            send to ${topics.alerts.name}
+            route by decision
+                when "decline" send to ${topics.declined.name}
+                default send to ${topics.approved.name}
+            end
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Fraud detection with velocity window maintenance
+// -----------------------------------------------------------------------------
+
+process fraud_with_velocity_tracking
+    description "Fraud detection that maintains velocity state"
+
+    receive transactions from ${topics.transactions.name}
+        as Transaction
+
+    validate input
+        on_invalid send to ${topics.alerts.name}
+
+    // Update velocity counters (windowed aggregation)
+    window tumbling 1 hour
+        keyed_by card_id
+        aggregate:
+            txn_count = count()
+            amount_sum = sum(amount)
+            unique_merchants = count_distinct(merchant_id)
+        emit to "velocity-state-store"
+
+    // Feature extraction
+    transform using extract_fraud_features
+        as FraudAlert
+
+    // Apply rules
+    evaluate using velocity_rules
+    evaluate using geo_rules
+    evaluate using amount_rules
+    evaluate using profile_rules
+    evaluate using ml_rules
+    evaluate using calculate_fraud_score
+    evaluate using risk_level_rules
+    evaluate using decision_rules
+
+    on_error
+        send to ${topics.alerts.name}
+    end
+
+    route by decision
+        when "approve" send to ${topics.approved.name}
+        default send to ${topics.declined.name}
+    end
+end

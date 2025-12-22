@@ -1,0 +1,80 @@
+// =============================================================================
+// L12345-04: Event Schema (L2)
+// =============================================================================
+
+record RawEvent
+    description "Raw event from various sources"
+
+    event_id: string
+        required
+
+    event_type: string
+        required
+        values "page_view", "click", "purchase", "signup", "error", "custom"
+
+    source: string
+        required
+        values "web", "mobile_ios", "mobile_android", "api", "backend"
+
+    timestamp: timestamp
+        required
+
+    user_id: string
+        optional
+
+    session_id: string
+        optional
+
+    properties: EventProperties
+        optional
+
+    context: EventContext
+        optional
+end
+
+record EventProperties
+    page_url: string
+        optional
+
+    element_id: string
+        optional
+
+    value: decimal
+        optional
+
+    currency: string
+        optional
+
+    product_id: string
+        optional
+
+    category: string
+        optional
+
+    error_code: string
+        optional
+
+    error_message: string
+        optional
+end
+
+record EventContext
+    ip_address: string
+        optional
+
+    user_agent: string
+        optional
+
+    country: string
+        optional
+
+    device_type: string
+        values "desktop", "mobile", "tablet"
+        optional
+
+    os: string
+        optional
+
+    browser: string
+        optional
+end

@@ -1,0 +1,113 @@
+// =============================================================================
+// L12345-01: Order Schema (L2)
+// =============================================================================
+
+record Order
+    description "E-commerce order from web/mobile channels"
+
+    order_id: string
+        required
+        pattern "^ORD-[0-9]{10}$"
+
+    customer_id: string
+        required
+
+    channel: string
+        required
+        values "web", "mobile", "api", "pos"
+
+    order_timestamp: timestamp
+        required
+
+    items: list of LineItem
+        required
+        min_count 1
+        max_count 100
+
+    shipping: ShippingInfo
+        required
+
+    payment: PaymentInfo
+        required
+
+    promotions: list of string
+        optional
+
+    gift_message: string
+        optional
+        max_length 500
+
+    is_gift: boolean
+        default false
+end
+
+record LineItem
+    sku: string
+        required
+
+    name: string
+        required
+
+    quantity: integer
+        required
+        range 1 to 999
+
+    unit_price: decimal
+        required
+        range 0.01 to 99999.99
+
+    weight_kg: decimal
+        optional
+end
+
+record ShippingInfo
+    method: string
+        required
+        values "standard", "express", "overnight", "pickup"
+
+    address: Address
+        required
+
+    special_instructions: string
+        optional
+end
+
+record PaymentInfo
+    method: string
+        required
+        values "credit", "debit", "paypal", "gift_card", "split"
+
+    card_last_four: string
+        optional
+        pattern "^[0-9]{4}$"
+
+    billing_address: Address
+        optional
+end
+
+record Address
+    name: string
+        required
+
+    line1: string
+        required
+
+    line2: string
+        optional
+
+    city: string
+        required
+
+    state: string
+        optional
+
+    postal_code: string
+        required
+
+    country: string
+        required
+        pattern "^[A-Z]{2}$"
+
+    phone: string
+        optional
+end

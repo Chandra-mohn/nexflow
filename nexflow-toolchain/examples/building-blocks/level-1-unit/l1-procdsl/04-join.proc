@@ -1,0 +1,74 @@
+// =============================================================================
+// L1-04: Join (Combine Two Streams)
+// =============================================================================
+// Use Case: Combine related events from two different streams
+// Pattern:  Stream join on matching key within time window
+// When:     Order + Payment matching, Event correlation, Data enrichment
+// =============================================================================
+
+process order_payment_matcher
+    description "Join orders with their corresponding payments"
+
+    // Read from two source streams
+    receive orders from orders_stream
+    receive payments from payments_stream
+
+    // Join on matching order_id within 5-minute window
+    join orders, payments
+        on orders.order_id = payments.order_id
+        within 5 minutes
+
+    // Output combined record
+    send to matched_transactions
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Join with explicit output fields
+// -----------------------------------------------------------------------------
+
+process order_customer_join
+    description "Enrich orders with customer information"
+
+    receive orders from orders_stream
+    receive customers from customers_stream
+
+    join orders, customers
+        on orders.customer_id = customers.id
+        within 10 minutes
+    as enriched_order
+
+    send to enriched_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Left join (keep unmatched orders)
+// -----------------------------------------------------------------------------
+
+process order_shipment_left_join
+    description "Match orders with shipments, keep unshipped orders"
+
+    receive orders from orders_stream
+    receive shipments from shipments_stream
+
+    left join orders, shipments
+        on orders.order_id = shipments.order_id
+        within 1 hour
+
+    send to order_shipment_status
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink CoProcessFunction or IntervalJoin
+// - Keyed state for matching records
+// - Time-bounded join window
+//
+// Key Concepts:
+// - `join`: Inner join - only matched pairs
+// - `left join`: Keep left side even without match
+// - `within`: Time window for matching
+//
+// Next Steps:
+// → L1-05: Union (merge without matching)
+// → L123-01: Add schema validation to joined output
+// =============================================================================

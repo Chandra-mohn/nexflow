@@ -1,0 +1,61 @@
+// =============================================================================
+// L1-02: Filter (Conditional Routing)
+// =============================================================================
+// Use Case: Only pass events that meet specific criteria
+// Pattern:  Filter stream based on field conditions
+// When:     Data quality, selective processing, routing by attribute
+// =============================================================================
+
+process active_order_filter
+    description "Filter orders to only process active ones"
+
+    // Read from source
+    receive orders from orders_input
+
+    // Filter: only orders with status "active"
+    where orders.status = "active"
+
+    // Write filtered results
+    send to active_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Multiple conditions with AND/OR
+// -----------------------------------------------------------------------------
+
+process high_value_active_filter
+    description "Filter for high-value active orders"
+
+    receive orders from orders_input
+
+    // Multiple conditions combined
+    where orders.status = "active"
+      and orders.total_amount > 1000
+
+    send to high_value_orders
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Numeric comparison
+// -----------------------------------------------------------------------------
+
+process large_quantity_filter
+    description "Filter orders with quantity above threshold"
+
+    receive orders from orders_input
+
+    where orders.quantity >= 100
+
+    send to bulk_orders
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink DataStream with .filter() operator
+// - Condition compiled to Java predicate
+// - Non-matching records are dropped
+//
+// Next Steps:
+// → L1-03: Route to different outputs instead of dropping
+// → L1-08: Send filtered-out records to dead letter queue
+// =============================================================================

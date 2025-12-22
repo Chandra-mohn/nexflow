@@ -1,0 +1,56 @@
+// =============================================================================
+// L134-03: Transaction Decision Rules (L4)
+// =============================================================================
+// Business rules using enriched transaction data
+
+// -----------------------------------------------------------------------------
+// Risk scoring decision table
+// -----------------------------------------------------------------------------
+
+decision_table transaction_risk_scoring
+    description "Score transaction risk based on enriched data"
+    hit_policy collect_sum
+
+    decide:
+        | is_high_value | is_international | is_new_customer | merchant_risk_level | risk_points |
+        |===============|==================|=================|=====================|=============|
+        | true          | *                | *               | *                   | 20          |
+        | *             | true             | *               | *                   | 15          |
+        | *             | *                | true            | *                   | 25          |
+        | *             | *                | *               | "high"              | 30          |
+        | *             | *                | *               | "medium"            | 10          |
+        | *             | *                | *               | "low"               | 0           |
+end
+
+// -----------------------------------------------------------------------------
+// Authorization decision
+// -----------------------------------------------------------------------------
+
+decision_table authorization_decision
+    description "Authorize or flag transaction based on risk"
+    hit_policy first_match
+
+    decide:
+        | risk_points | customer_tier | amount    | decision    | action          |
+        |=============|===============|===========|=============|=================|
+        | >= 70       | *             | *         | "decline"   | "block"         |
+        | >= 50       | "premium"     | <= $5000  | "approve"   | "monitor"       |
+        | >= 50       | *             | *         | "review"    | "manual_review" |
+        | >= 30       | *             | > $2000   | "review"    | "step_up_auth"  |
+        | *           | *             | *         | "approve"   | "none"          |
+end
+
+// -----------------------------------------------------------------------------
+// Procedural rule for limits
+// -----------------------------------------------------------------------------
+
+procedural_rule velocity_check
+    description "Check transaction velocity limits"
+
+    when count(transactions in last 1 hour) > 10
+        then flag = "velocity_exceeded"
+    when sum(amount in transactions in last 24 hours) > 10000
+        then flag = "daily_limit_exceeded"
+    otherwise
+        flag = "ok"
+end

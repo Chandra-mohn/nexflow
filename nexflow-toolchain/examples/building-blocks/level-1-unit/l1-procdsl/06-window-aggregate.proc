@@ -1,0 +1,102 @@
+// =============================================================================
+// L1-06: Window Aggregate (Time-Based Aggregation)
+// =============================================================================
+// Use Case: Aggregate events over fixed time intervals
+// Pattern:  Tumbling window aggregation
+// When:     Metrics calculation, periodic summaries, batch-style processing
+// =============================================================================
+
+process hourly_sales_summary
+    description "Calculate hourly sales totals"
+
+    receive orders from orders_stream
+
+    // Tumbling window: non-overlapping 1-hour windows
+    window tumbling 1 hour
+
+    // Aggregate within each window
+    aggregate
+        total_sales = sum(orders.amount)
+        order_count = count()
+        avg_order_value = avg(orders.amount)
+    end
+
+    send to hourly_metrics
+end
+
+// -----------------------------------------------------------------------------
+// Variation: 5-minute metrics window
+// -----------------------------------------------------------------------------
+
+process realtime_metrics
+    description "Calculate 5-minute rolling metrics"
+
+    receive transactions from transaction_stream
+
+    window tumbling 5 minutes
+
+    aggregate
+        transaction_count = count()
+        total_volume = sum(transactions.amount)
+        max_transaction = max(transactions.amount)
+        min_transaction = min(transactions.amount)
+    end
+
+    send to realtime_dashboard
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Sliding window (overlapping)
+// -----------------------------------------------------------------------------
+
+process moving_average
+    description "Calculate 1-hour moving average, updated every 5 minutes"
+
+    receive prices from price_stream
+
+    // Sliding window: 1-hour size, 5-minute slide
+    window sliding 1 hour every 5 minutes
+
+    aggregate
+        avg_price = avg(prices.value)
+        price_count = count()
+    end
+
+    send to price_analytics
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Daily summary
+// -----------------------------------------------------------------------------
+
+process daily_summary
+    description "End-of-day order summary"
+
+    receive orders from orders_stream
+
+    window tumbling 1 day
+
+    aggregate
+        daily_revenue = sum(orders.total_amount)
+        orders_processed = count()
+        unique_customers = count_distinct(orders.customer_id)
+    end
+
+    send to daily_reports
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink WindowedStream with TumblingEventTimeWindows
+// - AggregateFunction for computing results
+// - Window trigger and result emission
+//
+// Window Types:
+// - tumbling: Fixed, non-overlapping windows
+// - sliding: Overlapping windows with slide interval
+// - session: Gap-based windows (see keyed aggregate)
+//
+// Next Steps:
+// → L1-07: Add grouping key for per-category aggregation
+// → L123-01: Add schema for aggregated output
+// =============================================================================

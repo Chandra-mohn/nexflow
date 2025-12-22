@@ -1,0 +1,138 @@
+// =============================================================================
+// L12345-01: Order Processing (L1 + L2 + L3 + L4 + L5)
+// =============================================================================
+// Complete order processing pipeline using all five DSL layers
+
+import ./order.schema
+import ./fulfillment.schema
+import ./order_enrichment.xform
+import ./order_business_rules.rules
+
+process order_processing_pipeline
+    description "End-to-end order processing with all layers"
+
+    // L5: Config-driven topic names
+    receive orders from ${topics.orders.name}
+        as Order
+
+    // L2: Schema validation
+    validate input
+        on_invalid send to ${topics.errors.name}
+
+    // L3: Enrich with external data
+    transform using enrich_order
+        as FulfillmentOrder
+
+    // L4: Apply discount rules
+    evaluate using discount_rules
+
+    // L4: Apply shipping rules
+    evaluate using shipping_rules
+
+    // L4: Apply tax rules
+    evaluate using tax_rules
+
+    // L4: Assign warehouse
+    evaluate using warehouse_rules
+
+    // L4: Set priority and SLA
+    evaluate using priority_rules
+
+    // L4: Determine status
+    evaluate using status_determination
+
+    // L4: Estimate delivery
+    evaluate using delivery_estimation
+
+    // Error handling
+    on_error
+        send to ${topics.errors.name}
+    end
+
+    // Route based on fulfillment status
+    route by fulfillment_status
+        when "hold"
+            send to ${topics.hold.name}
+
+        default
+            send to ${topics.fulfillment.name}
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Order processing with parallel enrichment
+// -----------------------------------------------------------------------------
+
+process order_processing_parallel
+    description "Order processing with parallel external lookups"
+
+    receive orders from ${topics.orders.name}
+        as Order
+
+    validate input
+        on_invalid send to ${topics.errors.name}
+
+    // Transform enriches data
+    transform using enrich_order
+        as FulfillmentOrder
+
+    // Apply all pricing rules
+    evaluate using discount_rules
+    evaluate using shipping_rules
+    evaluate using tax_rules
+
+    // Apply fulfillment rules
+    evaluate using warehouse_rules
+    evaluate using priority_rules
+    evaluate using status_determination
+    evaluate using delivery_estimation
+
+    on_error
+        send to ${topics.errors.name}
+    end
+
+    // Route by status
+    route by fulfillment_status
+        when "hold" send to ${topics.hold.name}
+        default send to ${topics.fulfillment.name}
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: High-volume order processing with batching
+// -----------------------------------------------------------------------------
+
+process order_processing_batch
+    description "High-volume order processing with micro-batching"
+
+    receive orders from ${topics.orders.name}
+        as Order
+
+    // Micro-batch for efficiency
+    batch size 100
+    batch timeout 1000
+
+    validate input
+        on_invalid send to ${topics.errors.name}
+
+    transform using enrich_order
+        as FulfillmentOrder
+
+    // Apply business rules
+    evaluate using discount_rules
+    evaluate using shipping_rules
+    evaluate using tax_rules
+    evaluate using warehouse_rules
+    evaluate using priority_rules
+    evaluate using status_determination
+    evaluate using delivery_estimation
+
+    on_error
+        send to ${topics.errors.name}
+    end
+
+    route by fulfillment_status
+        when "hold" send to ${topics.hold.name}
+        default send to ${topics.fulfillment.name}
+    end
+end

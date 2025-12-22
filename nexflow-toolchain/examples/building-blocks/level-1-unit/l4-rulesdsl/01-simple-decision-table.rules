@@ -1,0 +1,133 @@
+// =============================================================================
+// L4-01: Simple Decision Table (Basic Decision)
+// =============================================================================
+// Use Case: Make a decision based on a single condition
+// Pattern:  Single-column decision table with multiple outcomes
+// When:     Tiered pricing, status categorization, simple routing
+// =============================================================================
+
+decision_table customer_tier_benefits
+    description "Determine benefits based on customer tier"
+    hit_policy first_match
+
+    given:
+        tier: text
+    end
+
+    decide:
+        | tier         | discount_rate | free_shipping | priority_support |
+        |==============|===============|===============|==================|
+        | "platinum"   | 20%           | true          | true             |
+        | "gold"       | 15%           | true          | true             |
+        | "silver"     | 10%           | true          | false            |
+        | "bronze"     | 5%            | false         | false            |
+        | *            | 0%            | false         | false            |
+
+    return:
+        discount_rate: percentage
+        free_shipping: boolean
+        priority_support: boolean
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Credit decision
+// -----------------------------------------------------------------------------
+
+decision_table credit_score_decision
+    description "Simple credit decision based on score"
+    hit_policy first_match
+
+    given:
+        credit_score: number
+    end
+
+    decide:
+        | credit_score | decision    | max_amount  |
+        |==============|=============|=============|
+        | >= 750       | "approved"  | $100,000    |
+        | >= 700       | "approved"  | $50,000     |
+        | >= 650       | "review"    | $25,000     |
+        | >= 600       | "review"    | $10,000     |
+        | *            | "declined"  | $0          |
+
+    return:
+        decision: text
+        max_amount: money
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Order priority
+// -----------------------------------------------------------------------------
+
+decision_table order_priority_assignment
+    description "Assign priority based on order value"
+    hit_policy first_match
+
+    given:
+        order_total: money
+    end
+
+    decide:
+        | order_total  | priority   | sla_hours  |
+        |==============|============|============|
+        | >= $10,000   | "critical" | 4          |
+        | >= $5,000    | "high"     | 8          |
+        | >= $1,000    | "medium"   | 24         |
+        | >= $100      | "normal"   | 48         |
+        | *            | "low"      | 72         |
+
+    return:
+        priority: text
+        sla_hours: number
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Shipping method selection
+// -----------------------------------------------------------------------------
+
+decision_table shipping_method_selector
+    description "Select shipping method based on destination"
+    hit_policy first_match
+
+    given:
+        destination_country: text
+    end
+
+    decide:
+        | destination_country        | carrier      | estimated_days |
+        |============================|==============|================|
+        | "US"                       | "USPS"       | 5              |
+        | "CA"                       | "Canada Post"| 7              |
+        | "UK"                       | "Royal Mail" | 10             |
+        | in ("DE", "FR", "IT", "ES")| "DHL"        | 10             |
+        | *                          | "FedEx"      | 14             |
+
+    return:
+        carrier: text
+        estimated_days: number
+end
+
+// =============================================================================
+// What This Generates:
+// - Java DecisionTable evaluator class
+// - Condition matching logic
+// - Result record with return fields
+//
+// Key Concepts:
+// - `given`: Input parameters
+// - `decide`: Decision matrix
+// - `return`: Output fields
+// - `hit_policy first_match`: Stop at first matching row
+// - `*`: Wildcard (matches anything)
+//
+// Condition Types:
+// - Exact match: "value"
+// - Comparison: >= 750, < 100
+// - Range: 100 to 500 (see L4-02)
+// - Set: in ("A", "B", "C")
+// - Wildcard: *
+//
+// Next Steps:
+// → L4-02: Multiple condition columns
+// → L12-03: Use decision table in process flow
+// =============================================================================

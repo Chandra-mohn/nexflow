@@ -1,0 +1,231 @@
+// =============================================================================
+// L4-03: Procedural Rule (If-Then-Else Logic)
+// =============================================================================
+// Use Case: Complex business logic with branching
+// Pattern:  If-then-elseif-else chains with actions
+// When:     Multi-step validation, complex workflows, stateful decisions
+// =============================================================================
+
+rule credit_application_processor:
+    description "Process credit application with complex logic"
+
+    // Initialize decision variables
+    set decision = "pending"
+    set rejection_reasons = []
+    set approval_factors = []
+    set recommended_limit = 0
+
+    // Step 1: Check credit score
+    if credit_score >= 750 then
+        set approval_factors = approval_factors + ["Excellent credit"]
+        set recommended_limit = 50000
+    elseif credit_score >= 700 then
+        set approval_factors = approval_factors + ["Good credit"]
+        set recommended_limit = 25000
+    elseif credit_score >= 650 then
+        set approval_factors = approval_factors + ["Fair credit"]
+        set recommended_limit = 10000
+    else
+        set rejection_reasons = rejection_reasons + ["Credit score below minimum"]
+        set decision = "declined"
+        return
+    endif
+
+    // Step 2: Check debt-to-income ratio
+    let dti = monthly_debt / monthly_income
+    if dti > 0.45 then
+        set rejection_reasons = rejection_reasons + ["DTI ratio too high"]
+    elseif dti > 0.35 then
+        set recommended_limit = recommended_limit * 0.75
+    else
+        set approval_factors = approval_factors + ["Healthy DTI ratio"]
+    endif
+
+    // Step 3: Check employment stability
+    if employment_years >= 5 then
+        set approval_factors = approval_factors + ["Stable employment"]
+        set recommended_limit = recommended_limit * 1.2
+    elseif employment_years >= 2 then
+        // No adjustment
+    else
+        set recommended_limit = recommended_limit * 0.8
+    endif
+
+    // Step 4: Final decision
+    if count(rejection_reasons) > 0 then
+        set decision = "declined"
+    elseif count(approval_factors) >= 3 then
+        set decision = "approved"
+    else
+        set decision = "review"
+    endif
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Fraud detection with nested conditions
+// -----------------------------------------------------------------------------
+
+rule fraud_detection_rule:
+    description "Detect potential fraud with multi-factor analysis"
+
+    set fraud_score = 0
+    set flags = []
+
+    // Check transaction amount
+    if amount > 10000 then
+        set fraud_score = fraud_score + 30
+        set flags = flags + ["high_value"]
+    elseif amount > 5000 then
+        set fraud_score = fraud_score + 15
+    endif
+
+    // Check velocity
+    if transactions_last_hour > 10 then
+        set fraud_score = fraud_score + 40
+        set flags = flags + ["high_velocity"]
+    elseif transactions_last_hour > 5 then
+        set fraud_score = fraud_score + 20
+        set flags = flags + ["elevated_velocity"]
+    endif
+
+    // Check location anomaly
+    if is_new_location then
+        if is_international then
+            set fraud_score = fraud_score + 35
+            set flags = flags + ["new_international_location"]
+        else
+            set fraud_score = fraud_score + 15
+            set flags = flags + ["new_location"]
+        endif
+    endif
+
+    // Check device
+    if is_new_device then
+        set fraud_score = fraud_score + 20
+        set flags = flags + ["new_device"]
+    endif
+
+    // Determine action based on score
+    if fraud_score >= 80 then
+        block_transaction("High fraud risk")
+    elseif fraud_score >= 50 then
+        flag_for_review("Elevated fraud risk")
+    elseif fraud_score >= 30 then
+        require_additional_auth()
+    endif
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Order validation with multiple checks
+// -----------------------------------------------------------------------------
+
+rule order_validation_rule:
+    description "Validate order before processing"
+
+    set is_valid = true
+    set validation_errors = []
+
+    // Check inventory
+    if quantity > available_inventory then
+        set is_valid = false
+        set validation_errors = validation_errors + ["Insufficient inventory"]
+    endif
+
+    // Check customer credit
+    if payment_method = "credit" then
+        if order_total > customer_credit_limit then
+            set is_valid = false
+            set validation_errors = validation_errors + ["Exceeds credit limit"]
+        endif
+    endif
+
+    // Check shipping restrictions
+    if destination_country in restricted_countries then
+        set is_valid = false
+        set validation_errors = validation_errors + ["Cannot ship to restricted country"]
+    endif
+
+    // Check order limits
+    if is_first_order and order_total > 1000 then
+        set is_valid = false
+        set validation_errors = validation_errors + ["First order limit exceeded"]
+    endif
+
+    // Route based on validation result
+    if is_valid then
+        route_to_fulfillment()
+    else
+        reject_order(validation_errors)
+    endif
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Tiered discount calculation
+// -----------------------------------------------------------------------------
+
+rule discount_calculation_rule:
+    description "Calculate multi-factor discount"
+
+    set base_discount = 0
+    set bonus_discount = 0
+    set max_discount = 0.30    // 30% cap
+
+    // Tier-based discount
+    if customer_tier = "platinum" then
+        set base_discount = 0.20
+    elseif customer_tier = "gold" then
+        set base_discount = 0.15
+    elseif customer_tier = "silver" then
+        set base_discount = 0.10
+    else
+        set base_discount = 0.05
+    endif
+
+    // Volume bonus
+    if order_total >= 1000 then
+        set bonus_discount = bonus_discount + 0.05
+    endif
+
+    // First-time buyer bonus
+    if is_first_purchase then
+        set bonus_discount = bonus_discount + 0.10
+    endif
+
+    // Promotional period bonus
+    if is_promotional_period then
+        set bonus_discount = bonus_discount + 0.05
+    endif
+
+    // Apply cap
+    let total_discount = base_discount + bonus_discount
+    if total_discount > max_discount then
+        set total_discount = max_discount
+    endif
+
+    // Calculate final price
+    set discount_amount = order_total * total_discount
+    set final_price = order_total - discount_amount
+end
+
+// =============================================================================
+// What This Generates:
+// - Java method with if/else chains
+// - Variable initialization and updates
+// - List operations for collecting reasons/flags
+// - Action method calls
+//
+// Key Constructs:
+// - if/elseif/else/endif: Conditional branching
+// - set: Assign to variable
+// - let: Declare local variable
+// - return: Exit rule early
+// - Action calls: block_transaction(), flag_for_review(), etc.
+//
+// Nesting:
+// - Unlimited nesting depth
+// - Each if can contain any statements
+//
+// Next Steps:
+// → L4-04: Collection predicates in conditions
+// → L123-02: Integrate rules in process flow
+// =============================================================================

@@ -1,0 +1,179 @@
+// =============================================================================
+// L2-04: Constrained Types (Validation Rules)
+// =============================================================================
+// Use Case: Define fields with validation constraints
+// Pattern:  Type constraints for data quality
+// When:     Input validation, data quality rules, API contracts
+// =============================================================================
+
+record ValidatedOrder
+    description "Order with validation constraints"
+
+    // Required string with pattern
+    order_id: string
+        required
+        pattern "^ORD-[0-9]{8}$"
+
+    // Required string with length limits
+    customer_id: string
+        required
+        length 10 to 20
+
+    // Enum-like constraint
+    status: string
+        required
+        values "pending", "confirmed", "shipped", "delivered", "cancelled"
+
+    // Numeric range constraint
+    quantity: integer
+        required
+        range 1 to 1000
+
+    // Decimal with precision and range
+    total_amount: decimal
+        required
+        range 0.01 to 999999.99
+        precision 2
+
+    // Optional field with default
+    priority: string
+        optional
+        default "normal"
+        values "low", "normal", "high", "urgent"
+
+    // Date constraints
+    order_date: date
+        required
+
+    shipping_date: date
+        optional
+        after order_date
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Customer with validation
+// -----------------------------------------------------------------------------
+
+record ValidatedCustomer
+    description "Customer with validated fields"
+
+    customer_id: string
+        required
+        pattern "^CUST-[A-Z0-9]{8}$"
+
+    email: string
+        required
+        pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+
+    name: string
+        required
+        length 1 to 100
+
+    phone: string
+        optional
+        pattern "^\\+?[0-9]{10,15}$"
+
+    age: integer
+        optional
+        range 18 to 120
+
+    tier: string
+        required
+        values "bronze", "silver", "gold", "platinum"
+
+    credit_limit: money
+        required
+        range 0 to 1000000
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Transaction with constraints
+// -----------------------------------------------------------------------------
+
+record ValidatedTransaction
+    description "Transaction with strict validation"
+
+    transaction_id: string
+        required
+        pattern "^TXN-[0-9]{12}$"
+
+    account_id: string
+        required
+        length 10 to 20
+
+    type: string
+        required
+        values "credit", "debit", "transfer", "reversal"
+
+    amount: money
+        required
+        range 0.01 to 10000000.00
+
+    currency: string
+        required
+        length 3 to 3
+        values "USD", "EUR", "GBP", "JPY", "CNY"
+
+    // Cross-field validation (source required for transfers)
+    source_account: string
+        required when type = "transfer"
+
+    destination_account: string
+        required when type = "transfer"
+
+    timestamp: timestamp
+        required
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Address with regional validation
+// -----------------------------------------------------------------------------
+
+record ValidatedAddress
+    description "Address with format constraints"
+
+    street: string
+        required
+        length 5 to 200
+
+    city: string
+        required
+        length 2 to 100
+
+    state: string
+        required
+        length 2 to 50
+
+    // US ZIP code pattern
+    postal_code: string
+        required
+        pattern "^[0-9]{5}(-[0-9]{4})?$"
+
+    country: string
+        required
+        values "US", "CA", "MX", "UK", "DE", "FR"
+        default "US"
+end
+
+// =============================================================================
+// What This Generates:
+// - Validation logic in generated Java code
+// - JSR-380 Bean Validation annotations
+// - Runtime validation checks
+// - Clear error messages for constraint violations
+//
+// Constraint Types:
+// - required: Field must be non-null
+// - optional: Field can be null (with optional default)
+// - pattern: Regex pattern match
+// - length: String length range
+// - range: Numeric value range
+// - values: Enumerated allowed values
+// - precision: Decimal precision
+// - after/before: Date comparisons
+// - required when: Conditional requirement
+//
+// Next Steps:
+// → L12-01: Use validated schema in process flow
+// → L1-08: Route validation failures to DLQ
+// =============================================================================

@@ -1,0 +1,115 @@
+// =============================================================================
+// L12345-04: Metrics Schema (L2)
+// =============================================================================
+
+record AggregatedMetrics
+    description "Windowed aggregated metrics"
+
+    // Window info
+    window_start: timestamp
+        required
+
+    window_end: timestamp
+        required
+
+    window_duration_minutes: integer
+        required
+
+    // Dimensions
+    dimension_type: string
+        required
+        values "global", "source", "event_type", "country", "device"
+
+    dimension_value: string
+        required
+
+    // Counts
+    total_events: long
+        required
+
+    unique_users: long
+        required
+
+    unique_sessions: long
+        required
+
+    // By event type
+    page_views: long
+    clicks: long
+    purchases: long
+    signups: long
+    errors: long
+
+    // Revenue metrics
+    total_revenue: decimal
+    purchase_count: long
+    avg_purchase_value: decimal
+
+    // Error metrics
+    error_count: long
+    error_rate: decimal
+        description "Errors per 1000 events"
+
+    // Performance (if applicable)
+    p50_latency_ms: decimal
+        optional
+
+    p99_latency_ms: decimal
+        optional
+
+    // Alert status
+    alert_triggered: boolean
+        default false
+
+    alert_reasons: list of string
+        optional
+
+    // Metadata
+    computed_at: timestamp
+        required
+end
+
+record Alert
+    description "Alert triggered by threshold breach"
+
+    alert_id: string
+        required
+
+    alert_type: string
+        required
+        values "error_rate", "traffic_spike", "traffic_drop", "revenue_drop", "custom"
+
+    severity: string
+        required
+        values "info", "warning", "critical"
+
+    dimension_type: string
+        required
+
+    dimension_value: string
+        required
+
+    // Threshold info
+    threshold_name: string
+        required
+
+    threshold_value: decimal
+        required
+
+    actual_value: decimal
+        required
+
+    // Window
+    window_start: timestamp
+        required
+
+    window_end: timestamp
+        required
+
+    // Metadata
+    message: string
+        required
+
+    triggered_at: timestamp
+        required
+end

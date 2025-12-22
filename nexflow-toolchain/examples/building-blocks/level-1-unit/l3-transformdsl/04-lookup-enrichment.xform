@@ -1,0 +1,241 @@
+// =============================================================================
+// L3-04: Lookup Enrichment (External Data Lookup)
+// =============================================================================
+// Use Case: Enrich records with data from external sources
+// Pattern:  Key-based lookup from reference data
+// When:     Customer enrichment, product details, rate lookups
+// =============================================================================
+
+transform enrich_order_with_customer
+    description "Enrich order with customer information from lookup"
+
+    // Declare lookups
+    lookups:
+        customer: customer_profile_lookup
+        product: product_catalog_lookup
+    end
+
+    input:
+        order_id: string
+        customer_id: string
+        product_id: string
+        quantity: integer
+    end
+
+    output:
+        order_id: string
+        customer_id: string
+        customer_name: string
+        customer_tier: string
+        product_id: string
+        product_name: string
+        unit_price: decimal
+        total_price: decimal
+    end
+
+    mappings:
+        // Direct mappings
+        order_id -> order_id
+        customer_id -> customer_id
+        product_id -> product_id
+
+        // Lookup customer data
+        customer_name -> lookup(customer, customer_id).name
+        customer_tier -> lookup(customer, customer_id).tier
+
+        // Lookup product data
+        product_name -> lookup(product, product_id).name
+        unit_price -> lookup(product, product_id).price
+
+        // Calculate with looked-up value
+        total_price -> quantity * lookup(product, product_id).price
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Lookup with default fallback
+// -----------------------------------------------------------------------------
+
+transform enrich_with_defaults
+    description "Lookup with fallback values for missing data"
+
+    lookups:
+        rates: exchange_rate_lookup
+    end
+
+    input:
+        transaction_id: string
+        amount: decimal
+        currency: string
+    end
+
+    output:
+        transaction_id: string
+        original_amount: decimal
+        original_currency: string
+        exchange_rate: decimal
+        amount_usd: decimal
+    end
+
+    mappings:
+        transaction_id -> transaction_id
+        original_amount -> amount
+        original_currency -> currency
+
+        // Lookup with default if not found
+        exchange_rate -> lookup(rates, currency, default: 1.0)
+
+        // Calculate USD amount
+        amount_usd -> amount * lookup(rates, currency, default: 1.0)
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Temporal lookup (as-of date)
+// -----------------------------------------------------------------------------
+
+transform enrich_with_historical_rate
+    description "Lookup exchange rate as of transaction date"
+
+    lookups:
+        rates: historical_exchange_rates
+    end
+
+    input:
+        transaction_id: string
+        amount: decimal
+        currency: string
+        transaction_date: date
+    end
+
+    output:
+        transaction_id: string
+        amount: decimal
+        currency: string
+        transaction_date: date
+        rate_at_transaction: decimal
+        amount_usd: decimal
+    end
+
+    mappings:
+        transaction_id -> transaction_id
+        amount -> amount
+        currency -> currency
+        transaction_date -> transaction_date
+
+        // Temporal lookup: rate as of transaction date
+        rate_at_transaction -> lookup(rates, currency, as_of: transaction_date)
+
+        amount_usd -> amount * lookup(rates, currency, as_of: transaction_date)
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Multi-key lookup
+// -----------------------------------------------------------------------------
+
+transform enrich_shipping_rate
+    description "Lookup shipping rate by multiple keys"
+
+    lookups:
+        shipping: shipping_rate_table
+    end
+
+    input:
+        order_id: string
+        origin_zone: string
+        destination_zone: string
+        weight_kg: decimal
+        service_level: string
+    end
+
+    output:
+        order_id: string
+        origin_zone: string
+        destination_zone: string
+        weight_kg: decimal
+        service_level: string
+        base_rate: decimal
+        per_kg_rate: decimal
+        shipping_cost: decimal
+    end
+
+    mappings:
+        order_id -> order_id
+        origin_zone -> origin_zone
+        destination_zone -> destination_zone
+        weight_kg -> weight_kg
+        service_level -> service_level
+
+        // Multi-key lookup (zone pair + service level)
+        base_rate -> lookup(shipping, origin_zone, destination_zone, service_level).base
+        per_kg_rate -> lookup(shipping, origin_zone, destination_zone, service_level).per_kg
+
+        // Calculate total shipping cost
+        shipping_cost -> base_rate + (weight_kg * per_kg_rate)
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Cached lookup for performance
+// -----------------------------------------------------------------------------
+
+transform enrich_with_cached_reference
+    description "Use cached lookups for frequently accessed data"
+
+    lookups:
+        // Cached lookup - data refreshed every hour
+        countries: country_reference cached 1 hour
+        currencies: currency_reference cached 1 hour
+    end
+
+    input:
+        transaction_id: string
+        country_code: string
+        currency_code: string
+        amount: decimal
+    end
+
+    output:
+        transaction_id: string
+        country_code: string
+        country_name: string
+        currency_code: string
+        currency_name: string
+        currency_symbol: string
+        formatted_amount: string
+    end
+
+    mappings:
+        transaction_id -> transaction_id
+        country_code -> country_code
+        currency_code -> currency_code
+
+        // Cached lookups (fast, no network call if cached)
+        country_name -> lookup(countries, country_code).name
+        currency_name -> lookup(currencies, currency_code).name
+        currency_symbol -> lookup(currencies, currency_code).symbol
+
+        // Format amount with symbol
+        formatted_amount -> lookup(currencies, currency_code).symbol + " " + format_decimal(amount, 2)
+    end
+end
+
+// =============================================================================
+// What This Generates:
+// - Async lookup service integration
+// - LookupFunction implementation
+// - Caching layer (if specified)
+// - Temporal query support (as_of)
+//
+// Lookup Patterns:
+// - lookup(source, key): Simple key lookup
+// - lookup(source, key, default: value): With fallback
+// - lookup(source, key, as_of: date): Temporal/historical
+// - lookup(source, key1, key2, ...): Multi-key lookup
+// - cached <duration>: Enable result caching
+//
+// Next Steps:
+// → L12-02: Use enriched data in process flow
+// → L4-01: Apply rules to enriched data
+// =============================================================================

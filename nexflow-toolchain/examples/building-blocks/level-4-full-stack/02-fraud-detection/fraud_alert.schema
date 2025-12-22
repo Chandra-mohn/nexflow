@@ -1,0 +1,74 @@
+// =============================================================================
+// L12345-02: Fraud Alert Schema (L2)
+// =============================================================================
+
+record FraudAlert
+    description "Fraud detection result"
+
+    transaction_id: string
+        required
+
+    card_id: string
+        required
+
+    // Decision
+    decision: string
+        required
+        values "approve", "decline", "review", "challenge"
+
+    // Scoring
+    fraud_score: integer
+        required
+        range 0 to 100
+
+    risk_level: string
+        required
+        values "low", "medium", "high", "critical"
+
+    // Triggered rules
+    triggered_rules: list of string
+        required
+
+    rule_scores: list of RuleScore
+        optional
+
+    // Velocity metrics
+    velocity_metrics: VelocityMetrics
+        optional
+
+    // ML model output
+    ml_score: decimal
+        optional
+        range 0 to 1
+
+    // Recommendations
+    recommended_action: string
+        values "none", "sms_otp", "call_customer", "block_card", "manual_review"
+
+    // Metadata
+    processing_time_ms: integer
+        required
+
+    processed_at: timestamp
+        required
+end
+
+record RuleScore
+    rule_name: string
+        required
+
+    points: integer
+        required
+
+    reason: string
+        optional
+end
+
+record VelocityMetrics
+    txn_count_1h: integer
+    txn_count_24h: integer
+    amount_sum_1h: decimal
+    amount_sum_24h: decimal
+    unique_merchants_1h: integer
+    unique_countries_24h: integer
+end

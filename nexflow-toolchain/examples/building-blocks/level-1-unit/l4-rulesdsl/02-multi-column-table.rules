@@ -1,0 +1,161 @@
+// =============================================================================
+// L4-02: Multi-Column Decision Table (Multiple Conditions)
+// =============================================================================
+// Use Case: Make decisions based on multiple input factors
+// Pattern:  Multi-dimensional decision matrix
+// When:     Loan approval, pricing tiers, risk assessment
+// =============================================================================
+
+decision_table loan_approval
+    description "Loan approval based on credit score and income"
+    hit_policy first_match
+
+    given:
+        credit_score: number
+        annual_income: money
+        loan_amount: money
+    end
+
+    decide:
+        | credit_score | annual_income | loan_amount  | decision    | rate     |
+        |==============|===============|==============|=============|==========|
+        | >= 750       | >= $100,000   | *            | "approved"  | 5.5%     |
+        | >= 750       | >= $75,000    | <= $50,000   | "approved"  | 6.0%     |
+        | >= 700       | >= $100,000   | <= $75,000   | "approved"  | 6.5%     |
+        | >= 700       | >= $75,000    | <= $50,000   | "approved"  | 7.0%     |
+        | >= 650       | >= $75,000    | <= $25,000   | "review"    | 8.0%     |
+        | >= 650       | >= $50,000    | <= $15,000   | "review"    | 9.0%     |
+        | *            | *             | *            | "declined"  | 0%       |
+
+    return:
+        decision: text
+        rate: percentage
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Insurance premium calculation
+// -----------------------------------------------------------------------------
+
+decision_table auto_insurance_premium
+    description "Calculate auto insurance premium"
+    hit_policy first_match
+
+    given:
+        driver_age: number
+        years_licensed: number
+        vehicle_value: money
+        accidents_3yr: number
+    end
+
+    decide:
+        | driver_age | years_licensed | accidents_3yr | base_rate | risk_factor |
+        |============|================|===============|===========|=============|
+        | < 25       | < 3            | > 0           | $2,500    | 1.5         |
+        | < 25       | < 3            | 0             | $2,000    | 1.3         |
+        | < 25       | >= 3           | *             | $1,500    | 1.2         |
+        | 25 to 65   | *              | > 1           | $1,200    | 1.3         |
+        | 25 to 65   | *              | 1             | $1,000    | 1.1         |
+        | 25 to 65   | *              | 0             | $800      | 1.0         |
+        | > 65       | *              | > 0           | $1,200    | 1.2         |
+        | > 65       | *              | 0             | $900      | 1.0         |
+        | *          | *              | *             | $1,500    | 1.2         |
+
+    return:
+        base_rate: money
+        risk_factor: decimal
+
+    post_calculate:
+        premium = base_rate * risk_factor * (vehicle_value / 30000)
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Shipping cost matrix
+// -----------------------------------------------------------------------------
+
+decision_table shipping_cost
+    description "Calculate shipping cost by weight and zone"
+    hit_policy first_match
+
+    given:
+        weight_kg: decimal
+        destination_zone: text
+        service_type: text
+    end
+
+    decide:
+        | weight_kg  | destination_zone | service_type | base_cost | per_kg_cost |
+        |============|==================|==============|===========|=============|
+        | <= 1       | "local"          | "express"    | $10.00    | $0.00       |
+        | <= 1       | "local"          | "standard"   | $5.00     | $0.00       |
+        | <= 1       | "regional"       | "express"    | $15.00    | $0.00       |
+        | <= 1       | "regional"       | "standard"   | $8.00     | $0.00       |
+        | <= 1       | "national"       | *            | $12.00    | $0.00       |
+        | 1 to 5     | "local"          | *            | $8.00     | $2.00       |
+        | 1 to 5     | "regional"       | *            | $12.00    | $3.00       |
+        | 1 to 5     | "national"       | *            | $15.00    | $4.00       |
+        | > 5        | "local"          | *            | $10.00    | $1.50       |
+        | > 5        | "regional"       | *            | $15.00    | $2.50       |
+        | > 5        | "national"       | *            | $20.00    | $3.50       |
+        | *          | "international"  | *            | $30.00    | $5.00       |
+
+    return:
+        base_cost: money
+        per_kg_cost: money
+
+    post_calculate:
+        total_shipping = base_cost + (weight_kg * per_kg_cost)
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Risk classification
+// -----------------------------------------------------------------------------
+
+decision_table transaction_risk_level
+    description "Classify transaction risk based on multiple factors"
+    hit_policy first_match
+
+    given:
+        amount: money
+        is_international: boolean
+        customer_age_days: number
+        velocity_24h: number
+    end
+
+    decide:
+        | amount      | is_international | customer_age_days | velocity_24h | risk_level   |
+        |=============|==================|===================|==============|==============|
+        | >= $10,000  | true             | < 30              | *            | "critical"   |
+        | >= $10,000  | true             | *                 | > 5          | "critical"   |
+        | >= $10,000  | *                | < 7               | *            | "high"       |
+        | >= $5,000   | true             | < 90              | *            | "high"       |
+        | >= $5,000   | *                | *                 | > 10         | "high"       |
+        | >= $1,000   | true             | *                 | *            | "medium"     |
+        | >= $1,000   | *                | < 30              | *            | "medium"     |
+        | *           | *                | *                 | > 20         | "medium"     |
+        | *           | *                | *                 | *            | "low"        |
+
+    return:
+        risk_level: text
+end
+
+// =============================================================================
+// What This Generates:
+// - Multi-condition evaluation logic
+// - Row-by-row condition checking
+// - Short-circuit evaluation on first match
+//
+// Condition Types (all columns):
+// - Exact: "value", 100, true
+// - Comparison: >= 750, < 25, > 0
+// - Range: 25 to 65, 1 to 5
+// - Wildcard: * (match any)
+// - Boolean: true, false
+//
+// Post-Calculate:
+// - Derived values computed after match
+// - Can use matched return values
+//
+// Next Steps:
+// → L4-03: Procedural rules for complex logic
+// → L4-04: Collection-based conditions
+// =============================================================================

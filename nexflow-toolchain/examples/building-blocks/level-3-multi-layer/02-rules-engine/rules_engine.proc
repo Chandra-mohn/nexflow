@@ -1,0 +1,69 @@
+// =============================================================================
+// L124-02: Rules Engine Pipeline (L1 + L2 + L4)
+// =============================================================================
+// Stream processing with business rules evaluation
+
+import ./insurance_claim.schema
+import ./claim_decision.schema
+import ./claim_rules.rules
+
+process claim_rules_engine
+    description "Process insurance claims through business rules"
+
+    // Receive typed claims
+    receive claims from "insurance-claims-topic"
+        as InsuranceClaim
+
+    // Validate input against schema
+    validate input
+        on_invalid send to "invalid-claims"
+
+    // Apply business rules
+    evaluate using claim_routing
+        as ClaimDecision
+
+    // Enrich with SLA
+    evaluate using sla_assignment
+
+    // Assign adjuster
+    evaluate using adjuster_assignment
+
+    // Route based on decision
+    route by decision
+        when "auto_approve" send to "auto-approved-claims"
+        when "expedited" send to "expedited-claims"
+        when "denied" send to "denied-claims"
+        default send to "manual-review-queue"
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Rules engine with fraud detection branch
+// -----------------------------------------------------------------------------
+
+process claim_rules_with_fraud
+    description "Claims processing with fraud detection path"
+
+    receive claims from "insurance-claims-topic"
+        as InsuranceClaim
+
+    validate input
+        on_invalid send to "invalid-claims"
+
+    // First check for fraud indicators
+    evaluate using claim_routing
+        as ClaimDecision
+
+    // Branch fraud cases to special handling
+    route by processing_tier
+        when "fraud_review"
+            // Send to fraud investigation
+            send to "fraud-investigation-queue"
+
+        default
+            // Normal processing path
+            evaluate using sla_assignment
+            evaluate using adjuster_assignment
+            send to "claims-processing-queue"
+    end
+end

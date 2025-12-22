@@ -1,0 +1,36 @@
+// =============================================================================
+// L12-01: Order Schema (L2)
+// =============================================================================
+// Schema definition for typed stream processing
+// =============================================================================
+
+record Order
+    description "Order record with validation constraints"
+
+    order_id: string
+        required
+        pattern "^ORD-[0-9]{8}$"
+
+    customer_id: string
+        required
+        length 5 to 20
+
+    status: string
+        required
+        values "pending", "confirmed", "shipped", "delivered"
+
+    quantity: integer
+        required
+        range 1 to 10000
+
+    unit_price: decimal
+        required
+        range 0.01 to 99999.99
+
+    total_amount: decimal
+        required
+        range 0.01 to 999999999.99
+
+    order_date: timestamp
+        required
+end

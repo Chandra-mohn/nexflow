@@ -14,7 +14,7 @@ from .common import SourceLocation
 
 if TYPE_CHECKING:
     from backend.ast.common import ImportStatement
-from .metadata import TransformMetadata, CacheDecl
+from .metadata import TransformMetadata, CacheDecl, LookupsBlock, ParamsBlock
 from .specs import InputSpec, OutputSpec
 from .blocks import (
     ApplyBlock,
@@ -34,7 +34,10 @@ class TransformDef:
     name: str
     metadata: Optional[TransformMetadata] = None
     pure: Optional[bool] = None
+    idempotent: Optional[bool] = None
     cache: Optional[CacheDecl] = None
+    lookups: Optional[LookupsBlock] = None
+    params: Optional[ParamsBlock] = None
     input: Optional[InputSpec] = None
     output: Optional[OutputSpec] = None
     validate_input: Optional[ValidateInputBlock] = None
@@ -57,6 +60,8 @@ class TransformBlockDef:
     name: str
     metadata: Optional[TransformMetadata] = None
     use: Optional[UseBlock] = None
+    lookups: Optional[LookupsBlock] = None
+    params: Optional[ParamsBlock] = None
     input: Optional[InputSpec] = None
     output: Optional[OutputSpec] = None
     validate_input: Optional[ValidateInputBlock] = None

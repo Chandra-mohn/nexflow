@@ -1,0 +1,145 @@
+// =============================================================================
+// L2-03: Collection Fields (Lists and Arrays)
+// =============================================================================
+// Use Case: Define records with multiple values per field
+// Pattern:  Collections of primitives or records
+// When:     Multi-valued fields, arrays in JSON, repeated elements
+// =============================================================================
+
+record OrderWithItems
+    description "Order containing multiple line items"
+
+    order_id: string
+    customer_id: string
+
+    // List of nested records
+    items: list of LineItem
+
+    // List of primitives
+    tags: list of string
+    applied_discounts: list of decimal
+
+    total: money
+    order_date: timestamp
+end
+
+record LineItem
+    description "Individual order item"
+
+    product_id: string
+    name: string
+    quantity: integer
+    unit_price: money
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Customer with multiple addresses
+// -----------------------------------------------------------------------------
+
+record Address
+    description "Postal address"
+
+    type: string           // "home", "work", "shipping"
+    street: string
+    city: string
+    state: string
+    postal_code: string
+    country: string
+end
+
+record CustomerWithAddresses
+    description "Customer with multiple addresses"
+
+    customer_id: string
+    name: string
+    email: string
+
+    // Multiple addresses
+    addresses: list of Address
+
+    // Multiple phone numbers (primitive list)
+    phone_numbers: list of string
+
+    // Preference flags
+    notification_channels: list of string
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Event with multiple attributes
+// -----------------------------------------------------------------------------
+
+record Attribute
+    description "Key-value attribute"
+
+    key: string
+    value: string
+end
+
+record RichEvent
+    description "Event with extensible attributes"
+
+    event_id: string
+    event_type: string
+    timestamp: timestamp
+
+    // Fixed fields
+    source: string
+    user_id: string
+
+    // Dynamic attributes as list of key-value pairs
+    attributes: list of Attribute
+
+    // Tags for categorization
+    tags: list of string
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Portfolio with holdings
+// -----------------------------------------------------------------------------
+
+record Holding
+    description "Investment holding"
+
+    symbol: string
+    shares: decimal
+    cost_basis: money
+    current_price: money
+end
+
+record Portfolio
+    description "Investment portfolio"
+
+    portfolio_id: string
+    owner_id: string
+    name: string
+
+    holdings: list of Holding
+
+    // Summary fields
+    total_value: money
+    total_cost: money
+    gain_loss: money
+end
+
+// =============================================================================
+// What This Generates:
+// - Java Record with List<T> fields
+// - Immutable list handling
+// - JSON array serialization
+// - Collection accessors and builders
+//
+// Collection Types:
+// - `list of <type>`: List<Type> in Java
+// - `list of string`: List<String>
+// - `list of <record>`: List<RecordType>
+//
+// Common Operations (in L3/L4):
+// - any(items, condition): Check if any match
+// - all(items, condition): Check if all match
+// - sum(items, field): Sum a field across items
+// - filter(items, condition): Filter collection
+//
+// Next Steps:
+// → L2-04: Add constraints to collection elements
+// → L4-04: Write rules using collection predicates
+// =============================================================================

@@ -1,0 +1,51 @@
+// =============================================================================
+// L123-01: Enriched Event Schema (L2)
+// =============================================================================
+
+record EnrichedEvent
+    description "Cleaned and enriched event for analytics"
+
+    event_id: string
+        required
+
+    event_type: string
+        required
+        values "click", "view", "purchase", "signup", "login"
+
+    event_timestamp: timestamp
+        description "Parsed timestamp"
+        required
+
+    user_id: string
+        required
+
+    user_segment: string
+        description "Enriched from user lookup"
+        values "premium", "standard", "trial", "unknown"
+
+    geo_region: string
+        description "Derived from IP address"
+        optional
+
+    event_data: EventPayload
+        required
+
+    source_system: string
+        required
+
+    processed_at: timestamp
+        required
+end
+
+record EventPayload
+    description "Parsed event payload"
+
+    item_id: string
+        optional
+
+    amount: decimal
+        optional
+
+    category: string
+        optional
+end

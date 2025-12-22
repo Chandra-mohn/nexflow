@@ -1,0 +1,89 @@
+// =============================================================================
+// L12345-01: Order Enrichment (L3)
+// =============================================================================
+// Enrich orders with inventory, customer, and pricing data
+
+import ./order.schema
+import ./fulfillment.schema
+
+transform enrich_order
+    description "Enrich order for fulfillment processing"
+    from Order
+    to FulfillmentOrder
+
+    // Direct mappings
+    mappings:
+        order_id = order_id
+        customer_id = customer_id
+        created_at = now()
+
+    // Lookup customer for priority
+    lookups:
+        customer = lookup customer_id from "customer-service"
+            cache ttl 5 minutes
+            on_miss use default {
+                tier: "standard",
+                lifetime_orders: 0,
+                preferred_warehouse: null
+            }
+
+    // Lookup inventory for each item
+    lookups:
+        inventory = lookup items[].sku from "inventory-service"
+            cache ttl 30 seconds
+            on_miss use default {
+                status: "backordered",
+                bin_location: "UNKNOWN",
+                available_qty: 0
+            }
+
+    // Lookup promotions
+    lookups:
+        promo_details = lookup promotions from "promotion-service"
+            cache ttl 1 minute
+            on_miss use default []
+
+    // Build pick items with inventory enrichment
+    mappings:
+        pick_items = for item in items yield {
+            sku: item.sku,
+            name: item.name,
+            quantity: item.quantity,
+            bin_location: inventory[item.sku].bin_location,
+            inventory_status: when inventory[item.sku].available_qty >= item.quantity
+                                then "available"
+                              when inventory[item.sku].available_qty > 0
+                                then "reserved"
+                              otherwise "backordered",
+            substitution_sku: inventory[item.sku].substitution_sku
+        }
+
+    // Calculate totals
+    mappings:
+        subtotal = sum(items[].unit_price * items[].quantity)
+
+        // Discount calculated by rules
+
+        total_weight_kg = sum(items[].weight_kg * items[].quantity)
+
+        // Tax, shipping, carrier, warehouse set by rules
+end
+
+// -----------------------------------------------------------------------------
+// Tax calculation helper
+// -----------------------------------------------------------------------------
+
+transform calculate_tax
+    params:
+        amount: decimal
+        state: string
+        country: string
+
+    lookups:
+        tax_rate = lookup state from "tax-service"
+            on_miss use default { rate: 0 }
+
+    mappings:
+        result = when country = "US" then amount * tax_rate.rate
+                 otherwise 0
+end

@@ -1,0 +1,28 @@
+// =============================================================================
+// L1-01: Passthrough (Kafka → Kafka)
+// =============================================================================
+// Use Case: Forward events from one topic to another without modification
+// Pattern:  Identity transformation - read and write unchanged
+// When:     Topic migration, multi-consumer isolation, development/testing
+// =============================================================================
+
+process order_forwarder
+    description "Forward orders from input to output without modification"
+
+    // Read from source Kafka topic
+    receive orders from orders_input
+
+    // Write to destination Kafka topic (unchanged)
+    send to orders_output
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink DataStream job with KafkaSource and KafkaSink
+// - Exactly-once semantics (default)
+// - No transformation logic - pure passthrough
+//
+// Next Steps:
+// → L1-02: Add filtering with `where` clause
+// → L12-01: Add schema validation (L1+L2)
+// =============================================================================

@@ -1,0 +1,45 @@
+// =============================================================================
+// L124-02: Insurance Claim Schema (L2)
+// =============================================================================
+
+record InsuranceClaim
+    description "Insurance claim for processing"
+
+    claim_id: string
+        required
+        pattern "^CLM-[0-9]{12}$"
+
+    policy_id: string
+        required
+
+    claim_type: string
+        required
+        values "medical", "auto", "property", "liability"
+
+    claim_amount: decimal
+        required
+        range 0 to 10000000
+
+    incident_date: date
+        required
+
+    submission_date: date
+        required
+
+    claimant_id: string
+        required
+
+    policy_years: integer
+        description "Years customer has held policy"
+        range 0 to 100
+
+    prior_claims_count: integer
+        description "Number of prior claims in last 3 years"
+        range 0 to 100
+
+    documentation_complete: boolean
+        required
+
+    description: string
+        optional
+end

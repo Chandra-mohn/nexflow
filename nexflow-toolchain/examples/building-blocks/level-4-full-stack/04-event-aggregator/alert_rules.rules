@@ -1,0 +1,145 @@
+// =============================================================================
+// L12345-04: Alert Rules (L4)
+// =============================================================================
+
+import ./metrics.schema
+
+// -----------------------------------------------------------------------------
+// Error rate alerting
+// -----------------------------------------------------------------------------
+
+decision_table error_rate_alerts
+    description "Alert on high error rates"
+    hit_policy first_match
+
+    given: AggregatedMetrics
+
+    decide:
+        | error_rate | total_events | severity   | alert_type   |
+        |============|==============|============|==============|
+        | >= 50      | >= 100       | "critical" | "error_rate" |
+        | >= 20      | >= 100       | "warning"  | "error_rate" |
+        | >= 10      | >= 1000      | "warning"  | "error_rate" |
+        | >= 5       | >= 5000      | "info"     | "error_rate" |
+        | *          | *            | null       | null         |
+
+    post_calculate:
+        error_alert_triggered = severity != null
+end
+
+// -----------------------------------------------------------------------------
+// Traffic anomaly detection
+// -----------------------------------------------------------------------------
+
+decision_table traffic_spike_alerts
+    description "Alert on traffic spikes"
+    hit_policy first_match
+
+    // Uses baseline from lookup
+    lookups:
+        baseline = lookup dimension_value from "baseline-metrics"
+            cache ttl 5 minutes
+            on_miss use default { avg_events: 1000, std_dev: 200 }
+
+    decide:
+        | total_events > baseline.avg_events * 3 | total_events > baseline.avg_events * 2 | severity   | alert_type     |
+        |========================================|========================================|============|================|
+        | true                                   | *                                      | "warning"  | "traffic_spike"|
+        | *                                      | true                                   | "info"     | "traffic_spike"|
+        | *                                      | *                                      | null       | null           |
+
+    post_calculate:
+        spike_alert_triggered = severity != null
+end
+
+decision_table traffic_drop_alerts
+    description "Alert on traffic drops"
+    hit_policy first_match
+
+    lookups:
+        baseline = lookup dimension_value from "baseline-metrics"
+            cache ttl 5 minutes
+            on_miss use default { avg_events: 1000, min_expected: 100 }
+
+    decide:
+        | total_events < baseline.min_expected | total_events < baseline.avg_events * 0.3 | severity   | alert_type    |
+        |======================================|==========================================|============|===============|
+        | true                                 | *                                        | "critical" | "traffic_drop"|
+        | *                                    | true                                     | "warning"  | "traffic_drop"|
+        | *                                    | *                                        | null       | null          |
+
+    post_calculate:
+        drop_alert_triggered = severity != null
+end
+
+// -----------------------------------------------------------------------------
+// Revenue alerts
+// -----------------------------------------------------------------------------
+
+decision_table revenue_alerts
+    description "Alert on revenue anomalies"
+    hit_policy first_match
+
+    lookups:
+        baseline = lookup dimension_value from "revenue-baseline"
+            cache ttl 15 minutes
+            on_miss use default { avg_revenue: 10000, min_expected: 1000 }
+
+    decide:
+        | total_revenue < baseline.min_expected | purchase_count < 10 | severity   | alert_type    |
+        |=======================================|=====================|============|===============|
+        | true                                  | *                   | "critical" | "revenue_drop"|
+        | *                                     | true                | "warning"  | "revenue_drop"|
+        | *                                     | *                   | null       | null          |
+
+    post_calculate:
+        revenue_alert_triggered = severity != null
+end
+
+// -----------------------------------------------------------------------------
+// Consolidate alerts
+// -----------------------------------------------------------------------------
+
+procedural_rule consolidate_alerts
+    description "Consolidate all alert triggers"
+
+    given: AggregatedMetrics
+
+    calculate:
+        alert_triggered = error_alert_triggered or
+                         spike_alert_triggered or
+                         drop_alert_triggered or
+                         revenue_alert_triggered
+
+        alert_reasons = collect_non_null([
+            when error_alert_triggered then "Error rate: " + error_rate + "/1000"
+            when spike_alert_triggered then "Traffic spike detected"
+            when drop_alert_triggered then "Traffic drop detected"
+            when revenue_alert_triggered then "Revenue below threshold"
+        ])
+end
+
+// -----------------------------------------------------------------------------
+// Generate alert record
+// -----------------------------------------------------------------------------
+
+procedural_rule generate_alert
+    description "Generate alert record if triggered"
+
+    given: AggregatedMetrics
+
+    when alert_triggered = true
+        emit Alert:
+            alert_id = uuid()
+            alert_type = first_non_null([error_alert_type, spike_alert_type, drop_alert_type, revenue_alert_type])
+            severity = max_severity([error_severity, spike_severity, drop_severity, revenue_severity])
+            dimension_type = dimension_type
+            dimension_value = dimension_value
+            threshold_name = "composite"
+            threshold_value = 0
+            actual_value = total_events
+            window_start = window_start
+            window_end = window_end
+            message = join(alert_reasons, "; ")
+            triggered_at = now()
+end

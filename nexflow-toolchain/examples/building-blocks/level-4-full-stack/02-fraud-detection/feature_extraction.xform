@@ -1,0 +1,70 @@
+// =============================================================================
+// L12345-02: Feature Extraction (L3)
+// =============================================================================
+// Extract fraud detection features from transactions
+
+import ./transaction.schema
+import ./fraud_alert.schema
+
+transform extract_fraud_features
+    description "Extract features for fraud detection"
+
+    // Direct mappings
+    mappings:
+        transaction_id = transaction_id
+        card_id = card_id
+        processed_at = now()
+
+    // Lookup card profile
+    lookups:
+        card_profile = lookup card_id from "card-profile-service"
+            cache ttl 1 minute
+            on_miss use default {
+                avg_transaction: 100,
+                typical_merchants: [],
+                home_country: "unknown",
+                card_age_days: 0,
+                is_premium: false
+            }
+
+    // Lookup velocity from state store
+    lookups:
+        velocity = lookup card_id from "velocity-state-store"
+            on_miss use default {
+                txn_count_1h: 0,
+                txn_count_24h: 0,
+                amount_sum_1h: 0,
+                amount_sum_24h: 0,
+                unique_merchants_1h: 0,
+                unique_countries_24h: 0,
+                last_location: null
+            }
+
+    // Lookup ML model score
+    lookups:
+        ml_prediction = lookup transaction_id from "ml-model-service"
+            timeout 100ms
+            on_miss use default { score: 0.5 }
+
+    // Feature calculations
+    mappings:
+        // Velocity metrics
+        velocity_metrics.txn_count_1h = velocity.txn_count_1h
+        velocity_metrics.txn_count_24h = velocity.txn_count_24h
+        velocity_metrics.amount_sum_1h = velocity.amount_sum_1h
+        velocity_metrics.amount_sum_24h = velocity.amount_sum_24h
+        velocity_metrics.unique_merchants_1h = velocity.unique_merchants_1h
+        velocity_metrics.unique_countries_24h = velocity.unique_countries_24h
+
+        // ML score
+        ml_score = ml_prediction.score
+
+        // Derived features for rules
+        is_high_amount = amount > card_profile.avg_transaction * 3
+        is_foreign = location.country != card_profile.home_country
+        is_new_card = card_profile.card_age_days < 30
+        is_new_merchant = merchant_id not in card_profile.typical_merchants
+        distance_from_last = when velocity.last_location != null
+                               then geo_distance(location, velocity.last_location)
+                             otherwise 0
+end

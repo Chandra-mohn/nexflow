@@ -1,0 +1,63 @@
+// =============================================================================
+// L134-03: Enrich and Decide Pipeline (L1 + L3 + L4)
+// =============================================================================
+// Enrich transactions then apply business rules
+
+import ./enrich_transaction.xform
+import ./transaction_rules.rules
+
+process enrich_and_decide_pipeline
+    description "Enrich transaction data then make authorization decision"
+
+    // Receive raw transactions
+    receive transactions from "raw-transactions-topic"
+
+    // Step 1: Enrich with external data
+    transform using enrich_transaction
+
+    // Step 2: Calculate risk score (collect_sum)
+    evaluate using transaction_risk_scoring
+
+    // Step 3: Make authorization decision
+    evaluate using authorization_decision
+
+    // Step 4: Check velocity
+    evaluate using velocity_check
+
+    // Route based on decision
+    route by decision
+        when "approve"
+            send to "approved-transactions"
+
+        when "review"
+            send to "manual-review-queue"
+
+        when "decline"
+            send to "declined-transactions"
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Parallel enrichment paths
+// -----------------------------------------------------------------------------
+
+process enrich_decide_parallel
+    description "Parallel enrichment before decision"
+
+    receive transactions from "raw-transactions-topic"
+
+    // Enrich data
+    transform using enrich_transaction
+
+    // Apply rules
+    evaluate using transaction_risk_scoring
+    evaluate using authorization_decision
+
+    // Error handling
+    on_error
+        send to "transaction-errors"
+    end
+
+    // Output with full decision context
+    send to "transaction-decisions"
+end

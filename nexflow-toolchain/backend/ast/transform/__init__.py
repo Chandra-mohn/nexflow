@@ -82,6 +82,10 @@ from .specs import (
 from .metadata import (
     TransformMetadata,
     CacheDecl,
+    LookupRef,
+    LookupsBlock,
+    ParamDecl,
+    ParamsBlock,
 )
 
 # Blocks
@@ -131,7 +135,7 @@ __all__ = [
     # Specs
     'InputFieldDecl', 'OutputFieldDecl', 'InputSpec', 'OutputSpec',
     # Metadata
-    'TransformMetadata', 'CacheDecl',
+    'TransformMetadata', 'CacheDecl', 'LookupRef', 'LookupsBlock', 'ParamDecl', 'ParamsBlock',
     # Blocks
     'Assignment', 'LocalAssignment', 'ApplyBlock', 'Mapping', 'MappingsBlock',
     'ComposeRef', 'ComposeBlock', 'ValidationMessageObject', 'ValidationRule',

@@ -1,0 +1,83 @@
+// =============================================================================
+// L12345-03: Credit Decision Schema (L2)
+// =============================================================================
+
+record CreditDecision
+    description "Credit underwriting decision"
+
+    application_id: string
+        required
+
+    // Decision
+    decision: string
+        required
+        values "approved", "declined", "counter_offer", "manual_review", "pending_docs"
+
+    // Approved terms
+    approved_amount: decimal
+        optional
+
+    approved_rate: decimal
+        optional
+        range 0 to 100
+
+    approved_term: integer
+        optional
+
+    monthly_payment: decimal
+        optional
+
+    // Credit analysis
+    credit_score: integer
+        range 300 to 850
+
+    credit_grade: string
+        values "A", "B", "C", "D", "E", "F"
+
+    // Risk metrics
+    dti_ratio: decimal
+        description "Debt-to-income ratio"
+
+    ltv_ratio: decimal
+        optional
+        description "Loan-to-value ratio"
+
+    risk_score: integer
+        range 0 to 1000
+
+    risk_tier: string
+        values "prime", "near_prime", "subprime", "deep_subprime"
+
+    // Pricing
+    base_rate: decimal
+    risk_adjustment: decimal
+    final_rate: decimal
+
+    // Decline reasons (if declined)
+    decline_reasons: list of string
+        optional
+
+    // Counter offer (if applicable)
+    counter_offer: CounterOffer
+        optional
+
+    // Conditions (if conditional approval)
+    conditions: list of string
+        optional
+
+    // Metadata
+    decision_timestamp: timestamp
+        required
+
+    processing_time_ms: integer
+
+    rules_applied: list of string
+end
+
+record CounterOffer
+    offered_amount: decimal
+    offered_rate: decimal
+    offered_term: integer
+    monthly_payment: decimal
+    reason: string
+end

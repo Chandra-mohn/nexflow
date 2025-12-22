@@ -1,0 +1,66 @@
+// =============================================================================
+// L234-04: Order Transformation (L3)
+// =============================================================================
+// Transform and calculate order fields
+
+import ./order_input.schema
+import ./order_output.schema
+
+transform process_order
+    description "Transform order input to processed order"
+    from OrderInput
+    to ProcessedOrder
+
+    // Direct mappings
+    mappings:
+        order_id = order_id
+        customer_id = customer_id
+        order_date = order_date
+
+    // Lookup inventory for each item
+    lookups:
+        inventory = lookup items[].sku from "inventory-service"
+            cache ttl 1 minute
+            on_miss use default { status: "backordered", warehouse: "WH-DEFAULT" }
+
+    // Calculate line items
+    mappings:
+        line_items = for item in items yield {
+            sku: item.sku,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            line_discount: item.unit_price * item.quantity * (item.discount_percent / 100),
+            line_total: item.unit_price * item.quantity * (1 - item.discount_percent / 100),
+            inventory_status: inventory[item.sku].status
+        }
+
+    // Calculate totals
+    mappings:
+        subtotal = sum(line_items[].line_total)
+
+        discount_amount = when coupon_code != null then
+                            lookup_coupon_discount(coupon_code, subtotal)
+                          otherwise 0
+
+        tax_amount = calculate_tax(subtotal - discount_amount, shipping_address.state)
+
+        // Shipping cost determined by rules
+        // shipping_cost set by rules
+
+        // total_amount set by rules after shipping determined
+end
+
+// Helper transform for coupon lookup
+transform lookup_coupon_discount
+    params:
+        coupon_code: string
+        subtotal: decimal
+
+    lookups:
+        coupon = lookup coupon_code from "coupon-service"
+            on_miss use default { discount_percent: 0, max_discount: 0 }
+
+    mappings:
+        result = min(subtotal * coupon.discount_percent / 100, coupon.max_discount)
+end

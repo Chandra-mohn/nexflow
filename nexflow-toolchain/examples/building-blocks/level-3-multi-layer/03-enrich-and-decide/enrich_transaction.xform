@@ -1,0 +1,54 @@
+// =============================================================================
+// L134-03: Transaction Enrichment (L3)
+// =============================================================================
+// Enrich raw transactions with merchant and customer data
+
+transform enrich_transaction
+    description "Enrich transaction with external data for rules"
+
+    // Direct mappings
+    mappings:
+        transaction_id = transaction_id
+        amount = amount
+        currency = currency
+        timestamp = transaction_timestamp
+        merchant_id = merchant_id
+        customer_id = customer_id
+
+    // Lookup customer profile
+    lookups:
+        customer = lookup customer_id from "customer-service"
+            cache ttl 10 minutes
+            on_miss use default {
+                tier: "unknown",
+                account_age_days: 0,
+                lifetime_value: 0,
+                risk_score: 50
+            }
+
+    // Lookup merchant info
+    lookups:
+        merchant = lookup merchant_id from "merchant-service"
+            cache ttl 1 hour
+            on_miss use default {
+                category: "unknown",
+                risk_level: "medium",
+                country: "unknown"
+            }
+
+    // Enriched fields for rules
+    mappings:
+        customer_tier = customer.tier
+        customer_age_days = customer.account_age_days
+        customer_lifetime_value = customer.lifetime_value
+        customer_risk_score = customer.risk_score
+
+        merchant_category = merchant.category
+        merchant_risk_level = merchant.risk_level
+        merchant_country = merchant.country
+
+        // Derived calculations
+        is_high_value = amount > 1000
+        is_international = merchant_country != "US"
+        is_new_customer = customer_age_days < 30
+end

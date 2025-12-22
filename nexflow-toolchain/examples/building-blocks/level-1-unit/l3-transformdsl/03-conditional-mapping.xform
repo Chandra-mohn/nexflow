@@ -1,0 +1,203 @@
+// =============================================================================
+// L3-03: Conditional Mapping (When/Otherwise)
+// =============================================================================
+// Use Case: Apply different mappings based on conditions
+// Pattern:  Conditional expressions in field mappings
+// When:     Business logic, tiered values, default handling
+// =============================================================================
+
+transform apply_discount_tier
+    description "Apply discount based on customer tier"
+
+    input:
+        order_id: string
+        customer_tier: string
+        subtotal: decimal
+    end
+
+    output:
+        order_id: string
+        customer_tier: string
+        subtotal: decimal
+        discount_rate: decimal
+        discount_amount: decimal
+        final_total: decimal
+    end
+
+    mappings:
+        order_id -> order_id
+        customer_tier -> customer_tier
+        subtotal -> subtotal
+
+        // Conditional discount rate based on tier
+        discount_rate -> when customer_tier = "platinum" then 0.20
+                         when customer_tier = "gold" then 0.15
+                         when customer_tier = "silver" then 0.10
+                         when customer_tier = "bronze" then 0.05
+                         otherwise 0.00
+
+        discount_amount -> subtotal * discount_rate
+        final_total -> subtotal - discount_amount
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Multiple condition factors
+// -----------------------------------------------------------------------------
+
+transform calculate_shipping_cost
+    description "Calculate shipping based on multiple factors"
+
+    input:
+        order_id: string
+        order_total: decimal
+        shipping_method: string
+        destination_zone: string
+        is_member: boolean
+    end
+
+    output:
+        order_id: string
+        base_shipping: decimal
+        zone_adjustment: decimal
+        member_discount: decimal
+        final_shipping: decimal
+    end
+
+    mappings:
+        order_id -> order_id
+
+        // Base rate by method
+        base_shipping -> when shipping_method = "express" then 15.00
+                         when shipping_method = "priority" then 10.00
+                         when shipping_method = "standard" then 5.00
+                         otherwise 7.50
+
+        // Zone adjustment
+        zone_adjustment -> when destination_zone = "remote" then base_shipping * 0.50
+                           when destination_zone = "rural" then base_shipping * 0.25
+                           otherwise 0.00
+
+        // Member discount (free shipping over $100)
+        member_discount -> when is_member and order_total >= 100 then base_shipping + zone_adjustment
+                           when is_member then (base_shipping + zone_adjustment) * 0.50
+                           otherwise 0.00
+
+        final_shipping -> base_shipping + zone_adjustment - member_discount
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Status mapping with defaults
+// -----------------------------------------------------------------------------
+
+transform normalize_order_status
+    description "Normalize various status codes to standard values"
+
+    input:
+        order_id: string
+        source_system: string
+        raw_status: string
+        is_paid: boolean
+        is_shipped: boolean
+    end
+
+    output:
+        order_id: string
+        normalized_status: string
+        status_category: string
+        is_active: boolean
+    end
+
+    mappings:
+        order_id -> order_id
+
+        // Normalize status from different source systems
+        normalized_status -> when source_system = "legacy" then
+                                when raw_status = "N" then "new"
+                                when raw_status = "P" then "processing"
+                                when raw_status = "S" then "shipped"
+                                when raw_status = "C" then "completed"
+                                when raw_status = "X" then "cancelled"
+                                otherwise "unknown"
+                             when source_system = "web" then
+                                lower(raw_status)
+                             otherwise
+                                raw_status
+
+        // Categorize status
+        status_category -> when normalized_status in ("new", "processing") then "active"
+                           when normalized_status in ("shipped", "completed") then "fulfilled"
+                           when normalized_status in ("cancelled", "returned") then "closed"
+                           otherwise "unknown"
+
+        // Derive is_active flag
+        is_active -> when normalized_status in ("new", "processing", "shipped") then true
+                     otherwise false
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Null handling with defaults
+// -----------------------------------------------------------------------------
+
+transform handle_optional_fields
+    description "Handle nullable fields with defaults"
+
+    input:
+        customer_id: string
+        name: string optional
+        email: string optional
+        phone: string optional
+        preferred_contact: string optional
+    end
+
+    output:
+        customer_id: string
+        display_name: string
+        contact_email: string
+        contact_phone: string
+        contact_method: string
+    end
+
+    mappings:
+        customer_id -> customer_id
+
+        // Default for null name
+        display_name -> when name is not null then name
+                        otherwise "Customer " + customer_id
+
+        // Default for null email
+        contact_email -> when email is not null then email
+                         otherwise "noemail@placeholder.com"
+
+        // Default for null phone
+        contact_phone -> when phone is not null then phone
+                         otherwise "N/A"
+
+        // Derive preferred contact method
+        contact_method -> when preferred_contact is not null then preferred_contact
+                          when email is not null then "email"
+                          when phone is not null then "phone"
+                          otherwise "mail"
+    end
+end
+
+// =============================================================================
+// What This Generates:
+// - Java ternary expressions or switch statements
+// - Null-safe condition evaluation
+// - Chained when/then/otherwise logic
+//
+// Conditional Patterns:
+// - when <condition> then <value>
+// - when <field> = <value> then <result>
+// - when <field> in (<values>) then <result>
+// - when <field> is null / is not null
+// - Nested when clauses for complex logic
+// - otherwise <default> for catch-all
+//
+// Next Steps:
+// → L3-04: Add external data lookups
+// → L4-01: Move complex logic to decision tables
+// =============================================================================
