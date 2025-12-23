@@ -9,9 +9,8 @@ webview/tsconfig.json
 webview/vite.config.ts
 webview/tailwind.config.js
 webview/postcss.config.js
-node_modules/**
 .gitignore
-*.map
 **/*.ts
-!out/**/*.js
+!out/**/*.d.ts
+**/*.map
 !webview/dist/**
