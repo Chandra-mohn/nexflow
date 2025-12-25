@@ -1,0 +1,161 @@
+// =============================================================================
+// L1-SQL-01: Flink SQL Integration
+// =============================================================================
+// Use Case: Embed Flink SQL queries within stream processing pipelines
+// Pattern:  SQL-based transformations, aggregations, and joins
+// When:     Complex analytics, batch-style SQL on streaming data
+// Runtime:  Apache Flink (Table API / SQL)
+// =============================================================================
+
+process flink_sql_sales_analytics
+    // Real-time sales analytics using Flink SQL
+
+    receive orders
+        from kafka "orders_stream"
+        schema order
+
+    // Flink SQL: Real-time sales aggregation with tumbling window
+    sql ```
+        SELECT
+            TUMBLE_START(event_time, INTERVAL '1' HOUR) as window_start,
+            TUMBLE_END(event_time, INTERVAL '1' HOUR) as window_end,
+            region,
+            COUNT(*) as order_count,
+            SUM(total_amount) as total_sales,
+            AVG(total_amount) as avg_order_value
+        FROM orders
+        GROUP BY
+            TUMBLE(event_time, INTERVAL '1' HOUR),
+            region
+    ``` as SalesAggregate
+
+    emit to hourly_sales_metrics
+        schema sales_aggregate
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Flink SQL with Windowed Join
+// -----------------------------------------------------------------------------
+
+process flink_sql_order_enrichment
+    // Enrich orders with customer data using Flink SQL temporal join
+
+    receive orders
+        from kafka "orders_stream"
+        schema order
+
+    receive customers
+        from kafka "customers_cdc"
+        schema customer
+
+    // Flink SQL: Temporal join with versioned customer table
+    sql ```
+        SELECT
+            o.order_id,
+            o.product_id,
+            o.quantity,
+            o.total_amount,
+            o.order_time,
+            c.customer_name,
+            c.loyalty_tier,
+            c.region
+        FROM orders o
+        LEFT JOIN customers FOR SYSTEM_TIME AS OF o.order_time c
+            ON o.customer_id = c.customer_id
+    ``` as EnrichedOrder
+
+    emit to enriched_orders
+        schema enriched_order
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Flink SQL with Pattern Matching (MATCH_RECOGNIZE)
+// -----------------------------------------------------------------------------
+
+process flink_sql_fraud_pattern
+    // Detect suspicious transaction patterns using Flink CEP SQL
+
+    receive transactions
+        from kafka "transaction_stream"
+        schema transaction
+
+    // Flink SQL: Complex Event Processing with MATCH_RECOGNIZE
+    sql ```
+        SELECT *
+        FROM transactions
+        MATCH_RECOGNIZE (
+            PARTITION BY account_id
+            ORDER BY event_time
+            MEASURES
+                FIRST(A.transaction_id) AS first_txn,
+                LAST(A.transaction_id) AS last_txn,
+                COUNT(A.amount) AS txn_count,
+                SUM(A.amount) AS total_amount
+            ONE ROW PER MATCH
+            AFTER MATCH SKIP PAST LAST ROW
+            PATTERN (A{3,} B)
+            DEFINE
+                A AS A.amount > 1000,
+                B AS B.amount > 5000 AND
+                    TIMESTAMPDIFF(MINUTE, FIRST(A.event_time), B.event_time) < 10
+        )
+    ``` as FraudAlert
+
+    emit to fraud_alerts
+        schema fraud_alert
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Flink SQL with Table-Valued Functions
+// -----------------------------------------------------------------------------
+
+process flink_sql_json_expansion
+    // Expand nested JSON arrays using Flink SQL UNNEST
+
+    receive event_stream
+        from kafka "events_stream"
+        schema event
+
+    // Flink SQL: UNNEST to explode array fields
+    sql ```
+        SELECT
+            e.event_id,
+            e.event_type,
+            e.timestamp,
+            t.tag_name,
+            t.tag_value
+        FROM event_stream e
+        CROSS JOIN UNNEST(e.tags) AS t(tag_name, tag_value)
+        WHERE e.event_type = 'USER_ACTION'
+    ``` as FlattenedEvent
+
+    emit to flattened_events
+        schema flattened_event
+end
+
+// =============================================================================
+// What This Generates:
+// - Flink Table API/SQL job with embedded SQL statements
+// - Automatic table registration from Kafka sources
+// - SQL result materialization to output sinks
+//
+// Flink SQL Features Demonstrated:
+// - Tumbling window aggregation (TUMBLE function)
+// - Temporal joins (FOR SYSTEM_TIME AS OF)
+// - Pattern matching (MATCH_RECOGNIZE)
+// - Array expansion (UNNEST, CROSS JOIN)
+//
+// Schema Reference:
+// - order: Input schema with order_id, customer_id, total_amount, event_time
+// - customer: CDC schema with customer_id, customer_name, loyalty_tier
+// - transaction: Schema with account_id, amount, transaction_id, event_time
+// - event: Schema with event_id, event_type, tags (array)
+//
+// Configuration:
+// - Flink SQL mode auto-detected from sql block presence
+// - Table API used for seamless DataStream integration
+//
+// Next Steps:
+// -> 02-spark-sql.proc: Spark Structured Streaming SQL
+// -> 04-combined-sql.proc: Multi-engine SQL orchestration
+// =============================================================================

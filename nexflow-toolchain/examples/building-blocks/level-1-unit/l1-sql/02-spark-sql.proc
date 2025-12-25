@@ -1,0 +1,166 @@
+// =============================================================================
+// L1-SQL-02: Spark Structured Streaming SQL Integration
+// =============================================================================
+// Use Case: Embed Spark SQL queries for structured streaming pipelines
+// Pattern:  Batch-style SQL semantics on micro-batch streaming data
+// When:     Analytics workloads, data lake integration, ML pipelines
+// Runtime:  Apache Spark (Structured Streaming + SQL)
+// =============================================================================
+
+process spark_sql_clickstream_analytics
+    // Clickstream analytics using Spark Structured Streaming SQL
+    // Runtime: Spark (configured via process metadata or config)
+
+    receive clicks
+        from kafka "clickstream"
+        schema click_event
+
+    // Spark SQL: Session-based clickstream analysis
+    sql ```
+        SELECT
+            session_id,
+            user_id,
+            COUNT(*) as click_count,
+            COUNT(DISTINCT page_url) as unique_pages,
+            MIN(event_time) as session_start,
+            MAX(event_time) as session_end,
+            COLLECT_LIST(page_url) as page_sequence
+        FROM clicks
+        GROUP BY session_id, user_id
+    ``` as SessionSummary
+
+    emit to session_analytics
+        schema session_summary
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Spark SQL with Delta Lake Integration
+// -----------------------------------------------------------------------------
+
+process spark_sql_delta_merge
+    // CDC merge into Delta Lake using Spark SQL
+
+    receive customer_updates
+        from kafka "customers_cdc"
+        schema customer_cdc
+
+    // Spark SQL: Delta Lake MERGE for upsert operations
+    sql ```
+        MERGE INTO delta.customers AS target
+        USING customer_updates AS source
+        ON target.customer_id = source.customer_id
+        WHEN MATCHED AND source.operation = 'DELETE' THEN DELETE
+        WHEN MATCHED THEN UPDATE SET
+            target.customer_name = source.customer_name,
+            target.email = source.email,
+            target.loyalty_tier = source.loyalty_tier,
+            target.updated_at = source.event_time
+        WHEN NOT MATCHED AND source.operation != 'DELETE' THEN INSERT (
+            customer_id, customer_name, email, loyalty_tier, created_at, updated_at
+        ) VALUES (
+            source.customer_id, source.customer_name, source.email,
+            source.loyalty_tier, source.event_time, source.event_time
+        )
+    ``` as MergeResult
+
+    emit to cdc_audit_log
+        schema cdc_audit
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Spark SQL with Window Functions
+// -----------------------------------------------------------------------------
+
+process spark_sql_ranking
+    // Product ranking with Spark SQL window functions
+
+    receive sales
+        from kafka "sales_stream"
+        schema sale_event
+
+    // Spark SQL: Window functions for ranking and analytics
+    sql ```
+        SELECT
+            product_id,
+            category,
+            revenue,
+            RANK() OVER (PARTITION BY category ORDER BY revenue DESC) as category_rank,
+            DENSE_RANK() OVER (ORDER BY revenue DESC) as overall_rank,
+            SUM(revenue) OVER (PARTITION BY category) as category_total,
+            revenue / SUM(revenue) OVER (PARTITION BY category) as category_share,
+            LAG(revenue, 1) OVER (PARTITION BY product_id ORDER BY sale_time) as prev_revenue,
+            revenue - LAG(revenue, 1) OVER (PARTITION BY product_id ORDER BY sale_time) as revenue_change
+        FROM sales
+    ``` as RankedProduct
+
+    emit to product_rankings
+        schema product_ranking
+end
+
+// -----------------------------------------------------------------------------
+// Variation: Spark SQL with ML Feature Engineering
+// -----------------------------------------------------------------------------
+
+process spark_sql_feature_engineering
+    // ML feature extraction using Spark SQL
+
+    receive user_actions
+        from kafka "user_actions"
+        schema user_action
+
+    // Spark SQL: Feature engineering for ML pipelines
+    sql ```
+        SELECT
+            user_id,
+            -- Temporal features
+            HOUR(action_time) as action_hour,
+            DAYOFWEEK(action_time) as day_of_week,
+            -- Aggregation features
+            COUNT(*) OVER (PARTITION BY user_id ORDER BY action_time
+                RANGE BETWEEN INTERVAL 1 HOUR PRECEDING AND CURRENT ROW) as actions_last_hour,
+            COUNT(DISTINCT session_id) OVER (PARTITION BY user_id ORDER BY action_time
+                RANGE BETWEEN INTERVAL 24 HOURS PRECEDING AND CURRENT ROW) as sessions_last_day,
+            -- Behavioral features
+            CASE
+                WHEN action_type = 'PURCHASE' THEN 1.0
+                WHEN action_type = 'ADD_TO_CART' THEN 0.7
+                WHEN action_type = 'VIEW' THEN 0.3
+                ELSE 0.1
+            END as engagement_score,
+            -- Normalization
+            (amount - AVG(amount) OVER ()) / STDDEV(amount) OVER () as normalized_amount
+        FROM user_actions
+        WHERE action_time >= CURRENT_TIMESTAMP - INTERVAL 7 DAYS
+    ``` as UserFeatures
+
+    emit to ml_feature_store
+        schema user_feature_vector
+end
+
+// =============================================================================
+// What This Generates:
+// - Spark Structured Streaming job with embedded SparkSQL
+// - Automatic DataFrame/Dataset registration from sources
+// - Micro-batch or continuous processing based on configuration
+//
+// Spark SQL Features Demonstrated:
+// - Session analysis with COLLECT_LIST
+// - Delta Lake MERGE operations (upsert/delete)
+// - Window functions (RANK, LAG, SUM OVER)
+// - ML feature engineering patterns
+//
+// Schema Reference:
+// - click_event: Input with session_id, user_id, page_url, event_time
+// - customer_cdc: CDC schema with operation type and customer fields
+// - sale_event: Schema with product_id, category, revenue, sale_time
+// - user_action: Schema with user_id, action_type, amount, action_time
+//
+// Configuration:
+// - Spark runtime selection via nexflow.toml or CLI flags
+// - Checkpoint locations auto-configured for fault tolerance
+// - Trigger interval configurable (default: 1 second micro-batch)
+//
+// Next Steps:
+// -> 03-kafka-streams-sql.proc: KSQL/ksqlDB integration
+// -> 04-combined-sql.proc: Multi-engine orchestration
+// =============================================================================

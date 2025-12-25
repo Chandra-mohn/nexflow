@@ -1,0 +1,279 @@
+// =============================================================================
+// L1-SQL-04: Multi-Engine SQL Orchestration
+// =============================================================================
+// Use Case: Combine multiple SQL engines for end-to-end data pipelines
+// Pattern:  Engine-specific optimizations with unified DSL syntax
+// When:     Complex pipelines requiring different engines' strengths
+// Runtime:  Mixed (ksqlDB ingestion -> Flink processing -> Spark analytics)
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Stage 1: Real-time ingestion and pre-processing with ksqlDB
+// Low-latency stream processing directly on Kafka
+// Runtime: kafka-streams (via nexflow.toml configuration)
+// -----------------------------------------------------------------------------
+
+process ksql_ingestion_stage
+    // Real-time event ingestion and deduplication
+
+    receive raw_events
+        from kafka "raw_events"
+        schema raw_event
+
+    // ksqlDB: Deduplicate and normalize incoming events
+    sql ```
+        CREATE STREAM cleaned_events AS
+        SELECT
+            event_id,
+            event_type,
+            UCASE(TRIM(user_id)) as user_id,
+            PARSE_TIMESTAMP(event_time, 'yyyy-MM-dd''T''HH:mm:ss.SSSZ') as event_timestamp,
+            CASE
+                WHEN device_type IS NULL THEN 'UNKNOWN'
+                ELSE UCASE(device_type)
+            END as device_type,
+            payload,
+            ROWTIME as ingestion_time
+        FROM raw_events
+        WHERE event_id IS NOT NULL
+          AND user_id IS NOT NULL
+        PARTITION BY user_id
+        EMIT CHANGES
+    ``` as CleanedEvent
+
+    emit to cleaned_events_topic
+        schema cleaned_event
+end
+
+// -----------------------------------------------------------------------------
+// Stage 2: Complex event processing with Flink SQL
+// Stateful processing, CEP, and advanced windowing
+// Runtime: flink (default)
+// -----------------------------------------------------------------------------
+
+process flink_cep_stage
+    // Complex event processing and pattern detection
+
+    receive cleaned_events
+        from kafka "cleaned_events_topic"
+        schema cleaned_event
+
+    // Flink SQL: Detect user journey patterns
+    sql ```
+        SELECT *
+        FROM cleaned_events
+        MATCH_RECOGNIZE (
+            PARTITION BY user_id
+            ORDER BY event_timestamp
+            MEASURES
+                FIRST(A.event_id) AS journey_start_event,
+                LAST(C.event_id) AS conversion_event,
+                A.event_timestamp AS journey_start,
+                C.event_timestamp AS conversion_time,
+                COUNT(B.*) AS touchpoints,
+                LISTAGG(B.event_type) AS touchpoint_sequence
+            ONE ROW PER MATCH
+            AFTER MATCH SKIP PAST LAST ROW
+            PATTERN (A B* C)
+            DEFINE
+                A AS A.event_type = 'PAGE_VIEW' AND A.payload LIKE '%landing%',
+                B AS B.event_type IN ('PAGE_VIEW', 'PRODUCT_VIEW', 'ADD_TO_CART'),
+                C AS C.event_type = 'PURCHASE'
+        )
+    ``` as UserJourney
+
+    emit to user_journeys
+        schema user_journey
+end
+
+// Flink SQL: Real-time cohort analysis
+process flink_cohort_analysis
+    // Cohort-based metrics with sliding windows
+
+    receive cleaned_events
+        from kafka "cleaned_events_topic"
+        schema cleaned_event
+
+    sql ```
+        SELECT
+            HOP_START(event_timestamp, INTERVAL '1' HOUR, INTERVAL '24' HOURS) as window_start,
+            DATE_FORMAT(event_timestamp, 'yyyy-MM-dd') as cohort_date,
+            device_type,
+            event_type,
+            COUNT(DISTINCT user_id) as unique_users,
+            COUNT(*) as event_count
+        FROM cleaned_events
+        GROUP BY
+            HOP(event_timestamp, INTERVAL '1' HOUR, INTERVAL '24' HOURS),
+            DATE_FORMAT(event_timestamp, 'yyyy-MM-dd'),
+            device_type,
+            event_type
+    ``` as CohortMetric
+
+    emit to cohort_metrics
+        schema cohort_metric
+end
+
+// -----------------------------------------------------------------------------
+// Stage 3: Batch analytics and ML with Spark SQL
+// Heavy analytics, ML feature extraction, data lake integration
+// Runtime: spark (via nexflow.toml configuration)
+// -----------------------------------------------------------------------------
+
+process spark_analytics_stage
+    // Historical analytics and ML feature store population
+
+    receive user_journeys
+        from kafka "user_journeys"
+        schema user_journey
+
+    receive cohort_metrics
+        from kafka "cohort_metrics"
+        schema cohort_metric
+
+    // Spark SQL: Join streams with historical data for ML features
+    sql ```
+        WITH journey_features AS (
+            SELECT
+                user_id,
+                journey_start,
+                conversion_time,
+                TIMESTAMPDIFF(SECOND, journey_start, conversion_time) as conversion_seconds,
+                touchpoints,
+                touchpoint_sequence,
+                CASE
+                    WHEN touchpoints <= 2 THEN 'DIRECT'
+                    WHEN touchpoints <= 5 THEN 'SHORT_JOURNEY'
+                    ELSE 'LONG_JOURNEY'
+                END as journey_type
+            FROM user_journeys
+            WHERE conversion_time IS NOT NULL
+        ),
+        user_history AS (
+            SELECT
+                u.user_id,
+                u.registration_date,
+                u.lifetime_value,
+                u.total_orders,
+                DATEDIFF(CURRENT_DATE, u.last_order_date) as days_since_order
+            FROM delta.user_profiles u
+        )
+        SELECT
+            jf.*,
+            uh.registration_date,
+            uh.lifetime_value,
+            uh.total_orders,
+            uh.days_since_order,
+            LOG1P(uh.lifetime_value) as log_ltv,
+            jf.touchpoints / GREATEST(jf.conversion_seconds / 60.0, 1) as touchpoints_per_minute,
+            CASE WHEN uh.total_orders > 0 THEN 1 ELSE 0 END as is_repeat_customer
+        FROM journey_features jf
+        LEFT JOIN user_history uh ON jf.user_id = uh.user_id
+    ``` as MLFeatures
+
+    emit to ml_feature_store
+        schema ml_feature_record
+end
+
+// Spark SQL: Aggregate to Delta Lake warehouse
+process spark_warehouse_stage
+    // Aggregate metrics to data warehouse
+
+    receive cohort_metrics
+        from kafka "cohort_metrics"
+        schema cohort_metric
+
+    sql ```
+        MERGE INTO delta.daily_metrics AS target
+        USING (
+            SELECT
+                cohort_date,
+                device_type,
+                SUM(unique_users) as total_users,
+                SUM(event_count) as total_events,
+                MAP(
+                    COLLECT_LIST(event_type),
+                    COLLECT_LIST(event_count)
+                ) as event_breakdown
+            FROM cohort_metrics
+            GROUP BY cohort_date, device_type
+        ) AS source
+        ON target.date = source.cohort_date AND target.device = source.device_type
+        WHEN MATCHED THEN UPDATE SET
+            target.users = source.total_users,
+            target.events = source.total_events,
+            target.breakdown = source.event_breakdown,
+            target.updated_at = CURRENT_TIMESTAMP
+        WHEN NOT MATCHED THEN INSERT *
+    ``` as WarehouseUpdate
+
+    emit to warehouse_audit
+        schema warehouse_audit
+end
+
+// =============================================================================
+// Pipeline Architecture Summary:
+//
+// raw_events (Kafka)
+//     |
+//     v
+// [ksqlDB: Ingestion] - Low-latency dedup, normalization, partitioning
+//     |
+//     v
+// cleaned_events (Kafka)
+//     |
+//     +---> [Flink: CEP] - Pattern detection, user journey analysis
+//     |         |
+//     |         v
+//     |     user_journeys (Kafka)
+//     |         |
+//     |         +---> [Spark: ML Features] - Feature extraction, Delta join
+//     |                     |
+//     |                     v
+//     |                 ml_feature_store (Delta Lake)
+//     |
+//     +---> [Flink: Cohort] - Real-time sliding window aggregation
+//               |
+//               v
+//           cohort_metrics (Kafka)
+//               |
+//               +---> [Spark: Warehouse] - Daily rollup to Delta Lake
+//                           |
+//                           v
+//                       daily_metrics (Delta Lake)
+//
+// =============================================================================
+// Engine Selection Rationale:
+//
+// ksqlDB (Stage 1):
+// - Lowest latency for simple transformations
+// - Native Kafka integration, no external dependencies
+// - Automatic partitioning optimization
+//
+// Flink SQL (Stage 2):
+// - Best CEP/pattern matching (MATCH_RECOGNIZE)
+// - Superior windowing for complex aggregations
+// - Lower latency than Spark for streaming
+//
+// Spark SQL (Stage 3):
+// - Best Delta Lake integration
+// - MERGE operations for upserts
+// - Heavy joins with historical data
+// - ML feature extraction patterns
+//
+// =============================================================================
+// Configuration Notes:
+// - Each process can run independently
+// - Kafka topics provide decoupling between stages
+// - Schema evolution handled by Schema Registry
+// - Exactly-once semantics maintained end-to-end
+// - Runtime selection via nexflow.toml process overrides
+//
+// Schema Reference:
+// - raw_event: Unprocessed input events
+// - cleaned_event: Normalized and validated events
+// - user_journey: CEP pattern match results
+// - cohort_metric: Windowed aggregation results
+// - ml_feature_record: ML-ready feature vectors
+// - warehouse_audit: Warehouse update audit trail
+// =============================================================================

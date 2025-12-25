@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, DragEvent, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, DragEvent, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -22,11 +22,17 @@ import { Palette } from "./components/Palette";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { graphToDsl, generateNodeId } from "./utils/graphToDsl";
 import { applyTrainLaneLayout } from "./utils/trainLaneLayout";
+import { useUndoRedo } from "./hooks/useUndoRedo";
+import { useKeyboardShortcuts, getShortcutDisplay } from "./hooks/useKeyboardShortcuts";
+import { exportAsPng, exportAsSvg } from "./utils/exportCanvas";
 
 function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+
+  // Track if we're applying undo/redo to avoid taking snapshot
+  const isUndoRedoRef = useRef(false);
 
   const {
     setProcessName,
@@ -43,19 +49,64 @@ function App() {
     resetCanvas,
   } = useCanvasStore();
 
+  // Undo/Redo hook
+  const {
+    canUndo,
+    canRedo,
+    takeSnapshot,
+    undo,
+    redo,
+    clear: clearHistory,
+  } = useUndoRedo({ maxHistory: 50 });
+
   // Get selected node data
   const selectedNode = useMemo((): Node | null => {
     if (!selectedNodeId) return null;
     return nodes.find((n: Node) => n.id === selectedNodeId) || null;
   }, [selectedNodeId, nodes]);
 
+  /**
+   * Take a snapshot for undo/redo history.
+   * Should be called after any user action that modifies nodes/edges.
+   */
+  const recordSnapshot = useCallback(() => {
+    if (!isUndoRedoRef.current) {
+      takeSnapshot(nodes, edges);
+    }
+  }, [nodes, edges, takeSnapshot]);
+
+  // Handle undo action
+  const handleUndo = useCallback(() => {
+    const previousState = undo();
+    if (previousState) {
+      isUndoRedoRef.current = true;
+      setNodes(previousState.nodes);
+      setEdges(previousState.edges);
+      setDirty(true);
+      isUndoRedoRef.current = false;
+    }
+  }, [undo, setNodes, setEdges, setDirty]);
+
+  // Handle redo action
+  const handleRedo = useCallback(() => {
+    const nextState = redo();
+    if (nextState) {
+      isUndoRedoRef.current = true;
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+      setDirty(true);
+      isUndoRedoRef.current = false;
+    }
+  }, [redo, setNodes, setEdges, setDirty]);
+
   // Handle new connections
   const onConnect = useCallback(
     (connection: Connection) => {
+      recordSnapshot();
       setEdges((eds) => addEdge(connection, eds));
       setDirty(true);
     },
-    [setEdges, setDirty]
+    [setEdges, setDirty, recordSnapshot]
   );
 
   // Handle drag over for palette drops
@@ -101,16 +152,18 @@ function App() {
         data: { ...defaultData, label: (defaultData.label as string) || type },
       };
 
+      recordSnapshot();
       setNodes((nds) => nds.concat(newNode));
       setDirty(true);
       setSelectedNode(id);
     },
-    [reactFlowInstance, nodes, setNodes, setDirty, setSelectedNode]
+    [reactFlowInstance, nodes, setNodes, setDirty, setSelectedNode, recordSnapshot]
   );
 
   // Handle node data changes from properties panel
   const handleNodeChange = useCallback(
     (nodeId: string, data: Record<string, unknown>) => {
+      recordSnapshot();
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId ? { ...node, data } : node
@@ -118,7 +171,7 @@ function App() {
       );
       setDirty(true);
     },
-    [setNodes, setDirty]
+    [setNodes, setDirty, recordSnapshot]
   );
 
   // Handle process config changes
@@ -135,13 +188,29 @@ function App() {
   // Handle node deletion
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
+      recordSnapshot();
       setNodes((nds) => nds.filter((node) => node.id !== nodeId));
       setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
       clearSelection();
       setDirty(true);
     },
-    [setNodes, setEdges, clearSelection, setDirty]
+    [setNodes, setEdges, clearSelection, setDirty, recordSnapshot]
   );
+
+  // Delete selected node (for keyboard shortcut)
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedNodeId) {
+      handleDeleteNode(selectedNodeId);
+    }
+  }, [selectedNodeId, handleDeleteNode]);
+
+  // Select all nodes
+  const handleSelectAll = useCallback(() => {
+    // React Flow handles multi-select internally, but we can select first node
+    if (nodes.length > 0) {
+      setSelectedNode(nodes[0].id);
+    }
+  }, [nodes, setSelectedNode]);
 
   // Generate DSL and send to extension
   const handleGenerateDsl = useCallback(() => {
@@ -169,13 +238,25 @@ function App() {
     resetCanvas();
     setNodes([]);
     setEdges([]);
-  }, [isDirty, resetCanvas, setNodes, setEdges]);
+    clearHistory();
+  }, [isDirty, resetCanvas, setNodes, setEdges, clearHistory]);
 
   // Re-apply train-lane layout
   const handleRelayout = useCallback(() => {
+    recordSnapshot();
     const layoutedNodes = applyTrainLaneLayout(nodes, edges);
     setNodes(layoutedNodes);
-  }, [nodes, edges, setNodes]);
+  }, [nodes, edges, setNodes, recordSnapshot]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onSave: handleSave,
+    onDelete: handleDeleteSelected,
+    onSelectAll: handleSelectAll,
+    onEscape: clearSelection,
+  });
 
   // Listen for messages from VS Code extension
   useEffect(() => {
@@ -223,6 +304,10 @@ function App() {
           setEdges(flowEdges);
           clearSelection();
           setDirty(false);
+          clearHistory();
+
+          // Take initial snapshot after loading
+          setTimeout(() => takeSnapshot(layoutedNodes, flowEdges), 0);
           break;
 
         case "error":
@@ -245,7 +330,7 @@ function App() {
     vscodeApi.postMessage({ type: "ready" });
 
     return () => window.removeEventListener("message", handleMessage);
-  }, [setNodes, setEdges, setProcessName, setFilePath, setProcessConfig, clearSelection, setDirty]);
+  }, [setNodes, setEdges, setProcessName, setFilePath, setProcessConfig, clearSelection, setDirty, clearHistory, takeSnapshot]);
 
   // Handle node selection
   const onNodeClick = useCallback(
@@ -273,6 +358,24 @@ function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Undo/Redo buttons */}
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="px-2 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={`Undo (${getShortcutDisplay("undo")})`}
+          >
+            ↶
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={!canRedo}
+            className="px-2 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={`Redo (${getShortcutDisplay("redo")})`}
+          >
+            ↷
+          </button>
+          <div className="w-px h-5 bg-vscode-border mx-1" />
           <button
             onClick={handleNew}
             className="px-3 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90"
@@ -283,7 +386,7 @@ function App() {
           <button
             onClick={handleSave}
             className="px-3 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90"
-            title="Save canvas state"
+            title={`Save canvas state (${getShortcutDisplay("save")})`}
           >
             Save
           </button>
@@ -313,6 +416,21 @@ function App() {
             className="px-3 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90"
           >
             Validate
+          </button>
+          <div className="w-px h-5 bg-vscode-border mx-1" />
+          <button
+            onClick={() => exportAsPng()}
+            className="px-3 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90"
+            title="Export canvas as PNG"
+          >
+            PNG
+          </button>
+          <button
+            onClick={() => exportAsSvg()}
+            className="px-3 py-1 text-xs bg-vscode-button text-vscode-button-fg rounded hover:opacity-90"
+            title="Export canvas as SVG"
+          >
+            SVG
           </button>
         </div>
       </div>

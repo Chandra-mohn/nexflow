@@ -281,6 +281,16 @@ export class VisualDesignerPanel {
         // Handle generated DSL from visual authoring
         await this._handleGeneratedDsl(message.data);
         break;
+
+      case "exportCanvas":
+        // Export canvas as PNG or SVG to the same directory as .proc file
+        await this._handleExportCanvas(message.format, message.data);
+        break;
+
+      case "exportError":
+        // Show export error from webview
+        vscode.window.showErrorMessage(message.message);
+        break;
     }
   }
 
@@ -372,6 +382,40 @@ export class VisualDesignerPanel {
       } catch (error) {
         vscode.window.showErrorMessage(`Failed to save: ${error}`);
       }
+    }
+  }
+
+  /**
+   * Handle canvas export (PNG or SVG).
+   * Saves to the same directory as the .proc file.
+   */
+  private async _handleExportCanvas(format: "png" | "svg", dataUrl: string): Promise<void> {
+    if (!this._procFilePath) {
+      vscode.window.showErrorMessage("No .proc file open. Save your process first.");
+      return;
+    }
+
+    try {
+      // Generate export filename based on .proc file
+      const procDir = path.dirname(this._procFilePath);
+      const procBasename = path.basename(this._procFilePath, ".proc");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const exportFileName = `${procBasename}_${timestamp}.${format}`;
+      const exportPath = path.join(procDir, exportFileName);
+
+      // Extract base64 data from data URL
+      const base64Data = dataUrl.split(",")[1];
+      if (!base64Data) {
+        throw new Error("Invalid data URL format");
+      }
+
+      // Write file
+      const buffer = Buffer.from(base64Data, "base64");
+      fs.writeFileSync(exportPath, buffer);
+
+      vscode.window.showInformationMessage(`Exported: ${exportFileName}`);
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to export ${format.toUpperCase()}: ${error}`);
     }
   }
 

@@ -1,0 +1,209 @@
+// =============================================================================
+// L1-SQL-03: Kafka Streams / ksqlDB SQL Integration
+// =============================================================================
+// Use Case: Embed ksqlDB queries for native Kafka stream processing
+// Pattern:  Push-based SQL on Kafka topics with materialized views
+// When:     Real-time analytics, event-driven microservices, CDC pipelines
+// Runtime:  Confluent ksqlDB / Kafka Streams
+// =============================================================================
+
+process ksql_realtime_inventory
+    // Real-time inventory tracking using ksqlDB
+    // Runtime: Kafka Streams / ksqlDB (configured via nexflow.toml)
+
+    receive inventory_events
+        from kafka "inventory_updates"
+        schema inventory_event
+
+    // ksqlDB: Create materialized table from stream
+    sql ```
+        CREATE TABLE inventory_levels AS
+        SELECT
+            product_id,
+            warehouse_id,
+            LATEST_BY_OFFSET(quantity) as current_quantity,
+            LATEST_BY_OFFSET(last_updated) as last_updated,
+            COUNT(*) as update_count
+        FROM inventory_events
+        GROUP BY product_id, warehouse_id
+        EMIT CHANGES
+    ``` as InventoryLevel
+
+    emit to inventory_state
+        schema inventory_level
+end
+
+// -----------------------------------------------------------------------------
+// Variation: ksqlDB Stream-Stream Join
+// -----------------------------------------------------------------------------
+
+process ksql_order_payment_join
+    // Join orders with payments using ksqlDB within time window
+
+    receive orders
+        from kafka "orders_stream"
+        schema order
+
+    receive payments
+        from kafka "payments_stream"
+        schema payment
+
+    // ksqlDB: Stream-Stream join with time window
+    sql ```
+        CREATE STREAM order_payments AS
+        SELECT
+            o.order_id,
+            o.customer_id,
+            o.total_amount as order_amount,
+            p.payment_id,
+            p.amount as paid_amount,
+            p.payment_method,
+            p.payment_time,
+            CASE
+                WHEN p.amount >= o.total_amount THEN 'FULLY_PAID'
+                WHEN p.amount > 0 THEN 'PARTIALLY_PAID'
+                ELSE 'PENDING'
+            END as payment_status
+        FROM orders o
+        INNER JOIN payments p
+            WITHIN 1 HOUR
+            ON o.order_id = p.order_id
+        EMIT CHANGES
+    ``` as OrderPayment
+
+    emit to order_payment_status
+        schema order_payment
+end
+
+// -----------------------------------------------------------------------------
+// Variation: ksqlDB with User-Defined Functions
+// -----------------------------------------------------------------------------
+
+process ksql_geo_analytics
+    // Geospatial analytics using ksqlDB with UDFs
+
+    receive location_events
+        from kafka "location_updates"
+        schema location_event
+
+    // ksqlDB: Geospatial analysis with custom UDFs
+    sql ```
+        CREATE STREAM geo_enriched AS
+        SELECT
+            device_id,
+            latitude,
+            longitude,
+            GEO_DISTANCE(latitude, longitude, 40.7128, -74.0060) as distance_from_nyc,
+            GEO_HASH(latitude, longitude, 6) as geohash,
+            CASE
+                WHEN GEO_DISTANCE(latitude, longitude, 40.7128, -74.0060) < 10 THEN 'NYC_AREA'
+                WHEN GEO_DISTANCE(latitude, longitude, 34.0522, -118.2437) < 10 THEN 'LA_AREA'
+                WHEN GEO_DISTANCE(latitude, longitude, 41.8781, -87.6298) < 10 THEN 'CHICAGO_AREA'
+                ELSE 'OTHER'
+            END as metro_area,
+            event_time
+        FROM location_events
+        WHERE latitude BETWEEN -90 AND 90
+          AND longitude BETWEEN -180 AND 180
+        EMIT CHANGES
+    ``` as GeoEnrichedEvent
+
+    emit to geo_analytics
+        schema geo_enriched_event
+end
+
+// -----------------------------------------------------------------------------
+// Variation: ksqlDB Pull Queries for Lookups
+// -----------------------------------------------------------------------------
+
+process ksql_customer_lookup
+    // Customer state lookup using ksqlDB materialized view
+
+    receive customer_events
+        from kafka "customer_cdc"
+        schema customer_event
+
+    // ksqlDB: Create materialized table for pull queries
+    sql ```
+        CREATE TABLE customers_mv AS
+        SELECT
+            customer_id,
+            LATEST_BY_OFFSET(customer_name) as customer_name,
+            LATEST_BY_OFFSET(email) as email,
+            LATEST_BY_OFFSET(loyalty_tier) as loyalty_tier,
+            LATEST_BY_OFFSET(lifetime_value) as lifetime_value,
+            TOPK(purchase_category, 3) as top_categories,
+            COUNT(*) as event_count,
+            MAX(event_time) as last_activity
+        FROM customer_events
+        GROUP BY customer_id
+        EMIT CHANGES
+    ``` as CustomerState
+
+    emit to customer_state_store
+        schema customer_state
+end
+
+// -----------------------------------------------------------------------------
+// Variation: ksqlDB Windowed Aggregation with Suppression
+// -----------------------------------------------------------------------------
+
+process ksql_session_metrics
+    // Session-based metrics with final results only
+
+    receive page_views
+        from kafka "pageviews"
+        schema page_view
+
+    // ksqlDB: Session window with suppression for final results
+    sql ```
+        CREATE TABLE session_metrics AS
+        SELECT
+            user_id,
+            WINDOWSTART as session_start,
+            WINDOWEND as session_end,
+            COUNT(*) as page_count,
+            COUNT(DISTINCT page_id) as unique_pages,
+            COLLECT_LIST(page_id) as page_sequence,
+            SUM(time_on_page) as total_time_seconds,
+            MAX(scroll_depth) as max_scroll_depth
+        FROM page_views
+        WINDOW SESSION (30 MINUTES, GRACE PERIOD 5 MINUTES)
+        GROUP BY user_id
+        EMIT FINAL
+    ``` as SessionMetric
+
+    emit to session_analytics
+        schema session_metric
+end
+
+// =============================================================================
+// What This Generates:
+// - ksqlDB application with embedded SQL statements
+// - Kafka Streams topology from ksqlDB query plan
+// - Automatic state store management for tables
+//
+// ksqlDB Features Demonstrated:
+// - Materialized tables (LATEST_BY_OFFSET, GROUP BY)
+// - Stream-Stream joins (WITHIN time window)
+// - User-defined functions (GEO_DISTANCE, GEO_HASH)
+// - Session windows with EMIT FINAL suppression
+// - Pull queries for point lookups (customers_mv)
+//
+// Schema Reference:
+// - inventory_event: Input with product_id, warehouse_id, quantity
+// - order: Schema with order_id, customer_id, total_amount
+// - payment: Schema with payment_id, order_id, amount, payment_method
+// - location_event: Schema with device_id, latitude, longitude
+// - customer_event: CDC schema with customer fields
+// - page_view: Schema with user_id, page_id, time_on_page, scroll_depth
+//
+// Configuration:
+// - Kafka Streams / ksqlDB runtime selection via nexflow.toml
+// - RocksDB state stores for materialized tables
+// - Exactly-once semantics via Kafka transactions
+//
+// Next Steps:
+// -> 04-combined-sql.proc: Multi-engine SQL orchestration
+// -> Integration with Kafka Connect for source/sink connectors
+// =============================================================================
