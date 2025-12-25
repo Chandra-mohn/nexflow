@@ -26,6 +26,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
     """
 
     # Maps DSL function names to Java method equivalents
+    # Static functions: called as ClassName.methodName(args)
     DSL_TO_JAVA_FUNCTIONS = {
         # Math functions
         "min": "Math.min",
@@ -39,18 +40,22 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         # Date/time functions
         "now": "Instant.now",
         "today": "LocalDate.now",
-        # String functions
-        "len": "String::length",
-        "upper": "String::toUpperCase",
-        "lower": "String::toLowerCase",
-        "trim": "String::trim",
-        "concat": "String::concat",
-        "substring": "String::substring",
-        "contains": "String::contains",
-        "starts_with": "String::startsWith",
-        "ends_with": "String::endsWith",
         # Utility functions
-        "coalesce": "Objects::requireNonNullElse",
+        "coalesce": "Objects.requireNonNullElse",
+    }
+
+    # String instance methods: called as firstArg.methodName(remainingArgs)
+    # These are called on the first argument, not as static methods
+    STRING_INSTANCE_METHODS = {
+        "len": "length",           # len(str) -> str.length()
+        "upper": "toUpperCase",    # upper(str) -> str.toUpperCase()
+        "lower": "toLowerCase",    # lower(str) -> str.toLowerCase()
+        "trim": "trim",            # trim(str) -> str.trim()
+        "concat": "concat",        # concat(str1, str2) -> str1.concat(str2)
+        "substring": "substring",  # substring(str, start, end) -> str.substring(start, end)
+        "contains": "contains",    # contains(str, substr) -> str.contains(substr)
+        "starts_with": "startsWith",  # starts_with(str, prefix) -> str.startsWith(prefix)
+        "ends_with": "endsWith",      # ends_with(str, suffix) -> str.endsWith(suffix)
     }
 
     # Voltage encryption/decryption functions routed to NexflowRuntime
@@ -227,6 +232,10 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         if func.name in self.DATE_CONTEXT_FUNCTIONS:
             return self._generate_date_context_function_call(func, use_map, local_vars, assigned_output_fields)
 
+        # Handle string instance methods: upper(str) -> str.toUpperCase()
+        if func.name in self.STRING_INSTANCE_METHODS:
+            return self._generate_string_instance_call(func, use_map, local_vars, assigned_output_fields)
+
         java_name = self._map_function_name(func.name)
 
         # For numeric functions like min/max, ensure arguments are numeric
@@ -241,6 +250,44 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
                 for a in func.arguments
             )
         return f"{java_name}({args})"
+
+    def _generate_string_instance_call(
+        self,
+        func: ast.FunctionCall,
+        use_map: bool,
+        local_vars: List[str],
+        assigned_output_fields: Optional[List[str]] = None
+    ) -> str:
+        """Generate string instance method call.
+
+        Converts DSL function syntax to Java instance method syntax:
+        - upper(str) -> str.toUpperCase()
+        - trim(str) -> str.trim()
+        - concat(str1, str2) -> str1.concat(str2)
+        - substring(str, start, end) -> str.substring(start, end)
+        """
+        if assigned_output_fields is None:
+            assigned_output_fields = []
+
+        java_method = self.STRING_INSTANCE_METHODS[func.name]
+
+        if not func.arguments:
+            # Should not happen, but defensive
+            return f"/* ERROR: {func.name}() requires at least one argument */"
+
+        # First argument is the target object
+        target = self.generate_expression(func.arguments[0], use_map, local_vars, assigned_output_fields)
+
+        # Remaining arguments are method parameters
+        if len(func.arguments) > 1:
+            params = ", ".join(
+                self.generate_expression(a, use_map, local_vars, assigned_output_fields)
+                for a in func.arguments[1:]
+            )
+            return f"{target}.{java_method}({params})"
+        else:
+            # No-arg method call (e.g., toUpperCase(), trim(), length())
+            return f"{target}.{java_method}()"
 
     def _generate_collection_function_call(
         self,

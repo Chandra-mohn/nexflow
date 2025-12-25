@@ -26,14 +26,41 @@ class StateMachineTransitionsMixin:
     private static final Map<State, Set<State>> VALID_TRANSITIONS = Collections.emptyMap();"""
 
         # Build transition map: from_state -> set of valid to_states
+        # Handle wildcard '*' transitions separately
         transition_map: Dict[str, List[str]] = {}
+        wildcard_targets: List[str] = []
+
         for trans in sm.transitions:
-            from_state = self.to_java_constant(trans.from_state)
-            to_states = [self.to_java_constant(s) for s in trans.to_states]
-            transition_map[from_state] = to_states
+            if trans.from_state == '*':
+                # Wildcard: all states can transition to these targets
+                wildcard_targets.extend([self.to_java_constant(s) for s in trans.to_states])
+            else:
+                from_state = self.to_java_constant(trans.from_state)
+                to_states = [self.to_java_constant(s) for s in trans.to_states]
+                transition_map[from_state] = to_states
 
         # Generate static initializer
         init_lines = []
+
+        # If we have wildcard targets, add them to all states
+        if wildcard_targets:
+            # Collect all known states
+            all_states = set()
+            for trans in sm.transitions:
+                if trans.from_state != '*':
+                    all_states.add(self.to_java_constant(trans.from_state))
+                for to_state in trans.to_states:
+                    all_states.add(self.to_java_constant(to_state))
+            # Also include states from sm.states if available
+            if hasattr(sm, 'states') and sm.states:
+                all_states.update(self.to_java_constant(s) for s in sm.states)
+
+            # Add wildcard targets to each state's valid transitions
+            for state in all_states:
+                existing = transition_map.get(state, [])
+                combined = list(set(existing + wildcard_targets))
+                transition_map[state] = combined
+
         for from_state, to_states in transition_map.items():
             to_set = ', '.join(f"State.{s}" for s in to_states)
             init_lines.append(

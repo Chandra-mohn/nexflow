@@ -70,6 +70,7 @@ class ScaffoldGenerator(
         # Track what we need to generate
         input_type = self._get_input_type(process)
         needs_routed_event = False
+        needs_lookup_result = False
 
         # Generate processing operator scaffolds
         if process.processing:
@@ -91,11 +92,21 @@ class ScaffoldGenerator(
                     self._generate_aggregate_scaffold(
                         op, transform_package, transform_path, input_type
                     )
+                elif isinstance(op, ast.LookupDecl):
+                    self._generate_lookup_scaffold(
+                        op, transform_package, transform_path, input_type
+                    )
+                    needs_lookup_result = True
 
         # Generate RoutedEvent if needed
         if needs_routed_event:
             routed_content = self._generate_routed_event(rules_package)
             self.result.add_file(rules_path / "RoutedEvent.java", routed_content, "java")
+
+        # Generate LookupResult if needed
+        if needs_lookup_result:
+            lookup_content = self._generate_lookup_result(rules_package)
+            self.result.add_file(rules_path / "LookupResult.java", lookup_content, "java")
 
         # Generate correlation scaffolds
         if process.correlation:
@@ -157,6 +168,67 @@ public class RoutedEvent {{
     @Override
     public String toString() {{
         return "RoutedEvent{{decision='" + decision + "', event=" + originalEvent + "}}";
+    }}
+}}
+'''
+
+    def _generate_lookup_result(self, package: str) -> str:
+        """Generate LookupResult wrapper class."""
+        return f'''/**
+ * LookupResult
+ *
+ * Wrapper class containing original event and lookup data.
+ *
+ * AUTO-GENERATED SCAFFOLD by Nexflow Code Generator
+ */
+package {package};
+
+import java.util.Optional;
+
+public class LookupResult<T> {{
+
+    private final T originalEvent;
+    private final Object lookupData;
+    private final boolean found;
+
+    public LookupResult(T originalEvent, Object lookupData, boolean found) {{
+        this.originalEvent = originalEvent;
+        this.lookupData = lookupData;
+        this.found = found;
+    }}
+
+    public static <T> LookupResult<T> found(T original, Object data) {{
+        return new LookupResult<>(original, data, true);
+    }}
+
+    public static <T> LookupResult<T> notFound(T original) {{
+        return new LookupResult<>(original, null, false);
+    }}
+
+    public T getOriginalEvent() {{
+        return originalEvent;
+    }}
+
+    public Optional<Object> getLookupData() {{
+        return Optional.ofNullable(lookupData);
+    }}
+
+    @SuppressWarnings("unchecked")
+    public <D> Optional<D> getLookupDataAs(Class<D> clazz) {{
+        return Optional.ofNullable((D) lookupData);
+    }}
+
+    public boolean isFound() {{
+        return found;
+    }}
+
+    public String getKey() {{
+        return originalEvent.toString();
+    }}
+
+    @Override
+    public String toString() {{
+        return "LookupResult{{found=" + found + ", event=" + originalEvent + ", data=" + lookupData + "}}";
     }}
 }}
 '''

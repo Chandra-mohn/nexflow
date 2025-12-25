@@ -62,9 +62,18 @@ class JobImportsMixin:
         has_join = False
         has_late_data = False
         has_sql = False
+        has_parallel = False
+        has_validate_input = False
+        has_lookup = False
+        has_evaluate = False
 
-        if process.processing:
-            for op in process.processing:
+        def scan_operators(ops):
+            """Recursively scan operators including nested ones in parallel blocks."""
+            nonlocal has_transforms, has_enrich, has_route, has_aggregate
+            nonlocal has_window, has_join, has_late_data, has_sql
+            nonlocal has_parallel, has_validate_input, has_lookup, has_evaluate
+
+            for op in ops:
                 if isinstance(op, ast.TransformDecl):
                     has_transforms = True
                 elif isinstance(op, ast.EnrichDecl):
@@ -81,6 +90,22 @@ class JobImportsMixin:
                     has_join = True
                 elif isinstance(op, ast.SqlTransformDecl):
                     has_sql = True
+                elif isinstance(op, ast.ParallelDecl):
+                    has_parallel = True
+                    # Scan branch bodies
+                    if hasattr(op, 'branches') and op.branches:
+                        for branch in op.branches:
+                            if hasattr(branch, 'body') and branch.body:
+                                scan_operators(branch.body)
+                elif isinstance(op, ast.ValidateInputDecl):
+                    has_validate_input = True
+                elif isinstance(op, ast.LookupDecl):
+                    has_lookup = True
+                elif isinstance(op, ast.EvaluateDecl):
+                    has_evaluate = True
+
+        if process.processing:
+            scan_operators(process.processing)
 
         # Check global late data config
         if process.execution and process.execution.time and process.execution.time.late_data:
@@ -96,7 +121,11 @@ class JobImportsMixin:
             ])
 
         if has_route:
-            imports.append("org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator")
+            imports.extend([
+                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                "org.apache.flink.streaming.api.functions.ProcessFunction",
+                "org.apache.flink.util.Collector",
+            ])
 
         if has_window or has_aggregate:
             imports.extend([
@@ -117,6 +146,31 @@ class JobImportsMixin:
 
         if has_join:
             imports.append("org.apache.flink.streaming.api.windowing.time.Time")
+
+        # Parallel block imports
+        if has_parallel:
+            imports.extend([
+                "org.apache.flink.util.OutputTag",
+                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                "org.apache.flink.streaming.api.functions.ProcessFunction",
+                "org.apache.flink.util.Collector",
+            ])
+
+        # Validate input imports
+        if has_validate_input:
+            imports.extend([
+                "org.apache.flink.util.OutputTag",
+                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                "org.apache.flink.streaming.api.functions.ProcessFunction",
+                "org.apache.flink.util.Collector",
+            ])
+
+        # Lookup imports
+        if has_lookup:
+            imports.extend([
+                "org.apache.flink.streaming.api.datastream.AsyncDataStream",
+                "java.util.concurrent.TimeUnit",
+            ])
 
         # SQL transform imports (Flink SQL / Table API)
         if has_sql:
@@ -172,7 +226,9 @@ class JobImportsMixin:
                 elif isinstance(op, ast.RouteDecl):
                     if op.rule_name:
                         # 'route using' form - import the L4 rules router
-                        router_class = to_pascal_case(op.rule_name) + "Router"
+                        # Handle dotted rule names (e.g., decision_result.decision)
+                        safe_rule_name = op.rule_name.replace('.', '_')
+                        router_class = to_pascal_case(safe_rule_name) + "Router"
                         imports.append(f"{rules_package}.{router_class}")
                     # Both forms need RoutedEvent
                     imports.append(f"{rules_package}.RoutedEvent")
@@ -181,6 +237,14 @@ class JobImportsMixin:
                     result_class = to_pascal_case(op.transform_name) + "Result"
                     imports.append(f"{transform_package}.{agg_class}")
                     imports.append(f"{transform_package}.{result_class}")
+                elif isinstance(op, ast.LookupDecl):
+                    lookup_class = to_pascal_case(op.source_name) + "LookupFunction"
+                    imports.append(f"{transform_package}.{lookup_class}")
+                    imports.append(f"{rules_package}.LookupResult")
+                elif isinstance(op, ast.EvaluateDecl):
+                    if hasattr(op, 'rule_name') and op.rule_name:
+                        evaluator_class = to_pascal_case(op.rule_name) + "Evaluator"
+                        imports.append(f"{rules_package}.{evaluator_class}")
 
         return imports
 

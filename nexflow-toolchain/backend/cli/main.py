@@ -12,6 +12,7 @@ Usage:
     nexflow parse FILE [--format FORMAT]
     nexflow init [--name NAME]
     nexflow clean
+    nexflow lsp [--tcp] [--port PORT]
 """
 import sys
 from pathlib import Path
@@ -260,6 +261,92 @@ def info():
 
     except ProjectError as e:
         console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--tcp", is_flag=True, help="Run server over TCP instead of stdio")
+@click.option("--host", default="127.0.0.1", help="TCP host (default: 127.0.0.1)")
+@click.option("--port", type=int, default=2087, help="TCP port (default: 2087)")
+@click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+              default="INFO", help="Logging level (default: INFO)")
+def lsp(tcp: bool, host: str, port: int, log_level: str):
+    """
+    Start the Nexflow Language Server.
+
+    The LSP provides IDE features like syntax highlighting, diagnostics,
+    hover information, and code completion for Nexflow DSL files.
+
+    By default, runs in stdio mode for VS Code integration.
+    Use --tcp for standalone server mode.
+
+    \b
+    Example:
+        nexflow lsp                    # Start in stdio mode (for VS Code)
+        nexflow lsp --tcp              # Start TCP server on localhost:2087
+        nexflow lsp --tcp --port 3000  # Start TCP server on port 3000
+    """
+    import logging
+
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, log_level),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stderr)]
+    )
+    logger = logging.getLogger("nexflow-lsp")
+
+    try:
+        # Import LSP modules (deferred to avoid loading when not needed)
+        from lsp.server.driver import server
+        from lsp.server.modules.proc_module import ProcModule
+        from lsp.server.modules.schema_module import SchemaModule
+        from lsp.server.modules.transform_module import TransformModule
+        from lsp.server.modules.rules_module import RulesModule
+
+        # Register language modules
+        def register_modules():
+            try:
+                server.register_module(ProcModule())
+                logger.info("Registered L1 ProcDSL module")
+            except Exception as e:
+                logger.error(f"Failed to register ProcModule: {e}")
+
+            try:
+                server.register_module(SchemaModule())
+                logger.info("Registered L2 SchemaDSL module")
+            except Exception as e:
+                logger.error(f"Failed to register SchemaModule: {e}")
+
+            try:
+                server.register_module(TransformModule())
+                logger.info("Registered L3 TransformDSL module")
+            except Exception as e:
+                logger.error(f"Failed to register TransformModule: {e}")
+
+            try:
+                server.register_module(RulesModule())
+                logger.info("Registered L4 RulesDSL module")
+            except Exception as e:
+                logger.error(f"Failed to register RulesModule: {e}")
+
+        register_modules()
+        logger.info("Starting Nexflow Language Server...")
+
+        if tcp:
+            logger.info(f"Running in TCP mode on {host}:{port}")
+            server.start_tcp(host, port)
+        else:
+            logger.info("Running in stdio mode")
+            server.start_io()
+
+    except ImportError as e:
+        console.print(f"[red]Error:[/red] LSP modules not available: {e}")
+        console.print("Make sure pygls and lsprotocol are installed:")
+        console.print("  pip install pygls lsprotocol")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Failed to start LSP server: {e}")
         sys.exit(1)
 
 

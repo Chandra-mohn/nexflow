@@ -14,3 +14,4 @@ webview/postcss.config.js
 !out/**/*.d.ts
 **/*.map
 !webview/dist/**
+!bin/**

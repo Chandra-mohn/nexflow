@@ -182,7 +182,9 @@ class JobOperatorsMixin:
         if route.rule_name:
             # 'route using' form - use L4 rules router
             rule_name = route.rule_name
-            router_class = to_pascal_case(rule_name) + "Router"
+            # Handle dotted rule names for valid Java class names
+            safe_rule_name = rule_name.replace('.', '_')
+            router_class = to_pascal_case(safe_rule_name) + "Router"
             code = f'''        // Route: using {rule_name}
         SingleOutputStreamOperator<{output_type}> {output_stream} = {input_stream}
             .process(new {router_class}())

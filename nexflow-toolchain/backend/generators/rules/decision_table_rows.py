@@ -236,43 +236,34 @@ class DecisionTableRowsMixin:
         table: ast.DecisionTableDef,
         class_name: str
     ) -> str:
-        """Generate input POJO class."""
+        """Generate input Record class (Java 17+).
+
+        Uses Java Records for immutable, type-safe input data.
+        Record accessors are fieldName() instead of getFieldName().
+        """
         table_name = getattr(table, 'name', 'unknown')
-        lines = [
-            f"    /**",
-            f"     * Input data class for {table_name}",
-            f"     */",
-            f"    public static class {class_name} {{",
-        ]
 
         given = getattr(table, 'given', None)
-        if given:
-            params = getattr(given, 'params', None) or []
-            for param in params:
-                param_type = getattr(param, 'param_type', None)
-                param_name = getattr(param, 'name', 'unknown')
-                java_type = get_java_type(param_type)
-                field_name = to_camel_case(param_name)
-                lines.append(f"        private {java_type} {field_name};")
+        params = getattr(given, 'params', None) if given else []
 
-            lines.append("")
+        # Build record components
+        components = []
+        for param in params:
+            param_type = getattr(param, 'param_type', None)
+            param_name = getattr(param, 'name', 'unknown')
+            java_type = get_java_type(param_type)
+            field_name = to_camel_case(param_name)
+            components.append(f"{java_type} {field_name}")
 
-            for param in params:
-                param_type = getattr(param, 'param_type', None)
-                param_name = getattr(param, 'name', 'unknown')
-                java_type = get_java_type(param_type)
-                field_name = to_camel_case(param_name)
-                getter_name = f"get{field_name[0].upper()}{field_name[1:]}"
-                setter_name = f"set{field_name[0].upper()}{field_name[1:]}"
+        components_str = ", ".join(components)
 
-                lines.append(
-                    f"        public {java_type} {getter_name}() {{ "
-                    f"return {field_name}; }}"
-                )
-                lines.append(
-                    f"        public void {setter_name}({java_type} {field_name}) {{ "
-                    f"this.{field_name} = {field_name}; }}"
-                )
+        lines = [
+            f"    /**",
+            f"     * Input data record for {table_name}",
+            f"     * Uses Java Record pattern with fieldName() accessors",
+            f"     */",
+            f"    public static record {class_name}({components_str}) {{",
+            f"    }}",
+        ]
 
-        lines.append("    }")
         return '\n'.join(lines)

@@ -96,16 +96,32 @@ class ProceduralExpressionsMixin:
         return "true"
 
     def _generate_function_call(self, func_call, context_var: str) -> str:
-        """Generate Java function call in boolean context."""
+        """Generate Java function call in boolean context.
+
+        Uses built-in function mappings from utils_literals for standard functions.
+        """
         name = getattr(func_call, 'name', None)
         if not name:
             LOG.warning("FunctionCall has no name")
             return "true"
 
-        func_name = to_camel_case(name)
+        # Import and use the built-in function mapping
+        from backend.generators.rules.utils_literals import BUILTIN_FUNCTION_MAP
+        func_name_lower = name.lower()
         arguments = getattr(func_call, 'arguments', None) or []
-        args = ", ".join(generate_value_expr(a) for a in arguments)
-        return f"{func_name}({args})"
+        args = [generate_value_expr(a) for a in arguments]
+
+        # Check if this is a built-in function with known mapping
+        if func_name_lower in BUILTIN_FUNCTION_MAP:
+            try:
+                return BUILTIN_FUNCTION_MAP[func_name_lower](args)
+            except (IndexError, KeyError) as e:
+                LOG.warning(f"Built-in function {name} called with wrong number of args: {e}")
+                # Fall through to default handling
+
+        # Default: generate as camelCase method call
+        java_name = to_camel_case(name)
+        return f"{java_name}({', '.join(args)})"
 
     def _generate_comparison_expr(self, expr: ast.ComparisonExpr, context_var: str) -> str:
         """Generate Java comparison expression with IN/NOT IN and IS NULL support."""

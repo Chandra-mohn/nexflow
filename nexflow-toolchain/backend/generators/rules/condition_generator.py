@@ -19,6 +19,7 @@ from typing import Set
 from backend.ast import rules_ast as ast
 from backend.generators.rules.utils import (
     to_pascal_case,
+    to_record_accessor,
     generate_literal,
     generate_value_expr,
     generate_unsupported_comment,
@@ -64,7 +65,8 @@ class ConditionGeneratorMixin(BooleanExpressionMixin):
             LOG.warning("Null condition provided")
             return "true"
 
-        field_access = f"{input_var}.get{to_pascal_case(field_name)}()"
+        # Use Record accessor pattern: fieldName() instead of getFieldName()
+        field_access = f"{input_var}.{to_record_accessor(field_name)}"
 
         if isinstance(condition, ast.WildcardCondition):
             return "true"  # Wildcard always matches

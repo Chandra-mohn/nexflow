@@ -50,7 +50,10 @@ class ScaffoldOperatorsMixin:
         if not route.rule_name:
             # 'route when' form - no scaffold needed, inline code generated
             return
-        router_class = to_pascal_case(route.rule_name) + "Router"
+        # Handle dotted rule names (e.g., decision_result.decision -> DecisionResultDecisionRouter)
+        # Replace dots with underscores before PascalCase conversion for valid Java class names
+        safe_rule_name = route.rule_name.replace('.', '_')
+        router_class = to_pascal_case(safe_rule_name) + "Router"
         content = self._generate_router(route, rules_package, input_type)
         self.result.add_file(rules_path / f"{router_class}.java", content, "java")
 
@@ -73,6 +76,81 @@ class ScaffoldOperatorsMixin:
 
         accumulator_content = self._generate_accumulator_class(accumulator_class, transform_package)
         self.result.add_file(transform_path / f"{accumulator_class}.java", accumulator_content, "java")
+
+    def _generate_lookup_scaffold(
+        self, lookup: ast.LookupDecl, transform_package: str,
+        transform_path: Path, input_type: str
+    ) -> None:
+        """Generate AsyncFunction scaffold for lookup operator."""
+        lookup_class = to_pascal_case(lookup.source_name) + "LookupFunction"
+        content = self._generate_lookup_function(lookup, transform_package, input_type)
+        self.result.add_file(transform_path / f"{lookup_class}.java", content, "java")
+
+    def _generate_lookup_function(self, lookup: ast.LookupDecl, package: str, input_type: str) -> str:
+        """Generate AsyncFunction scaffold for lookup operator."""
+        class_name = to_pascal_case(lookup.source_name) + "LookupFunction"
+
+        # Get key fields from lookup declaration
+        key_fields = lookup.on_fields if hasattr(lookup, 'on_fields') and lookup.on_fields else []
+        key_fields_str = ', '.join(f'"{f}"' for f in key_fields) if key_fields else ''
+
+        return f'''/**
+ * {class_name}
+ *
+ * AsyncFunction for looking up data from source: {lookup.source_name}
+ * Key fields: {', '.join(key_fields) if key_fields else 'none specified'}
+ *
+ * AUTO-GENERATED SCAFFOLD by Nexflow Code Generator
+ * TODO: Replace with L3-generated implementation
+ */
+package {package};
+
+import org.apache.flink.streaming.api.functions.async.RichAsyncFunction;
+import org.apache.flink.streaming.api.functions.async.ResultFuture;
+import org.apache.flink.configuration.Configuration;
+
+import {self.config.package_prefix}.schema.{input_type};
+import {self.config.package_prefix}.rules.LookupResult;
+
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+
+public class {class_name} extends RichAsyncFunction<{input_type}, LookupResult<{input_type}>> {{
+
+    private final String[] keyFields;
+
+    public {class_name}() {{
+        this.keyFields = new String[]{{ {key_fields_str} }};
+    }}
+
+    @Override
+    public void open(Configuration parameters) throws Exception {{
+        // Initialize lookup client connection
+        // TODO: L3 will generate actual connection setup from L5 infra config
+    }}
+
+    @Override
+    public void asyncInvoke({input_type} input, ResultFuture<LookupResult<{input_type}>> resultFuture) {{
+        // Perform async lookup
+        CompletableFuture.supplyAsync(() -> {{
+            // TODO: L3 will generate actual lookup logic
+            // For now, return not found result
+            return LookupResult.notFound(input);
+        }}).whenComplete((result, error) -> {{
+            if (error != null) {{
+                resultFuture.completeExceptionally(error);
+            }} else {{
+                resultFuture.complete(Collections.singleton(result));
+            }}
+        }});
+    }}
+
+    @Override
+    public void close() throws Exception {{
+        // Close lookup client connection
+    }}
+}}
+'''
 
     def _generate_async_function(self, enrich: ast.EnrichDecl, package: str, input_type: str) -> str:
         """Generate AsyncFunction scaffold for enrich operator."""
@@ -222,7 +300,9 @@ public class {class_name} implements MapFunction<{actual_input_type}, Map<String
 
     def _generate_router(self, route: ast.RouteDecl, package: str, input_type: str) -> str:
         """Generate Router ProcessFunction scaffold for route operator."""
-        class_name = to_pascal_case(route.rule_name) + "Router"
+        # Handle dotted rule names for valid Java class names
+        safe_rule_name = route.rule_name.replace('.', '_')
+        class_name = to_pascal_case(safe_rule_name) + "Router"
 
         return f'''/**
  * {class_name}
