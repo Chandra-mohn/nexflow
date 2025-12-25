@@ -11,7 +11,14 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { spawn, ChildProcess } from "child_process";
+import { spawn } from "child_process";
+import {
+  getNexflowRuntime,
+  buildCommandArgs,
+  getProcessEnv,
+  logRuntimeInfo,
+  NexflowRuntime,
+} from "./runtime";
 
 const VERSION = "0.1.0";
 
@@ -47,16 +54,25 @@ interface ParsedFile {
 export class BuildRunner {
   private outputChannel: vscode.OutputChannel;
   private projectRoot: string;
-  private pythonPath: string;
+  private runtime: NexflowRuntime | null = null;
 
   constructor(
     outputChannel: vscode.OutputChannel,
-    projectRoot: string,
-    pythonPath: string
+    projectRoot: string
   ) {
     this.outputChannel = outputChannel;
     this.projectRoot = projectRoot;
-    this.pythonPath = pythonPath;
+  }
+
+  /**
+   * Initialize runtime detection (call before running commands)
+   */
+  private async ensureRuntime(): Promise<NexflowRuntime> {
+    if (!this.runtime) {
+      this.runtime = await getNexflowRuntime();
+      logRuntimeInfo(this.runtime, this.outputChannel);
+    }
+    return this.runtime;
   }
 
   /**
@@ -173,20 +189,22 @@ export class BuildRunner {
   }
 
   /**
-   * Run the Python CLI parse command for a single file
+   * Run the Nexflow CLI parse command for a single file
    */
-  private runPythonParse(
+  private async runNexflowParse(
     filePath: string
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return new Promise((resolve) => {
-      const args = ["-m", "backend.cli.main", "parse", filePath, "--format", "summary"];
+    const runtime = await this.ensureRuntime();
 
-      const child = spawn(this.pythonPath, args, {
+    return new Promise((resolve) => {
+      const args = buildCommandArgs("parse", [filePath, "--format", "summary"], {
+        runtime,
+        addDebugFlag: runtime.developerMode,
+      });
+
+      const child = spawn(runtime.command, args, {
         cwd: this.projectRoot,
-        env: {
-          ...process.env,
-          PYTHONPATH: this.projectRoot,
-        },
+        env: getProcessEnv(runtime),
       });
 
       let stdout = "";
@@ -219,22 +237,24 @@ export class BuildRunner {
   }
 
   /**
-   * Run the Python CLI build command for the entire project
+   * Run the Nexflow CLI build command for the entire project
    * Note: build command runs from project directory with nexflow.toml
    */
-  private runPythonBuild(
+  private async runNexflowBuild(
     sourceDir: string,
     outputDir: string
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return new Promise((resolve) => {
-      const args = ["-m", "backend.cli.main", "build", "--output", outputDir];
+    const runtime = await this.ensureRuntime();
 
-      const child = spawn(this.pythonPath, args, {
+    return new Promise((resolve) => {
+      const args = buildCommandArgs("build", ["--output", outputDir], {
+        runtime,
+        addDebugFlag: runtime.developerMode,
+      });
+
+      const child = spawn(runtime.command, args, {
         cwd: sourceDir, // Run from project directory
-        env: {
-          ...process.env,
-          PYTHONPATH: this.projectRoot,
-        },
+        env: getProcessEnv(runtime),
       });
 
       let stdout = "";
@@ -314,8 +334,8 @@ export class BuildRunner {
         const relativePath = path.relative(sourceDir, file);
         this.info(`Parsing ${relativePath}`);
 
-        // Parse the file using Python backend
-        const parseResult = await this.runPythonParse(file);
+        // Parse the file using Nexflow CLI
+        const parseResult = await this.runNexflowParse(file);
 
         if (parseResult.exitCode === 0) {
           // Extract schema names from file content
@@ -350,7 +370,7 @@ export class BuildRunner {
         const relativePath = path.relative(sourceDir, file);
         this.info(`Parsing ${relativePath}`);
 
-        const parseResult = await this.runPythonParse(file);
+        const parseResult = await this.runNexflowParse(file);
 
         if (parseResult.exitCode === 0) {
           const content = fs.readFileSync(file, "utf-8");
@@ -384,7 +404,7 @@ export class BuildRunner {
         const relativePath = path.relative(sourceDir, file);
         this.info(`Parsing ${relativePath}`);
 
-        const parseResult = await this.runPythonParse(file);
+        const parseResult = await this.runNexflowParse(file);
 
         if (parseResult.exitCode === 0) {
           const content = fs.readFileSync(file, "utf-8");
@@ -418,7 +438,7 @@ export class BuildRunner {
         const relativePath = path.relative(sourceDir, file);
         this.info(`Parsing ${relativePath}`);
 
-        const parseResult = await this.runPythonParse(file);
+        const parseResult = await this.runNexflowParse(file);
 
         if (parseResult.exitCode === 0) {
           const content = fs.readFileSync(file, "utf-8");
@@ -467,7 +487,7 @@ export class BuildRunner {
     this.outputChannel.appendLine("");
 
     // Run the actual generation
-    const genResult = await this.runPythonBuild(sourceDir, fullOutputDir);
+    const genResult = await this.runNexflowBuild(sourceDir, fullOutputDir);
 
     if (genResult.exitCode === 0) {
       // Count generated files
@@ -573,7 +593,7 @@ export class BuildRunner {
     this.info(`Generating ${typeLabel}...`);
 
     // First validate the file parses correctly
-    const parseResult = await this.runPythonParse(filePath);
+    const parseResult = await this.runNexflowParse(filePath);
 
     if (parseResult.exitCode === 0 && items.length > 0) {
       for (const item of items) {

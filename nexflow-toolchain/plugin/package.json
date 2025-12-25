@@ -226,6 +226,32 @@
           "type": "string",
           "default": "com.nexflow.generated",
           "description": "Java package name for generated code."
+        },
+        "nexflow.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Python interpreter. Leave empty to auto-detect."
+        },
+        "nexflow.toolchainPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to nexflow-toolchain directory. Leave empty to auto-detect."
+        },
+        "nexflow.runtime.executable": {
+          "type": "string",
+          "default": "",
+          "description": "Path to nexflow executable (nexflow.exe on Windows). Leave empty to auto-detect from PATH.",
+          "scope": "machine-overridable"
+        },
+        "nexflow.runtime.usePython": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force use of Python module (python -m nexflow) instead of executable. Useful for development and debugging."
+        },
+        "nexflow.runtime.developerMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable developer mode with verbose error output and debug flags."
         }
       }
     }

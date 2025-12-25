@@ -12,6 +12,12 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { spawn } from "child_process";
+import {
+  getNexflowRuntime,
+  buildCommandArgs,
+  getProcessEnv,
+  NexflowRuntime,
+} from "../runtime";
 
 export class VisualDesignerPanel {
   public static currentPanel: VisualDesignerPanel | undefined;
@@ -20,20 +26,18 @@ export class VisualDesignerPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private readonly _projectRoot: string;
-  private readonly _pythonPath: string;
+  private _runtime: NexflowRuntime | null = null;
   private _procFilePath: string | undefined;
   private _disposables: vscode.Disposable[] = [];
 
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
-    projectRoot: string,
-    pythonPath: string
+    projectRoot: string
   ) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._projectRoot = projectRoot;
-    this._pythonPath = pythonPath;
 
     // Set webview content
     this._update();
@@ -55,7 +59,6 @@ export class VisualDesignerPanel {
   public static createOrShow(
     extensionUri: vscode.Uri,
     projectRoot: string,
-    pythonPath: string,
     procFilePath?: string
   ): VisualDesignerPanel {
     const column = vscode.window.activeTextEditor
@@ -89,8 +92,7 @@ export class VisualDesignerPanel {
     VisualDesignerPanel.currentPanel = new VisualDesignerPanel(
       panel,
       extensionUri,
-      projectRoot,
-      pythonPath
+      projectRoot
     );
 
     if (procFilePath) {
@@ -168,18 +170,30 @@ export class VisualDesignerPanel {
   }
 
   /**
+   * Initialize runtime detection (call before running commands)
+   */
+  private async _ensureRuntime(): Promise<NexflowRuntime> {
+    if (!this._runtime) {
+      this._runtime = await getNexflowRuntime();
+    }
+    return this._runtime;
+  }
+
+  /**
    * Parse .proc file to graph format using CLI.
    */
-  private _parseToGraph(filePath: string): Promise<object> {
-    return new Promise((resolve, reject) => {
-      const args = ["-m", "backend.cli.main", "parse", filePath, "--format", "graph"];
+  private async _parseToGraph(filePath: string): Promise<object> {
+    const runtime = await this._ensureRuntime();
 
-      const proc = spawn(this._pythonPath, args, {
+    return new Promise((resolve, reject) => {
+      const args = buildCommandArgs("parse", [filePath, "--format", "graph"], {
+        runtime,
+        addDebugFlag: runtime.developerMode,
+      });
+
+      const proc = spawn(runtime.command, args, {
         cwd: this._projectRoot,
-        env: {
-          ...process.env,
-          PYTHONPATH: this._projectRoot,
-        },
+        env: getProcessEnv(runtime),
       });
 
       let stdout = "";
@@ -505,15 +519,17 @@ export class VisualDesignerPanel {
    * Validate a .proc file using CLI.
    */
   private async _validateFile(filePath: string): Promise<void> {
-    return new Promise((resolve) => {
-      const args = ["-m", "backend.cli.main", "validate", filePath];
+    const runtime = await this._ensureRuntime();
 
-      const proc = spawn(this._pythonPath, args, {
+    return new Promise((resolve) => {
+      const args = buildCommandArgs("validate", [filePath], {
+        runtime,
+        addDebugFlag: runtime.developerMode,
+      });
+
+      const proc = spawn(runtime.command, args, {
         cwd: this._projectRoot,
-        env: {
-          ...process.env,
-          PYTHONPATH: this._projectRoot,
-        },
+        env: getProcessEnv(runtime),
       });
 
       let stderr = "";

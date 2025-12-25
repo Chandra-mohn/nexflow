@@ -262,15 +262,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
           return;
         }
 
-        // Determine CLI path based on runtime mode
-        const cliPath = runtimeConfig.mode === "bundled"
-          ? runtimeConfig.cliCommand
-          : runtimeConfig.pythonPath || "python";
-
         VisualDesignerPanel.createOrShow(
           context.extensionUri,
           effectiveRoot,
-          cliPath,
           filePath
         );
       }
@@ -316,14 +310,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
           return;
         }
 
-        const cliPath = runtimeConfig.mode === "bundled"
-          ? runtimeConfig.cliCommand
-          : runtimeConfig.pythonPath || "python";
-
         VisualDesignerPanel.createOrShow(
           context.extensionUri,
           effectiveRoot,
-          cliPath,
           procFilePath
         );
       }
@@ -450,9 +439,8 @@ export async function activate(context: ExtensionContext): Promise<void> {
     buildOutputChannel = window.createOutputChannel("Nexflow Build");
     context.subscriptions.push(buildOutputChannel);
 
-    // Create build runner with appropriate configuration
-    const pythonPath = runtimeConfig.pythonPath || "python";
-    buildRunner = new BuildRunner(buildOutputChannel, runtimeConfig.projectRoot, pythonPath);
+    // Create build runner
+    buildRunner = new BuildRunner(buildOutputChannel, runtimeConfig.projectRoot);
 
     // Register build command
     const buildCommand = commands.registerCommand(
