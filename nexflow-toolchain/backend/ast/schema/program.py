@@ -14,6 +14,7 @@ from .common import SourceLocation, Duration
 
 if TYPE_CHECKING:
     from backend.ast.common import ImportStatement
+    from backend.ast.serialization import SerializationConfig
 from .enums import MutationPattern
 from .types import IdentityBlock, FieldsBlock, NestedObjectBlock, TypeAliasBlock
 from .blocks import (
@@ -32,6 +33,7 @@ class SchemaDefinition:
     retention: Optional[Duration] = None
     identity: Optional[IdentityBlock] = None
     streaming: Optional[StreamingBlock] = None
+    serialization: Optional['SerializationConfig'] = None  # v0.8.0+ Kafka serialization format
     fields: Optional[FieldsBlock] = None
     nested_objects: List[NestedObjectBlock] = field(default_factory=list)
     computed: Optional[ComputedBlock] = None  # Computed/derived fields

@@ -1,0 +1,17 @@
+# =============================================================================
+# Development Environment Override
+# =============================================================================
+# This file overrides nexflow.toml settings for local development.
+#
+# Usage:
+#   nexflow build --env dev
+#   NEXFLOW_ENV=dev nexflow build
+# =============================================================================
+
+[serialization]
+# Use JSON in development for human-readable debugging
+default_format = "json"
+
+[serialization.json]
+# Pretty print JSON for easier debugging
+include_null_fields = true

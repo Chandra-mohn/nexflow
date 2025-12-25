@@ -106,6 +106,13 @@ from .program import (
     Program,
 )
 
+# Serialization (v0.8.0+)
+from backend.ast.serialization import (
+    SerializationFormat,
+    SerializationConfig,
+    CompatibilityMode as SerializationCompatibilityMode,
+)
+
 __all__ = [
     # Enums
     'MutationPattern', 'CompatibilityMode', 'TimeSemantics', 'WatermarkStrategy',
@@ -133,4 +140,6 @@ __all__ = [
     'ReturnBlock', 'RuleBlock', 'MigrationStatement', 'MigrationBlock',
     # Program
     'SchemaDefinition', 'Program',
+    # Serialization
+    'SerializationFormat', 'SerializationConfig', 'SerializationCompatibilityMode',
 ]

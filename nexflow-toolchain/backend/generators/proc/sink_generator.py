@@ -7,9 +7,10 @@ Sink Generator Mixin
 Generates Flink sink connections from L1 emit declarations.
 """
 
-from typing import Set, List
+from typing import Optional, Set, List
 
 from backend.ast import proc_ast as ast
+from backend.ast.serialization import SerializationConfig, SerializationFormat
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 
@@ -66,6 +67,9 @@ class SinkGeneratorMixin:
         schema_class = self._get_emit_schema_class(emit)
         sink_name = self._to_camel_case(target) + "Sink"
 
+        # Get serialization configuration (emit override > schema > team config > default)
+        serialization = self._get_effective_serialization_for_emit(emit, process)
+
         # Determine stream transformation based on fanout strategy
         fanout_transform = ""
         fanout_comment = ""
@@ -77,15 +81,18 @@ class SinkGeneratorMixin:
                 fanout_transform = f".rebalance()"
                 fanout_comment = " (ROUND_ROBIN load balanced)"
 
+        # Generate format-specific serializer
+        serializer_code = self._generate_serializer(schema_class, serialization)
+
         lines = [
-            f"// Sink: {target}{fanout_comment}",
+            f"// Sink: {target}{fanout_comment} [format: {serialization.format.value}]",
             f"KafkaSink<{schema_class}> {sink_name} = KafkaSink",
             f"    .<{schema_class}>builder()",
             f"    .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)",
             f"    .setRecordSerializer(",
             f"        KafkaRecordSerializationSchema.<{schema_class}>builder()",
             f"            .setTopic(\"{target}\")",
-            f"            .setValueSerializationSchema(new JsonSerializationSchema<{schema_class}>())",
+            f"            .setValueSerializationSchema({serializer_code})",
             "            .build()",
             "    )",
             "    .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)",
@@ -133,3 +140,83 @@ class SinkGeneratorMixin:
             'org.apache.flink.streaming.api.functions.ProcessFunction.Context',
             'org.apache.flink.util.OutputTag',
         }
+
+    # =========================================================================
+    # v0.8.0+ Serialization Format Support
+    # =========================================================================
+
+    def _get_effective_serialization_for_emit(
+        self, emit: ast.EmitDecl, process: ast.ProcessDefinition
+    ) -> SerializationConfig:
+        """Get effective serialization config for an emit declaration.
+
+        Priority: emit-level override > schema declaration > team config > default
+        """
+        # Check for emit-level format override
+        if hasattr(emit, 'format_override') and emit.format_override:
+            return SerializationConfig(
+                format=emit.format_override,
+                registry_url=getattr(emit, 'registry_override', None)
+            )
+
+        # Check for schema-level serialization declaration
+        # This would come from resolved schema information
+        if hasattr(self, '_serialization_config') and self._serialization_config:
+            return self._serialization_config
+
+        # Default: JSON format
+        return SerializationConfig(format=SerializationFormat.JSON)
+
+    def _generate_serializer(
+        self, schema_class: str, serialization: SerializationConfig
+    ) -> str:
+        """Generate format-specific serializer code.
+
+        Generates the appropriate serializer for:
+        - JSON: JsonSerializationSchema
+        - Avro: AvroSerializationSchema (specific records)
+        - Confluent Avro: ConfluentRegistryAvroSerializationSchema
+        - Protobuf: ProtobufSerializationSchema
+        """
+        fmt = serialization.format
+
+        if fmt == SerializationFormat.JSON:
+            return f"new JsonSerializationSchema<{schema_class}>()"
+
+        elif fmt == SerializationFormat.AVRO:
+            return f"AvroSerializationSchema.forSpecific({schema_class}.class)"
+
+        elif fmt == SerializationFormat.CONFLUENT_AVRO:
+            registry_url = serialization.registry_url or "SCHEMA_REGISTRY_URL"
+            subject = serialization.subject or f'"{schema_class}-value"'
+            return f'''ConfluentRegistryAvroSerializationSchema.forSpecific(
+                {schema_class}.class,
+                {subject},
+                {registry_url}
+            )'''
+
+        elif fmt == SerializationFormat.PROTOBUF:
+            return f"new ProtobufSerializationSchema<>({schema_class}.class)"
+
+        else:
+            # Fallback to JSON
+            return f"new JsonSerializationSchema<{schema_class}>()"
+
+    def get_serialization_imports_for_sink(self, serialization: SerializationConfig) -> Set[str]:
+        """Get imports needed for the specified serialization format in sinks."""
+        fmt = serialization.format
+        imports = set()
+
+        if fmt == SerializationFormat.JSON:
+            imports.add('org.apache.flink.formats.json.JsonSerializationSchema')
+
+        elif fmt == SerializationFormat.AVRO:
+            imports.add('org.apache.flink.formats.avro.AvroSerializationSchema')
+
+        elif fmt == SerializationFormat.CONFLUENT_AVRO:
+            imports.add('org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroSerializationSchema')
+
+        elif fmt == SerializationFormat.PROTOBUF:
+            imports.add('org.apache.flink.formats.protobuf.ProtobufSerializationSchema')
+
+        return imports

@@ -1,0 +1,54 @@
+// =============================================================================
+// L1-Serialization-03: Protobuf Format (High Performance)
+// =============================================================================
+// Use Case: Performance-critical, cross-language scenarios
+// Format:   Protobuf - Smallest binary, fastest serialization
+// When:     Ultra-high volume, polyglot microservices
+// =============================================================================
+
+process protobuf_order_processor
+    // Protobuf format for maximum performance
+
+    receive orders
+        from kafka "orders-protobuf"
+        schema order
+        format protobuf          // Override to Protobuf
+
+    // High-performance aggregation
+    window tumbling 1 minute
+        partition by customer_id
+    end
+
+    aggregate
+        order_count = count()
+        total_value = sum(total_amount)
+        avg_order_value = avg(total_amount)
+    end as customer_order_summary
+
+    emit to customer_metrics
+        schema customer_order_summary
+end
+
+// =============================================================================
+// Protobuf Format Characteristics:
+// - Smallest payload: 30-50% smaller than Avro
+// - Fastest serialization: Optimized binary encoding
+// - Cross-language: Native support in many languages
+// - Backward compatible: With careful schema design
+//
+// Generated Code Pattern:
+//   .setValueOnlyDeserializer(
+//       new ProtobufDeserializationSchema<>(Order.class)
+//   )
+//
+// When to Use:
+// - Ultra-high volume (> 100K msg/sec)
+// - Polyglot microservices (Java, Go, Python, C++)
+// - When payload size is critical (mobile, edge)
+// - Performance-critical paths
+//
+// Trade-offs:
+// - Less human-readable than Avro
+// - Schema evolution more restrictive
+// - Requires proto file compilation
+// =============================================================================

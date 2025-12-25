@@ -1,6 +1,3 @@
-# Nexflow DSL Toolchain
-# Author: Chandra Mohn
-
 # Generated from SchemaDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
@@ -204,6 +201,41 @@ class SchemaDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SchemaDSLParser#retentionPolicy.
     def visitRetentionPolicy(self, ctx:SchemaDSLParser.RetentionPolicyContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#serializationBlock.
+    def visitSerializationBlock(self, ctx:SchemaDSLParser.SerializationBlockContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#serializationDecl.
+    def visitSerializationDecl(self, ctx:SchemaDSLParser.SerializationDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#formatDecl.
+    def visitFormatDecl(self, ctx:SchemaDSLParser.FormatDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#serializationFormat.
+    def visitSerializationFormat(self, ctx:SchemaDSLParser.SerializationFormatContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#serializationCompatibilityDecl.
+    def visitSerializationCompatibilityDecl(self, ctx:SchemaDSLParser.SerializationCompatibilityDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#subjectDecl.
+    def visitSubjectDecl(self, ctx:SchemaDSLParser.SubjectDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SchemaDSLParser#registryDecl.
+    def visitRegistryDecl(self, ctx:SchemaDSLParser.RegistryDeclContext):
         return self.visitChildren(ctx)
 
 

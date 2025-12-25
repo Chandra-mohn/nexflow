@@ -1,0 +1,48 @@
+// =============================================================================
+// L1-Serialization: Order Schema with Avro Serialization
+// =============================================================================
+// Demonstrates schema-level serialization declaration.
+// This schema will always use Avro format, regardless of team defaults.
+// =============================================================================
+
+schema order
+    identity
+        order_id: string,
+    end
+
+    streaming
+        key_fields: [order_id]
+        time_field: order_time
+        time_semantics: event_time
+        watermark_delay: 5 seconds
+    end
+
+    // Declare preferred serialization format for this schema
+    serialization
+        format avro
+        compatibility backward
+    end
+
+    fields
+        order_id: string required
+        customer_id: string required
+        product_id: string required
+        quantity: integer required
+        unit_price: decimal[precision: 10, scale: 2] required
+        total_amount: decimal[precision: 10, scale: 2] required
+        order_time: timestamp required
+        status: string[values: pending, confirmed, shipped, delivered, cancelled]
+    end
+
+    computed
+        line_total = quantity * unit_price
+    end
+end
+
+// =============================================================================
+// Schema-Level Serialization Notes:
+// - format: Specifies the serialization format (avro, json, protobuf)
+// - compatibility: Schema evolution strategy for Avro
+// - This takes precedence over nexflow.toml default_format
+// - Can be overridden per-connector with format keyword in .proc file
+// =============================================================================

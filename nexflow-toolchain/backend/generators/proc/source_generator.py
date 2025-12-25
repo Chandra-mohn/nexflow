@@ -17,9 +17,10 @@ L1 Input Block Features:
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from backend.ast import proc_ast as ast
+from backend.ast.serialization import SerializationConfig, SerializationFormat
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case, duration_to_ms
 from backend.generators.proc.source_projection import SourceProjectionMixin
 from backend.generators.proc.source_correlation import SourceCorrelationMixin
@@ -89,18 +90,22 @@ class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
         stream_var = self._to_stream_var(stream_alias)
         schema_class = self._get_schema_class(receive)
 
+        # Get serialization configuration (process override > schema > team config > default)
+        serialization = self._get_effective_serialization(receive, process)
+
         lines = []
 
-        # Build Kafka source
+        # Build Kafka source with format-specific deserializer
+        deserializer_code = self._generate_deserializer(schema_class, serialization)
         lines.extend([
-            f"// Source: {source_name}" + (f" (alias: {stream_alias})" if receive.alias else ""),
+            f"// Source: {source_name}" + (f" (alias: {stream_alias})" if receive.alias else "") + f" [format: {serialization.format.value}]",
             f"KafkaSource<{schema_class}> {self._to_camel_case(source_name)}Source = KafkaSource",
             f"    .<{schema_class}>builder()",
             f"    .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)",
             f"    .setTopics(\"{source_name}\")",
             f"    .setGroupId(\"{process.name}-consumer\")",
             f"    .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST))",
-            f"    .setValueOnlyDeserializer(new JsonDeserializationSchema<>({schema_class}.class))",
+            f"    .setValueOnlyDeserializer({deserializer_code})",
             "    .build();",
             "",
         ])
@@ -618,3 +623,82 @@ class SourceGeneratorMixin(SourceProjectionMixin, SourceCorrelationMixin):
             'org.apache.flink.shaded.jackson2.com.fasterxml.jackson.dataformat.csv.CsvSchema',
             'org.apache.flink.api.common.typeinfo.TypeInformation',
         }
+
+    # =========================================================================
+    # v0.8.0+ Serialization Format Support
+    # =========================================================================
+
+    def _get_effective_serialization(
+        self, receive: ast.ReceiveDecl, process: ast.ProcessDefinition
+    ) -> SerializationConfig:
+        """Get effective serialization config for a receive declaration.
+
+        Priority: process-level override > schema declaration > team config > default
+        """
+        # Check for process-level format override on the receive declaration
+        if hasattr(receive, 'format_override') and receive.format_override:
+            return SerializationConfig(
+                format=receive.format_override,
+                registry_url=getattr(receive, 'registry_override', None)
+            )
+
+        # Check for schema-level serialization declaration
+        # This would come from resolved schema information (not implemented yet)
+        # For now, fall back to team/global config or default
+        if hasattr(self, '_serialization_config') and self._serialization_config:
+            return self._serialization_config
+
+        # Default: JSON format
+        return SerializationConfig(format=SerializationFormat.JSON)
+
+    def _generate_deserializer(
+        self, schema_class: str, serialization: SerializationConfig
+    ) -> str:
+        """Generate format-specific deserializer code.
+
+        Generates the appropriate deserializer for:
+        - JSON: JsonDeserializationSchema
+        - Avro: AvroDeserializationSchema (specific records)
+        - Confluent Avro: ConfluentRegistryAvroDeserializationSchema
+        - Protobuf: ProtobufDeserializationSchema
+        """
+        fmt = serialization.format
+
+        if fmt == SerializationFormat.JSON:
+            return f"new JsonDeserializationSchema<>({schema_class}.class)"
+
+        elif fmt == SerializationFormat.AVRO:
+            return f"AvroDeserializationSchema.forSpecific({schema_class}.class)"
+
+        elif fmt == SerializationFormat.CONFLUENT_AVRO:
+            registry_url = serialization.registry_url or "SCHEMA_REGISTRY_URL"
+            return f'''ConfluentRegistryAvroDeserializationSchema.forSpecific(
+            {schema_class}.class,
+            {registry_url}
+        )'''
+
+        elif fmt == SerializationFormat.PROTOBUF:
+            return f"new ProtobufDeserializationSchema<>({schema_class}.class)"
+
+        else:
+            # Fallback to JSON
+            return f"new JsonDeserializationSchema<>({schema_class}.class)"
+
+    def get_serialization_imports(self, serialization: SerializationConfig) -> Set[str]:
+        """Get imports needed for the specified serialization format."""
+        fmt = serialization.format
+        imports = set()
+
+        if fmt == SerializationFormat.JSON:
+            imports.add('org.apache.flink.formats.json.JsonDeserializationSchema')
+
+        elif fmt == SerializationFormat.AVRO:
+            imports.add('org.apache.flink.formats.avro.AvroDeserializationSchema')
+
+        elif fmt == SerializationFormat.CONFLUENT_AVRO:
+            imports.add('org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroDeserializationSchema')
+
+        elif fmt == SerializationFormat.PROTOBUF:
+            imports.add('org.apache.flink.formats.protobuf.ProtobufDeserializationSchema')
+
+        return imports

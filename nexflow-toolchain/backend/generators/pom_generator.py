@@ -9,7 +9,94 @@ Includes Flink 1.18 dependencies, Voltage SDK, and other required libraries.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
+
+from backend.ast.serialization import SerializationFormat
+
+
+def _generate_serialization_dependencies(
+    formats: Set[SerializationFormat], flink_version: str
+) -> str:
+    """Generate serialization dependency blocks based on formats used."""
+    deps = []
+
+    # JSON format dependencies
+    if SerializationFormat.JSON in formats:
+        deps.append('''        <!-- ============================================== -->
+        <!-- Serialization: JSON                           -->
+        <!-- ============================================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-json</artifactId>
+            <version>${flink.version}</version>
+            <scope>provided</scope>
+        </dependency>''')
+
+    # Avro format dependencies
+    if SerializationFormat.AVRO in formats or SerializationFormat.CONFLUENT_AVRO in formats:
+        deps.append('''        <!-- ============================================== -->
+        <!-- Serialization: Avro                           -->
+        <!-- ============================================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-avro</artifactId>
+            <version>${flink.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>1.11.3</version>
+            <scope>provided</scope>
+        </dependency>''')
+
+    # Confluent Schema Registry dependencies
+    if SerializationFormat.CONFLUENT_AVRO in formats:
+        deps.append('''        <!-- ============================================== -->
+        <!-- Confluent Schema Registry (for Avro)          -->
+        <!-- ============================================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-avro-confluent-registry</artifactId>
+            <version>${flink.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
+            <version>7.5.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-schema-registry-client</artifactId>
+            <version>7.5.1</version>
+            <scope>provided</scope>
+        </dependency>''')
+
+    # Protobuf format dependencies
+    if SerializationFormat.PROTOBUF in formats:
+        deps.append('''        <!-- ============================================== -->
+        <!-- Serialization: Protobuf                       -->
+        <!-- ============================================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-protobuf</artifactId>
+            <version>${flink.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.25.1</version>
+            <scope>provided</scope>
+        </dependency>''')
+
+    return '\n\n'.join(deps) if deps else ''
 
 
 def generate_pom(
@@ -20,6 +107,7 @@ def generate_pom(
     java_version: str = "17",
     voltage_enabled: bool = True,
     project_name: Optional[str] = None,
+    serialization_formats: Optional[Set[SerializationFormat]] = None,
 ) -> str:
     """
     Generate a Maven pom.xml for the generated Nexflow code.
@@ -32,11 +120,16 @@ def generate_pom(
         java_version: Java version (11, 17, 21)
         voltage_enabled: Include Voltage SDK dependencies
         project_name: Optional project name for display
+        serialization_formats: Set of serialization formats used (determines dependencies)
 
     Returns:
         Complete pom.xml content as string
     """
     name = project_name or artifact_id
+
+    # Default to JSON if no formats specified
+    if serialization_formats is None:
+        serialization_formats = {SerializationFormat.JSON}
 
     # Voltage dependencies (if enabled)
     # Note: Voltage SDK is proprietary and must be installed from your internal repository
@@ -148,32 +241,7 @@ def generate_pom(
             <scope>provided</scope>
         </dependency>
 
-        <!-- ============================================== -->
-        <!-- Serialization: JSON                           -->
-        <!-- ============================================== -->
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-json</artifactId>
-            <version>${{flink.version}}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- ============================================== -->
-        <!-- Serialization: Avro                           -->
-        <!-- ============================================== -->
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-avro</artifactId>
-            <version>${{flink.version}}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <version>1.11.3</version>
-            <scope>provided</scope>
-        </dependency>
+{_generate_serialization_dependencies(serialization_formats, flink_version)}
 
         <!-- ============================================== -->
         <!-- JSON Processing: Jackson                      -->
@@ -306,11 +374,16 @@ def generate_pom(
         </plugins>
     </build>
 
-    <!-- Repository for Voltage SDK (if needed) -->
+    <!-- Repositories -->
     <repositories>
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <!-- Confluent Repository for Schema Registry dependencies -->
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
         </repository>
     </repositories>
 </project>
@@ -327,9 +400,21 @@ def write_pom(
     java_version: str = "17",
     voltage_enabled: bool = True,
     project_name: Optional[str] = None,
+    serialization_formats: Optional[Set[SerializationFormat]] = None,
 ) -> Path:
     """
     Generate and write pom.xml to the output directory.
+
+    Args:
+        output_dir: Directory to write pom.xml to
+        group_id: Maven group ID
+        artifact_id: Maven artifact ID
+        version: Project version
+        flink_version: Apache Flink version
+        java_version: Java version (11, 17, 21)
+        voltage_enabled: Include Voltage SDK dependencies
+        project_name: Optional project name for display
+        serialization_formats: Set of serialization formats used (determines dependencies)
 
     Returns:
         Path to the generated pom.xml
@@ -342,6 +427,7 @@ def write_pom(
         java_version=java_version,
         voltage_enabled=voltage_enabled,
         project_name=project_name,
+        serialization_formats=serialization_formats,
     )
 
     pom_path = output_dir / "pom.xml"

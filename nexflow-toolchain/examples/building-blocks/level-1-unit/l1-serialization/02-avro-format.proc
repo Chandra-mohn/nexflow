@@ -1,0 +1,53 @@
+// =============================================================================
+// L1-Serialization-02: Avro Format (Production)
+// =============================================================================
+// Use Case: Production workloads with schema evolution needs
+// Format:   Avro - Compact binary, schema registry integration
+// When:     High-volume production, multi-team environments
+// =============================================================================
+
+process avro_order_processor
+    // This process uses Avro format (from schema declaration or nexflow.toml)
+    // No format override needed - uses schema's declared format
+
+    receive orders
+        from kafka "orders-avro"
+        schema order                 // Schema declares format: avro
+
+    // Enrich with customer data
+    enrich with customer_service
+        lookup customer by customer_id
+        add customer_name, loyalty_tier
+
+    // Route by order value
+    route using
+        when total_amount > 1000 then high_value_orders
+        when total_amount > 100 then medium_value_orders
+        otherwise standard_orders
+    end
+
+    emit to processed_orders_avro
+        schema order
+end
+
+// =============================================================================
+// Avro Format Characteristics:
+// - Compact binary: 50-80% smaller than JSON
+// - Schema evolution: Backward/forward compatible changes
+// - Schema registry: Centralized schema management
+// - Type safety: Strong typing at compile and runtime
+//
+// Generated Code Pattern:
+//   .setValueOnlyDeserializer(
+//       ConfluentRegistryAvroDeserializationSchema.forSpecific(
+//           Order.class,
+//           "http://schema-registry:8081"
+//       )
+//   )
+//
+// When to Use:
+// - High-volume production workloads
+// - Multi-team environments needing schema governance
+// - When schema evolution is required
+// - Data warehouse integration (Parquet compatibility)
+// =============================================================================

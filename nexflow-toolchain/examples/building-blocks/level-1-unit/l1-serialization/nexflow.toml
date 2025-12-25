@@ -1,0 +1,53 @@
+# =============================================================================
+# Nexflow Serialization Configuration
+# =============================================================================
+# This file demonstrates the hierarchical serialization configuration system.
+# Place nexflow.toml in your project directory to set team-level defaults.
+#
+# Configuration Hierarchy (highest priority first):
+# 1. Process-level override (format keyword in .proc file)
+# 2. Schema-level declaration (serialization block in .schema file)
+# 3. This file (nexflow.toml in process directory)
+# 4. Environment overlay (nexflow.{env}.toml)
+# 5. Built-in default (json)
+# =============================================================================
+
+[serialization]
+# Default format for all Kafka sources and sinks
+# Options: json | avro | confluent_avro | protobuf
+default_format = "avro"
+
+[serialization.registry]
+# Schema Registry URL (required for Avro formats)
+url = "http://localhost:8081"
+# For Confluent Cloud, use:
+# url = "https://psrc-xxxxx.us-east-2.aws.confluent.cloud"
+# api_key = "${SCHEMA_REGISTRY_API_KEY}"
+# api_secret = "${SCHEMA_REGISTRY_API_SECRET}"
+
+[serialization.avro]
+# Schema compatibility mode
+# Options: BACKWARD | FORWARD | FULL | NONE
+compatibility = "BACKWARD"
+
+# Subject naming strategy
+# Options: TopicNameStrategy | RecordNameStrategy | TopicRecordNameStrategy
+subject_naming = "TopicNameStrategy"
+
+# Use Avro logical types for date, timestamp, decimal
+use_logical_types = true
+
+[serialization.protobuf]
+# Include default values in serialized output
+include_default_values = false
+
+# Use Proto3 syntax (recommended)
+use_proto3 = true
+
+[serialization.json]
+# Include null fields in JSON output
+include_null_fields = false
+
+# Date format for JSON serialization
+# Options: ISO8601 | EPOCH_MILLIS
+date_format = "ISO8601"

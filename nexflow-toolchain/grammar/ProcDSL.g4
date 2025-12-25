@@ -326,6 +326,26 @@ connectorOptions
     | timestampBounds                              // Kafka/Parquet timestamp bounds
     | parquetOptions                               // Parquet-specific options
     | csvOptions                                   // CSV-specific options
+    | formatOverride                               // v0.8.0+: Serialization format override
+    | registryOverride                             // v0.8.0+: Schema registry URL override
+    ;
+
+// v0.8.0+: Serialization format override (use sparingly)
+formatOverride
+    : FORMAT serializationFormat
+    ;
+
+// v0.8.0+: Schema registry URL override
+registryOverride
+    : REGISTRY STRING
+    ;
+
+// Serialization format for Kafka connectors
+serializationFormat
+    : JSON_FORMAT
+    | AVRO
+    | CONFLUENT_AVRO
+    | PROTOBUF
     ;
 
 // Timestamp bounds for bounded reads (Kafka/Parquet)
@@ -1444,6 +1464,14 @@ QUOTE         : 'quote' ;          // v0.8.0+: CSV quote character
 ESCAPE_CHAR   : 'escape_char' ;    // v0.8.0+: CSV escape character
 HEADER        : 'header' ;         // v0.8.0+: CSV header flag
 NULL_VALUE    : 'null_value' ;     // v0.8.0+: CSV null representation
+
+// v0.8.0+: Serialization format keywords
+FORMAT        : 'format' ;
+REGISTRY      : 'registry' ;
+JSON_FORMAT   : 'json' ;
+AVRO          : 'avro' ;
+CONFLUENT_AVRO: 'confluent_avro' ;
+PROTOBUF      : 'protobuf' ;
 
 // ----------------------------------------------------------------------------
 // Keywords - Processing

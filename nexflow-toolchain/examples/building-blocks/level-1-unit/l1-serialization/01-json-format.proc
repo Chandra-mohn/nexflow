@@ -1,0 +1,43 @@
+// =============================================================================
+// L1-Serialization-01: JSON Format (Development/Debugging)
+// =============================================================================
+// Use Case: Development, debugging, low-volume scenarios
+// Format:   JSON - Human readable, larger payload size
+// When:     Local development, troubleshooting, small datasets
+// =============================================================================
+
+process json_order_processor
+    // This process uses JSON format (from nexflow.dev.toml or override)
+
+    receive orders
+        from kafka "orders-json"
+        schema order
+        format json              // Explicit override to JSON
+
+    // Simple transform - calculate discounts
+    transform
+        set discount = when total_amount > 100 then 0.1 else 0
+        set final_amount = total_amount * (1 - discount)
+    end
+
+    emit to processed_orders_json
+        schema order
+end
+
+// =============================================================================
+// JSON Format Characteristics:
+// - Human readable: Easy to debug with kafka-console-consumer
+// - Self-describing: No schema registry required
+// - Larger payload: ~2-5x larger than binary formats
+// - CPU efficient: Fast serialization/deserialization
+//
+// Generated Code Pattern:
+//   .setValueOnlyDeserializer(new JsonDeserializationSchema<>(Order.class))
+//   .setValueSerializationSchema(new JsonSerializationSchema<>())
+//
+// When to Use:
+// - Local development and debugging
+// - Low-volume topics (< 1000 msg/sec)
+// - Integration with systems that expect JSON
+// - When human readability is important
+// =============================================================================

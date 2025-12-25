@@ -64,6 +64,7 @@ schemaDefinition
         retentionDecl?
         identityBlock?
         streamingBlock?
+        serializationBlock?             // Serialization format configuration (v0.8.0+)
         fieldsBlock?
         nestedObjectBlock*
         computedBlock?                  // Computed/derived fields
@@ -289,6 +290,53 @@ retentionPolicy
     : 'delete_oldest'
     | 'archive'
     | 'compact'
+    ;
+
+// ----------------------------------------------------------------------------
+// Serialization Block (v0.8.0+ - Kafka Serialization Format Configuration)
+// ----------------------------------------------------------------------------
+// Declares the preferred serialization format for this schema.
+// Used for Kafka sources/sinks. Can be overridden at process level.
+//
+// Example:
+//   serialization
+//       format avro
+//       compatibility backward
+//       subject "orders-value"
+//   end
+
+serializationBlock
+    : 'serialization' serializationDecl+ 'end'
+    ;
+
+serializationDecl
+    : formatDecl
+    | serializationCompatibilityDecl
+    | subjectDecl
+    | registryDecl
+    ;
+
+formatDecl
+    : 'format' serializationFormat
+    ;
+
+serializationFormat
+    : 'json'
+    | 'avro'
+    | 'confluent_avro'
+    | 'protobuf'
+    ;
+
+serializationCompatibilityDecl
+    : 'compatibility' compatibilityMode
+    ;
+
+subjectDecl
+    : 'subject' STRING
+    ;
+
+registryDecl
+    : 'registry' STRING
     ;
 
 // ----------------------------------------------------------------------------

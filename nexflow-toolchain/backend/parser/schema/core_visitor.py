@@ -12,6 +12,7 @@ from typing import List, Optional, Union
 
 from backend.ast import schema_ast as ast
 from backend.ast.common import ImportStatement
+from backend.ast.serialization import SerializationConfig, SerializationFormat, CompatibilityMode
 from backend.parser.common import BaseVisitorMixin
 from backend.parser.generated.schema import SchemaDSLParser
 
@@ -77,6 +78,10 @@ class CoreVisitorMixin(BaseVisitorMixin):
         if ctx.streamingBlock():
             streaming = self.visitStreamingBlock(ctx.streamingBlock())
 
+        serialization = None
+        if ctx.serializationBlock():
+            serialization = self.visitSerializationBlock(ctx.serializationBlock())
+
         fields = None
         if ctx.fieldsBlock():
             fields = self.visitFieldsBlock(ctx.fieldsBlock())
@@ -136,6 +141,7 @@ class CoreVisitorMixin(BaseVisitorMixin):
             retention=retention,
             identity=identity,
             streaming=streaming,
+            serialization=serialization,
             fields=fields,
             nested_objects=nested_objects,
             computed=computed,
@@ -516,3 +522,68 @@ class CoreVisitorMixin(BaseVisitorMixin):
         return ast.FieldRefExpression(
             field_path=ast.FieldPath(parts=[self._get_text(expr_ctx)])
         )
+
+    # =========================================================================
+    # Serialization Block (v0.8.0+ - Kafka Serialization Format)
+    # =========================================================================
+
+    def visitSerializationBlock(self, ctx: SchemaDSLParser.SerializationBlockContext) -> SerializationConfig:
+        """Visit serialization block containing format configuration."""
+        format_value = SerializationFormat.JSON  # Default
+        compatibility = None
+        subject = None
+        registry_url = None
+
+        for decl_ctx in ctx.serializationDecl():
+            if decl_ctx.formatDecl():
+                format_value = self.visitFormatDecl(decl_ctx.formatDecl())
+            elif decl_ctx.serializationCompatibilityDecl():
+                compatibility = self.visitSerializationCompatibilityDecl(
+                    decl_ctx.serializationCompatibilityDecl()
+                )
+            elif decl_ctx.subjectDecl():
+                subject = self.visitSubjectDecl(decl_ctx.subjectDecl())
+            elif decl_ctx.registryDecl():
+                registry_url = self.visitRegistryDecl(decl_ctx.registryDecl())
+
+        return SerializationConfig(
+            format=format_value,
+            compatibility=compatibility,
+            subject=subject,
+            registry_url=registry_url,
+            location=self._get_location(ctx)
+        )
+
+    def visitFormatDecl(self, ctx: SchemaDSLParser.FormatDeclContext) -> SerializationFormat:
+        """Visit format declaration: format json|avro|confluent_avro|protobuf."""
+        format_text = self._get_text(ctx.serializationFormat()).lower()
+        format_map = {
+            'json': SerializationFormat.JSON,
+            'avro': SerializationFormat.AVRO,
+            'confluent_avro': SerializationFormat.CONFLUENT_AVRO,
+            'protobuf': SerializationFormat.PROTOBUF,
+        }
+        return format_map.get(format_text, SerializationFormat.JSON)
+
+    def visitSerializationCompatibilityDecl(
+        self, ctx: SchemaDSLParser.SerializationCompatibilityDeclContext
+    ) -> CompatibilityMode:
+        """Visit serialization compatibility declaration."""
+        mode_text = self._get_text(ctx.compatibilityMode()).lower()
+        mode_map = {
+            'backward': CompatibilityMode.BACKWARD,
+            'forward': CompatibilityMode.FORWARD,
+            'full': CompatibilityMode.FULL,
+            'none': CompatibilityMode.NONE,
+            'backward_compatible': CompatibilityMode.BACKWARD,
+            'forward_compatible': CompatibilityMode.FORWARD,
+        }
+        return mode_map.get(mode_text, CompatibilityMode.BACKWARD)
+
+    def visitSubjectDecl(self, ctx: SchemaDSLParser.SubjectDeclContext) -> str:
+        """Visit subject declaration: subject "topic-name-value"."""
+        return self._strip_quotes(ctx.STRING().getText()) if ctx.STRING() else None
+
+    def visitRegistryDecl(self, ctx: SchemaDSLParser.RegistryDeclContext) -> str:
+        """Visit registry declaration: registry "http://registry:8081"."""
+        return self._strip_quotes(ctx.STRING().getText()) if ctx.STRING() else None
