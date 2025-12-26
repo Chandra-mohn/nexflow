@@ -301,6 +301,28 @@ python -m backend.cli.main build --output /tmp/nexflow-test
 |---------|------|---------|
 | 0.5.0 | Dec 2025 | Initial implementation status report |
 | 0.6.0 | Dec 21, 2025 | Added validate_input, evaluate, lookup, parallel operators; Redis/StateStore/MongoDB/Scheduler sources; metrics and phase generators. Coverage increased from 68% to 90%. |
+| 0.7.0 | Dec 26, 2025 | Consolidated from Nexflow-L1-L6-Feature-Analysis.md and L1-Feature-Matrix.md |
+
+---
+
+## Architecture Context
+
+L1 ProcDSL is the orchestration layer in the 6-layer Nexflow architecture:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        NEXFLOW 6-LAYER ARCHITECTURE                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│  L6 - Compilation Pipeline (Orchestrator)                                │
+│  L1 - ProcDSL (.proc) - Process Flow "railroad" - THIS LAYER            │
+│  L2 - SchemaDSL (.schema) - Data Schemas (POJOs/Records)                │
+│  L3 - TransformDSL (.xform) - Transformations (MapFunction)             │
+│  L4 - RulesDSL (.rules) - Business Rules (ProcessFunction)              │
+│  L5 - Infrastructure (.infra) - Physical Bindings                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Design Principle**: L1 defines the data flow structure only, NOT business logic. Business logic lives in L3 (transforms) and L4 (rules).
 
 ---
 

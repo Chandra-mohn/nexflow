@@ -269,6 +269,7 @@ python -m backend.cli.main build --output /tmp/nexflow-test
 |---------|------|---------|
 | 1.0.0 | Dec 21, 2025 | Initial comprehensive implementation status report |
 | 1.1.0 | Dec 22, 2025 | 100% implementation complete: Added LookupsGeneratorMixin, ParamsGeneratorMixin, idempotent flag support |
+| 1.2.0 | Dec 26, 2025 | Consolidated from Nexflow-L1-L6-Feature-Analysis.md |
 
 ---
 
