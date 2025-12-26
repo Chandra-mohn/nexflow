@@ -5,11 +5,14 @@
 Nexflow Project Configuration
 
 Handles nexflow.toml manifest parsing and project structure.
+Includes organization policy loading from nexflow-org.toml.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import toml
+
+from backend.config.org_policy import OrganizationPolicy, load_org_policy
 
 
 class ProjectError(Exception):
@@ -66,6 +69,8 @@ class Project:
     sources: Dict[str, SourceConfig]
     target_configs: Dict[str, TargetConfig]
     dependencies: List[str] = field(default_factory=list)
+    # Organization policy for serialization governance
+    org_policy: Optional[OrganizationPolicy] = None
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "Project":
@@ -157,6 +162,9 @@ class Project:
         # Dependencies
         dependencies = config.get("dependencies", [])
 
+        # Load organization policy (from nexflow-org.toml if present)
+        org_policy = load_org_policy(root_dir, strict=False)
+
         return cls(
             name=name,
             version=version,
@@ -167,6 +175,7 @@ class Project:
             sources=sources,
             target_configs=target_configs,
             dependencies=dependencies,
+            org_policy=org_policy,
         )
 
     @property

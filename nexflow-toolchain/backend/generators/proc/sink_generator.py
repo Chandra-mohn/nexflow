@@ -11,6 +11,8 @@ from typing import Optional, Set, List
 
 from backend.ast import proc_ast as ast
 from backend.ast.serialization import SerializationConfig, SerializationFormat
+from backend.config.org_policy import OrganizationPolicy
+from backend.config.policy_validator import PolicyValidator, ValidationResult, ViolationLevel
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 
@@ -150,19 +152,58 @@ class SinkGeneratorMixin:
     ) -> SerializationConfig:
         """Get effective serialization config for an emit declaration.
 
-        Priority: emit-level override > schema declaration > team config > default
+        Applies organization policy governance:
+        1. Determine requested format from hierarchy
+        2. Validate against org policy (if configured)
+        3. Use org default if format not allowed (with warning)
+
+        Priority: emit-level override > schema declaration > team config > org default
         """
+        # Determine the requested format from hierarchy
+        requested_format = None
+        format_source = "default"
+
         # Check for emit-level format override
         if hasattr(emit, 'format_override') and emit.format_override:
+            requested_format = emit.format_override
+            format_source = "emit"
+
+        # Check for schema-level serialization declaration
+        if requested_format is None and hasattr(self, '_serialization_config') and self._serialization_config:
+            requested_format = self._serialization_config.format
+            format_source = "schema"
+
+        # Get organization policy from config (if available)
+        org_policy = getattr(self.config, 'org_policy', None) if hasattr(self, 'config') else None
+
+        if org_policy is not None:
+            # Use policy validator for governance
+            validator = PolicyValidator(org_policy)
+            result = validator.validate_format(
+                requested_format,
+                source_file=getattr(self.config, 'source_file', None) if hasattr(self, 'config') else None,
+                context=f"emit to {emit.target}"
+            )
+
+            # Notify violation handler if configured
+            if result.violations and hasattr(self, 'config'):
+                handler = getattr(self.config, 'violation_handler', None)
+                if handler:
+                    handler(result)
+
+            # Use policy-resolved format
+            resolved_format = result.resolved_format or org_policy.default_format
             return SerializationConfig(
-                format=emit.format_override,
+                format=resolved_format,
                 registry_url=getattr(emit, 'registry_override', None)
             )
 
-        # Check for schema-level serialization declaration
-        # This would come from resolved schema information
-        if hasattr(self, '_serialization_config') and self._serialization_config:
-            return self._serialization_config
+        # No org policy - fall back to legacy behavior
+        if requested_format:
+            return SerializationConfig(
+                format=requested_format,
+                registry_url=getattr(emit, 'registry_override', None)
+            )
 
         # Default: JSON format
         return SerializationConfig(format=SerializationFormat.JSON)

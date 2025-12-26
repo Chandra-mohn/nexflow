@@ -11,7 +11,7 @@ Target: Flink/Java code generation using Python f-strings.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 import os
 
 from backend.generators.common.java_utils import (
@@ -26,6 +26,8 @@ from backend.generators.common.java_utils import (
     format_duration as _format_duration,
     duration_to_time_call as _duration_to_time_call,
 )
+from backend.config.org_policy import OrganizationPolicy
+from backend.config.policy_validator import ValidationResult
 
 
 @dataclass
@@ -58,6 +60,17 @@ class GeneratorConfig:
     # Cross-layer type resolution context
     # Contains transforms, schemas, and rules for type flow lookup
     validation_context: Optional[Any] = None  # ValidationContext from validators.base
+
+    # Organization policy for serialization governance
+    # If None, a permissive policy is used (backward compatibility)
+    org_policy: Optional[OrganizationPolicy] = None
+
+    # Callback for policy violations (warnings, info)
+    # Called with ValidationResult when policy violations are detected
+    violation_handler: Optional[Callable[[ValidationResult], None]] = None
+
+    # Source file path for error messages (usually the .proc file)
+    source_file: Optional[Path] = None
 
 
 @dataclass

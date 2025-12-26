@@ -1,0 +1,64 @@
+# Nexflow Organization Policy Configuration
+#
+# This file defines organization-level serialization policies that govern
+# what formats teams/projects can use. Place this file at the repository root
+# or in parent directories to apply policies to all nested projects.
+#
+# Governance Hierarchy:
+#   Organization (nexflow-org.toml)
+#       └── Team/Project (nexflow.toml)
+#            └── Schema (.schema file)
+#                 └── Connector (.proc file)
+#
+# Higher levels CONSTRAIN what lower levels can use.
+
+[serialization]
+# Formats permitted for use across the organization
+# Options: json, avro, confluent_avro, protobuf
+allowed_formats = ["json", "confluent_avro"]
+
+# Default format when not specified at any lower level
+default_format = "confluent_avro"
+
+# Formats that require schema registry to be configured
+# Build will fail if these formats are used without registry settings
+require_registry_for = ["confluent_avro"]
+
+
+# =============================================================================
+# Example Configurations for Different Organization Types
+# =============================================================================
+
+# -------------------------------------
+# Enterprise: Strict Avro-only policy
+# -------------------------------------
+# [serialization]
+# allowed_formats = ["confluent_avro"]
+# default_format = "confluent_avro"
+# require_registry_for = ["confluent_avro"]
+
+# -------------------------------------
+# Startup: Flexible JSON + Avro
+# -------------------------------------
+# [serialization]
+# allowed_formats = ["json", "avro", "confluent_avro"]
+# default_format = "json"
+# require_registry_for = ["confluent_avro"]
+
+# -------------------------------------
+# Permissive: Allow everything
+# -------------------------------------
+# [serialization]
+# allowed_formats = ["json", "avro", "confluent_avro", "protobuf"]
+# default_format = "json"
+# require_registry_for = ["confluent_avro"]
+
+# -------------------------------------
+# Legacy Migration: JSON with warnings
+# -------------------------------------
+# [serialization]
+# allowed_formats = ["json", "confluent_avro"]
+# default_format = "json"
+# require_registry_for = ["confluent_avro"]
+# # Note: Configure individual projects to use confluent_avro and get
+# # warnings when JSON is still being used.

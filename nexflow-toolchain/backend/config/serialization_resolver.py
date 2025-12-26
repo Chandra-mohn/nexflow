@@ -4,19 +4,29 @@
 """
 Serialization Configuration Resolver
 
-Resolves effective serialization configuration using hierarchical lookup:
-1. Process-level override (in .proc file)
-2. Schema-level declaration (in .schema file)
-3. Team config (nexflow.toml in process directory)
-4. Environment overlay (nexflow.{env}.toml)
-5. Built-in default (json)
+Resolves effective serialization configuration using hierarchical lookup
+with organization policy enforcement:
+
+Governance Hierarchy (top-down constraint):
+    1. Organization policy (nexflow-org.toml) - CONSTRAINS what's allowed
+    2. Team config (nexflow.toml) - Can only use org-allowed formats
+    3. Schema-level declaration - Can only use org-allowed formats
+    4. Process-level override - Can only use org-allowed formats
+
+Legacy hierarchy (for merging within allowed formats):
+    1. Process-level override (highest priority)
+    2. Schema-level declaration
+    3. Team config (nexflow.toml)
+    4. Environment overlay (nexflow.{env}.toml)
+    5. Organization default (nexflow-org.toml)
+    6. Built-in default (json)
 
 Supports multi-team environments with distributed configuration.
 """
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Callable
 
 try:
     import tomllib  # Python 3.11+
@@ -28,21 +38,34 @@ from backend.ast.serialization import (
     SerializationConfig,
     SerializationFormat,
 )
+from backend.config.org_policy import OrganizationPolicy, load_org_policy
+from backend.config.policy_validator import (
+    PolicyValidator,
+    ValidationResult,
+    ViolationLevel,
+)
 
 
 class SerializationResolver:
     """
-    Resolves serialization configuration from hierarchical sources.
+    Resolves serialization configuration from hierarchical sources
+    with organization policy enforcement.
 
     Usage:
         resolver = SerializationResolver(process_file_path, environment='prod')
-        config = resolver.get_effective_config(schema_config, process_override)
+        config, result = resolver.get_effective_config_with_validation(
+            schema_config, process_override
+        )
+        if result.has_warnings:
+            for msg in result.get_messages(ViolationLevel.WARNING):
+                print(msg)
     """
 
     def __init__(
         self,
         process_file_path: str,
         environment: Optional[str] = None,
+        strict_policy: bool = False,
     ):
         """
         Initialize resolver for a specific process file.
@@ -51,11 +74,52 @@ class SerializationResolver:
             process_file_path: Path to the .proc file being compiled
             environment: Environment name (dev, staging, prod).
                         Falls back to NEXFLOW_ENV env var.
+            strict_policy: If True, requires nexflow-org.toml to exist
         """
         self.process_path = Path(process_file_path).resolve()
         self.process_dir = self.process_path.parent
         self.environment = environment or os.environ.get("NEXFLOW_ENV", "")
+        self.strict_policy = strict_policy
         self._global_config: Optional[GlobalSerializationConfig] = None
+        self._org_policy: Optional[OrganizationPolicy] = None
+        self._validator: Optional[PolicyValidator] = None
+        self._violation_handlers: List[Callable[[ValidationResult], None]] = []
+
+    def get_org_policy(self) -> OrganizationPolicy:
+        """
+        Load organization policy from nexflow-org.toml.
+
+        Returns permissive policy if no file found (backward compatibility).
+        """
+        if self._org_policy is None:
+            self._org_policy = load_org_policy(
+                self.process_dir,
+                strict=self.strict_policy
+            )
+        return self._org_policy
+
+    def get_validator(self) -> PolicyValidator:
+        """Get policy validator instance."""
+        if self._validator is None:
+            self._validator = PolicyValidator(self.get_org_policy())
+        return self._validator
+
+    def add_violation_handler(
+        self,
+        handler: Callable[[ValidationResult], None]
+    ) -> None:
+        """
+        Add a handler to be called when violations are detected.
+
+        Handlers receive the ValidationResult and can log, report, or
+        otherwise process the violations.
+        """
+        self._violation_handlers.append(handler)
+
+    def _notify_violations(self, result: ValidationResult) -> None:
+        """Notify all registered handlers of validation result."""
+        for handler in self._violation_handlers:
+            handler(result)
 
     def get_global_config(self) -> GlobalSerializationConfig:
         """
@@ -102,6 +166,10 @@ class SerializationResolver:
         """
         Resolve effective serialization config using full hierarchy.
 
+        This method maintains backward compatibility by returning only
+        the config. Use get_effective_config_with_validation() to also
+        get policy violation information.
+
         Args:
             schema_config: Config from schema's serialization block
             process_override: Explicit format override in process connector
@@ -109,8 +177,88 @@ class SerializationResolver:
         Returns:
             Resolved SerializationConfig with all values populated
         """
+        config, _ = self.get_effective_config_with_validation(
+            schema_config, process_override
+        )
+        return config
+
+    def get_effective_config_with_validation(
+        self,
+        schema_config: Optional[SerializationConfig] = None,
+        process_override: Optional[SerializationConfig] = None,
+    ) -> tuple[SerializationConfig, ValidationResult]:
+        """
+        Resolve effective serialization config with policy validation.
+
+        Applies organization policy governance:
+        1. Determine requested format from hierarchy
+        2. Validate against org policy
+        3. Use org default if format not allowed (with warning)
+        4. Validate registry requirements
+
+        Args:
+            schema_config: Config from schema's serialization block
+            process_override: Explicit format override in process connector
+
+        Returns:
+            Tuple of (resolved config, validation result with any violations)
+        """
         global_config = self.get_global_config()
-        return global_config.get_effective_config(schema_config, process_override)
+        org_policy = self.get_org_policy()
+        validator = self.get_validator()
+
+        # Extract format from each level (None if not specified)
+        connector_format = process_override.format if process_override else None
+        schema_format = schema_config.format if schema_config else None
+        team_format = global_config.default_format
+
+        # Determine if registry is configured
+        has_registry = global_config.registry is not None and bool(
+            global_config.registry.url
+        )
+
+        # Validate against policy
+        result = validator.validate_connector_config(
+            connector_format=connector_format,
+            schema_format=schema_format,
+            team_format=team_format,
+            has_registry=has_registry,
+            source_file=self.process_path,
+        )
+
+        # Notify handlers of any violations
+        if result.violations:
+            self._notify_violations(result)
+
+        # Build the effective config using policy-resolved format
+        effective = SerializationConfig(
+            format=result.resolved_format or org_policy.default_format,
+            compatibility=global_config.avro_compatibility,
+            registry_url=global_config.registry.url if global_config.registry else None,
+        )
+
+        # Merge additional settings from schema and process configs
+        if schema_config:
+            effective = SerializationConfig(
+                format=effective.format,  # Keep policy-resolved format
+                compatibility=schema_config.compatibility or effective.compatibility,
+                registry_url=schema_config.registry_url or effective.registry_url,
+                subject=schema_config.subject,
+                location=schema_config.location,
+            )
+
+        if process_override:
+            effective = SerializationConfig(
+                format=effective.format,  # Keep policy-resolved format
+                compatibility=process_override.compatibility or effective.compatibility,
+                registry_url=process_override.registry_url or effective.registry_url,
+                subject=process_override.subject or (
+                    schema_config.subject if schema_config else None
+                ),
+                location=process_override.location or effective.location,
+            )
+
+        return effective, result
 
     def get_registry_url(self) -> Optional[str]:
         """Get schema registry URL from config."""
@@ -118,8 +266,21 @@ class SerializationResolver:
         return config.registry.url if config.registry else None
 
     def get_default_format(self) -> SerializationFormat:
-        """Get default serialization format from config."""
-        return self.get_global_config().default_format
+        """
+        Get default serialization format.
+
+        Returns organization default if policy exists, otherwise team default.
+        """
+        org_policy = self.get_org_policy()
+        return org_policy.default_format
+
+    def get_allowed_formats(self) -> list[SerializationFormat]:
+        """Get list of formats allowed by organization policy."""
+        return list(self.get_org_policy().allowed_formats)
+
+    def is_format_allowed(self, fmt: SerializationFormat) -> bool:
+        """Check if a format is allowed by organization policy."""
+        return self.get_org_policy().is_format_allowed(fmt)
 
     def _load_toml(self, path: Path) -> dict:
         """Load and parse a TOML file."""
@@ -165,3 +326,31 @@ def resolve_serialization(
     """
     resolver = SerializationResolver(process_file, environment)
     return resolver.get_effective_config(schema_config, process_override)
+
+
+def resolve_serialization_with_validation(
+    process_file: str,
+    schema_config: Optional[SerializationConfig] = None,
+    process_override: Optional[SerializationConfig] = None,
+    environment: Optional[str] = None,
+    strict_policy: bool = False,
+) -> tuple[SerializationConfig, ValidationResult]:
+    """
+    Convenience function to resolve serialization config with policy validation.
+
+    Args:
+        process_file: Path to .proc file being compiled
+        schema_config: Config from schema's serialization block
+        process_override: Explicit format override in connector
+        environment: Environment name (optional)
+        strict_policy: If True, requires nexflow-org.toml to exist
+
+    Returns:
+        Tuple of (resolved config, validation result)
+    """
+    resolver = SerializationResolver(
+        process_file,
+        environment,
+        strict_policy=strict_policy
+    )
+    return resolver.get_effective_config_with_validation(schema_config, process_override)

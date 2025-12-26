@@ -165,8 +165,18 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
         BuildResult with generated files and any errors
     """
     from ...generators import get_generator, GeneratorConfig, RuntimeGenerator
+    from backend.config.policy_validator import ViolationLevel
 
     result = BuildResult(success=True)
+    policy_warnings = []
+
+    # Create violation handler for policy warnings
+    def handle_policy_violations(validation_result):
+        for violation in validation_result.violations:
+            if violation.level == ViolationLevel.WARNING:
+                policy_warnings.append(str(violation))
+            elif violation.level == ViolationLevel.INFO and verbose:
+                print(f"  ℹ {violation.message}")
 
     # Create generator config from project settings
     package_prefix = project.get_package_prefix(target)
@@ -176,6 +186,8 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
         package_prefix=package_prefix,
         output_dir=output_path,
         validation_context=validation_context,
+        org_policy=project.org_policy,
+        violation_handler=handle_policy_violations,
     )
     runtime_gen = RuntimeGenerator(runtime_config)
     try:
@@ -196,11 +208,13 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
         if not file_asts:
             continue
 
-        # Create config for this DSL type with cross-layer context
+        # Create config for this DSL type with cross-layer context and org policy
         config = GeneratorConfig(
             package_prefix=package_prefix,
             output_dir=output_path,
             validation_context=validation_context,
+            org_policy=project.org_policy,
+            violation_handler=handle_policy_violations,
         )
 
         # Get generator for this DSL type
@@ -237,6 +251,11 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
                 result.success = False
                 if verbose:
                     print(f"    ✗ Error: {e}")
+
+    # Print policy warnings (they don't fail the build)
+    if policy_warnings:
+        for warning in policy_warnings:
+            print(f"  ⚠ {warning}")
 
     return result
 
