@@ -350,6 +350,46 @@ def lsp(tcp: bool, host: str, port: int, log_level: str):
         sys.exit(1)
 
 
+# ============================================================================
+# Stream Investigation Commands
+# ============================================================================
+
+@cli.group()
+def stream():
+    """
+    Stream investigation tools for Kafka topics.
+
+    Inspect, decode, replay, and compare messages in Kafka streams.
+
+    \b
+    Commands:
+        peek    - Inspect live or historical messages
+        decode  - Convert binary formats to JSON
+        replay  - Replay messages between topics
+        diff    - Compare messages across topics
+
+    \b
+    Example:
+        nexflow stream peek orders-avro --filter "status = 'pending'"
+        nexflow stream decode orders-avro --to json --output orders.json
+        nexflow stream replay orders-prod orders-dev --profile dev
+        nexflow stream diff orders-v1 orders-v2 --key order_id
+    """
+    pass
+
+
+# Import and register stream commands
+try:
+    from .commands.stream import peek, decode, replay, diff
+    stream.add_command(peek)
+    stream.add_command(decode)
+    stream.add_command(replay)
+    stream.add_command(diff)
+except ImportError:
+    # Stream commands not available (missing dependencies)
+    pass
+
+
 def main():
     """Entry point for the CLI."""
     cli(obj={})

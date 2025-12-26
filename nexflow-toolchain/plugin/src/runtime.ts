@@ -241,6 +241,20 @@ export function buildCommandArgs(
 }
 
 /**
+ * Get the full nexflow command as a single string.
+ * Useful for terminal commands where you need a simple invocation string.
+ *
+ * @returns Command string like "nexflow" or "python3 -m nexflow"
+ */
+export async function getNexflowCommand(): Promise<string> {
+  const runtime = await getNexflowRuntime();
+  if (runtime.isPythonMode) {
+    return `${runtime.command} ${runtime.baseArgs.join(' ')}`;
+  }
+  return runtime.command;
+}
+
+/**
  * Get environment variables for Nexflow process execution.
  * Adds PYTHONPATH when running in Python mode.
  */

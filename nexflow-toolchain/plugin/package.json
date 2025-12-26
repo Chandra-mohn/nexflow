@@ -98,6 +98,23 @@
         "path": "./syntaxes/rulesdsl.tmLanguage.json"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "nexflowStreamExplorer",
+          "name": "Kafka Streams",
+          "contextualTitle": "Nexflow Streams",
+          "icon": "$(symbol-event)",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "nexflowStreamExplorer",
+        "contents": "No Kafka clusters configured.\n[Configure Clusters](command:nexflow.stream.configureCluster)\nAdd Kafka profiles to your nexflow.toml file."
+      }
+    ],
     "commands": [
       {
         "command": "nexflow.build",
@@ -123,6 +140,44 @@
         "command": "nexflow.openVisualDesignerFromUI",
         "title": "Nexflow: Open Visual Designer",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "nexflow.stream.refresh",
+        "title": "Nexflow: Refresh Kafka Streams",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "nexflow.stream.peek",
+        "title": "Nexflow: Peek Topic",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "nexflow.stream.decode",
+        "title": "Nexflow: Decode Topic",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "nexflow.stream.replay",
+        "title": "Nexflow: Replay Messages",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "nexflow.stream.diff",
+        "title": "Nexflow: Compare Topics",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "nexflow.stream.viewMessage",
+        "title": "Nexflow: View Message",
+        "icon": "$(mail)"
+      },
+      {
+        "command": "nexflow.stream.copyTopicName",
+        "title": "Copy Topic Name"
+      },
+      {
+        "command": "nexflow.stream.configureCluster",
+        "title": "Nexflow: Configure Kafka Cluster"
       }
     ],
     "menus": {
@@ -187,6 +242,45 @@
           "command": "nexflow.build",
           "group": "navigation",
           "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "nexflow.stream.refresh",
+          "when": "view == nexflowStreamExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "nexflow.stream.peek",
+          "when": "view == nexflowStreamExplorer && viewItem == topic",
+          "group": "stream@1"
+        },
+        {
+          "command": "nexflow.stream.decode",
+          "when": "view == nexflowStreamExplorer && viewItem == topic",
+          "group": "stream@2"
+        },
+        {
+          "command": "nexflow.stream.replay",
+          "when": "view == nexflowStreamExplorer && viewItem == topic",
+          "group": "stream@3"
+        },
+        {
+          "command": "nexflow.stream.diff",
+          "when": "view == nexflowStreamExplorer && viewItem == topic",
+          "group": "stream@4"
+        },
+        {
+          "command": "nexflow.stream.copyTopicName",
+          "when": "view == nexflowStreamExplorer && viewItem == topic",
+          "group": "z_commands"
+        },
+        {
+          "command": "nexflow.stream.viewMessage",
+          "when": "view == nexflowStreamExplorer && viewItem == message",
+          "group": "inline"
         }
       ]
     },

@@ -36,6 +36,7 @@ import {
 
 import { BuildRunner } from "./buildRunner";
 import { VisualDesignerPanel } from "./visualDesigner/panel";
+import { StreamExplorerProvider, registerStreamCommands } from "./streamExplorer";
 
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel;
@@ -567,6 +568,74 @@ export async function activate(context: ExtensionContext): Promise<void> {
     context.subscriptions.push(generateFileCommand);
 
     outputChannel.appendLine(`Nexflow commands registered (build, validate, generate, visual designer)`);
+
+    // Initialize Stream Explorer
+    const workspaceRoot = workspace.workspaceFolders?.[0]?.uri.fsPath || "";
+    if (workspaceRoot) {
+      const streamExplorerProvider = new StreamExplorerProvider(workspaceRoot);
+
+      // Register tree view
+      const treeView = window.createTreeView('nexflowStreamExplorer', {
+        treeDataProvider: streamExplorerProvider,
+        showCollapseAll: true,
+      });
+      context.subscriptions.push(treeView);
+
+      // Register stream commands
+      registerStreamCommands(context, streamExplorerProvider);
+
+      // Register configure cluster command
+      context.subscriptions.push(
+        commands.registerCommand('nexflow.stream.configureCluster', async () => {
+          const configPath = path.join(workspaceRoot, 'nexflow.toml');
+
+          if (fs.existsSync(configPath)) {
+            // Open existing config
+            const doc = await workspace.openTextDocument(configPath);
+            await window.showTextDocument(doc);
+          } else {
+            // Show template
+            const template = `# Add Kafka cluster profiles
+[kafka.profiles.dev]
+bootstrap_servers = "localhost:9092"
+security_protocol = "PLAINTEXT"
+
+[kafka.profiles.staging]
+bootstrap_servers = "staging-kafka.internal:9092"
+security_protocol = "SSL"
+ssl_cafile = "/path/to/ca.pem"
+ssl_certfile = "/path/to/client.pem"
+ssl_keyfile = "/path/to/client-key.pem"
+
+[kafka.profiles.prod]
+bootstrap_servers = "prod-kafka.internal:9092"
+security_protocol = "SSL"
+ssl_cafile = "/path/to/prod-ca.pem"
+ssl_certfile = "/path/to/prod-client.pem"
+ssl_keyfile = "/path/to/prod-client-key.pem"
+pii_mask = true
+
+[kafka.schema_registry]
+url = "http://localhost:8081"
+
+[kafka.default_profile]
+name = "dev"
+
+[kafka.pii]
+masked_fields = ["ssn", "credit_card", "email", "phone"]
+mask_pattern = "***MASKED***"
+`;
+            window.showInformationMessage(
+              'Add the following to your nexflow.toml to configure Kafka clusters:',
+              { modal: true, detail: template }
+            );
+          }
+        })
+      );
+
+      outputChannel.appendLine("Stream Explorer initialized");
+    }
+
     outputChannel.appendLine(`Nexflow activated successfully in ${runtimeConfig.mode} mode`);
   } catch (error) {
     const errorMsg = `Nexflow extension activation failed: ${error}`;
