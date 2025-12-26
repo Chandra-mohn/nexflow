@@ -203,60 +203,42 @@ class SerializationResolver:
         Returns:
             Tuple of (resolved config, validation result with any violations)
         """
+        from dataclasses import replace
+
         global_config = self.get_global_config()
         org_policy = self.get_org_policy()
         validator = self.get_validator()
 
-        # Extract format from each level (None if not specified)
-        connector_format = process_override.format if process_override else None
-        schema_format = schema_config.format if schema_config else None
-        team_format = global_config.default_format
-
-        # Determine if registry is configured
-        has_registry = global_config.registry is not None and bool(
-            global_config.registry.url
-        )
-
         # Validate against policy
+        has_registry = bool(global_config.registry and global_config.registry.url)
         result = validator.validate_connector_config(
-            connector_format=connector_format,
-            schema_format=schema_format,
-            team_format=team_format,
+            connector_format=getattr(process_override, 'format', None),
+            schema_format=getattr(schema_config, 'format', None),
+            team_format=global_config.default_format,
             has_registry=has_registry,
             source_file=self.process_path,
         )
 
-        # Notify handlers of any violations
         if result.violations:
             self._notify_violations(result)
 
-        # Build the effective config using policy-resolved format
+        # Build base config from global settings
         effective = SerializationConfig(
             format=result.resolved_format or org_policy.default_format,
             compatibility=global_config.avro_compatibility,
             registry_url=global_config.registry.url if global_config.registry else None,
         )
 
-        # Merge additional settings from schema and process configs
+        # Layer configs using existing merge_with(), then enforce policy format
         if schema_config:
-            effective = SerializationConfig(
-                format=effective.format,  # Keep policy-resolved format
-                compatibility=schema_config.compatibility or effective.compatibility,
-                registry_url=schema_config.registry_url or effective.registry_url,
-                subject=schema_config.subject,
-                location=schema_config.location,
-            )
-
+            effective = schema_config.merge_with(effective)
         if process_override:
-            effective = SerializationConfig(
-                format=effective.format,  # Keep policy-resolved format
-                compatibility=process_override.compatibility or effective.compatibility,
-                registry_url=process_override.registry_url or effective.registry_url,
-                subject=process_override.subject or (
-                    schema_config.subject if schema_config else None
-                ),
-                location=process_override.location or effective.location,
-            )
+            effective = process_override.merge_with(effective)
+
+        # Ensure policy-resolved format is always used (policy overrides user choice)
+        policy_format = result.resolved_format or org_policy.default_format
+        if effective.format != policy_format:
+            effective = replace(effective, format=policy_format)
 
         return effective, result
 
