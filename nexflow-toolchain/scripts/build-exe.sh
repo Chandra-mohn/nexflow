@@ -4,7 +4,14 @@
 set -e
 cd "$(dirname "$0")/.."
 
-echo "==> Building nexflow executable"
+# Cross-platform Python detection (python3 on Mac/Linux, python on Windows)
+if command -v python3 &> /dev/null; then
+    PYTHON=python3
+else
+    PYTHON=python
+fi
+
+echo "==> Building nexflow executable (using $PYTHON)"
 
 # Create entry point
 cat > nexflow_entry.py << 'EOF'
@@ -14,7 +21,7 @@ if __name__ == '__main__':
 EOF
 
 # Build with PyInstaller
-python3 -m PyInstaller nexflow_entry.py \
+$PYTHON -m PyInstaller nexflow_entry.py \
     --onefile \
     --name nexflow \
     --distpath dist/bin \
