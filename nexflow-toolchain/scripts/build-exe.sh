@@ -4,11 +4,13 @@
 set -e
 cd "$(dirname "$0")/.."
 
-# Cross-platform Python detection (python3 on Mac/Linux, python on Windows)
-if command -v python3 &> /dev/null; then
+# Cross-platform Python detection (python on Windows, python3 on Mac/Linux)
+if command -v python &> /dev/null && python --version 2>&1 | grep -q "Python 3"; then
+    PYTHON=python
+elif command -v python3 &> /dev/null; then
     PYTHON=python3
 else
-    PYTHON=python
+    echo "Error: Python 3 not found"; exit 1
 fi
 
 echo "==> Building nexflow executable (using $PYTHON)"
