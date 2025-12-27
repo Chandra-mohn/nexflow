@@ -5,8 +5,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "==> Installing dependencies"
-cd plugin && npm install --silent
-cd webview && npm install --silent && npm run build && cd ..
+cd plugin && npm install
+cd webview && npm install && npm run build && cd ..
 
 echo "==> Compiling TypeScript"
 npm run compile
