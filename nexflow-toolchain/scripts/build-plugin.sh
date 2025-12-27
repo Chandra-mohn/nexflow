@@ -1,0 +1,27 @@
+#!/bin/bash
+# Build VS Code plugin
+# Usage: ./scripts/build-plugin.sh [--bundled]
+set -e
+cd "$(dirname "$0")/.."
+
+echo "==> Installing dependencies"
+cd plugin && npm install --silent
+cd webview && npm install --silent && npm run build && cd ..
+
+echo "==> Compiling TypeScript"
+npm run compile
+
+# Copy bundled executable if requested
+if [ "$1" = "--bundled" ]; then
+    echo "==> Copying nexflow executable"
+    mkdir -p bin
+    cp ../dist/bin/nexflow* bin/ 2>/dev/null || { echo "Error: dist/bin/nexflow not found"; exit 1; }
+fi
+
+echo "==> Packaging extension"
+npx vsce package
+
+# Cleanup bundled binary
+[ -d bin ] && rm -rf bin
+
+echo "==> Done: $(ls -1 *.vsix | tail -1)"
