@@ -30,7 +30,7 @@ class ProcOutputVisitorMixin:
 
         Grammar: EMIT TO sinkName emitClause*
         sinkName: keywordOrIdentifier
-        emitClause: schemaDecl | connectorClause | emitOptions | fanoutDecl
+        emitClause: schemaDecl | connectorClause | emitOptions | fanoutDecl | persistClause
         """
         # Grammar: emitDecl: EMIT TO sinkName emitClause*
         # sinkName: keywordOrIdentifier
@@ -38,6 +38,7 @@ class ProcOutputVisitorMixin:
 
         schema = None
         fanout = None
+        persist = None
         connector = None
         options = {}
 
@@ -47,6 +48,8 @@ class ProcOutputVisitorMixin:
                 schema = self.visitSchemaDecl(clause_ctx.schemaDecl())
             elif clause_ctx.fanoutDecl():
                 fanout = self.visitFanoutDecl(clause_ctx.fanoutDecl())
+            elif clause_ctx.persistClause():
+                persist = self.visitPersistClause(clause_ctx.persistClause())
             elif clause_ctx.connectorClause():
                 # Extract connector info if needed
                 pass
@@ -61,9 +64,79 @@ class ProcOutputVisitorMixin:
             target=target,
             schema=schema,
             fanout=fanout,
+            persist=persist,
             options=options if options else None,
             location=self._get_location(ctx)
         )
+
+    def visitPersistClause(self, ctx: ProcDSLParser.PersistClauseContext) -> ast.PersistDecl:
+        """
+        Visit a persist clause for MongoDB async persistence.
+
+        Grammar: PERSIST TO persistTarget persistOption*
+        persistTarget: IDENTIFIER
+        persistOption: ASYNC | SYNC | BATCH SIZE INTEGER | FLUSH INTERVAL duration | ON ERROR persistErrorAction
+        """
+        target = ctx.persistTarget().getText()
+
+        # Defaults
+        mode = ast.PersistMode.ASYNC
+        batch_size = None
+        flush_interval = None
+        error_handler = None
+
+        # Process options
+        for opt_ctx in ctx.persistOption():
+            opt_text = self._get_text(opt_ctx).lower().strip()
+
+            # Check for ASYNC/SYNC using exact match (not substring)
+            if opt_text == 'async':
+                mode = ast.PersistMode.ASYNC
+            elif opt_text == 'sync':
+                mode = ast.PersistMode.SYNC
+            elif 'batch' in opt_text and opt_ctx.INTEGER():
+                batch_size = int(opt_ctx.INTEGER().getText())
+            elif 'flush' in opt_text and opt_ctx.duration():
+                flush_interval = self._get_text(opt_ctx.duration())
+            elif 'error' in opt_text and opt_ctx.persistErrorAction():
+                error_handler = self.visitPersistErrorAction(opt_ctx.persistErrorAction())
+
+        return ast.PersistDecl(
+            target=target,
+            mode=mode,
+            batch_size=batch_size,
+            flush_interval=flush_interval,
+            error_handler=error_handler,
+            location=self._get_location(ctx)
+        )
+
+    def visitPersistErrorAction(self, ctx: ProcDSLParser.PersistErrorActionContext) -> ast.PersistErrorHandler:
+        """
+        Visit persist error action.
+
+        Grammar: CONTINUE | FAIL | EMIT TO sinkName
+        """
+        action_text = self._get_text(ctx).lower()
+
+        if 'emit' in action_text:
+            # EMIT TO sinkName - get the DLQ target
+            dlq_target = ctx.sinkName().getText() if ctx.sinkName() else None
+            return ast.PersistErrorHandler(
+                action=ast.PersistErrorAction.EMIT,
+                dlq_target=dlq_target,
+                location=self._get_location(ctx)
+            )
+        elif 'fail' in action_text:
+            return ast.PersistErrorHandler(
+                action=ast.PersistErrorAction.FAIL,
+                location=self._get_location(ctx)
+            )
+        else:
+            # Default: continue
+            return ast.PersistErrorHandler(
+                action=ast.PersistErrorAction.CONTINUE,
+                location=self._get_location(ctx)
+            )
 
     def visitFanoutDecl(self, ctx: ProcDSLParser.FanoutDeclContext) -> ast.FanoutDecl:
         fanout_text = self._get_text(ctx)
