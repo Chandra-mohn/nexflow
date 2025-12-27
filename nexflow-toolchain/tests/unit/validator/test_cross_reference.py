@@ -9,7 +9,7 @@ import pytest
 
 from backend.parser import parse
 from backend.validators import (
-    SchemaValidator, TransformValidator, FlowValidator,
+    SchemaValidator, TransformValidator, ProcValidator,
     ValidationContext, validate_project_asts
 )
 from pathlib import Path
