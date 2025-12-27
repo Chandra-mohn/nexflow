@@ -22,11 +22,11 @@ if __name__ == '__main__':
     cli()
 EOF
 
-# Build with PyInstaller
+# Build with PyInstaller (onedir for faster startup)
 $PYTHON -m PyInstaller nexflow_entry.py \
-    --onefile \
+    --onedir \
     --name nexflow \
-    --distpath dist/bin \
+    --distpath dist \
     --workpath build \
     --specpath . \
     --console \
@@ -42,5 +42,5 @@ $PYTHON -m PyInstaller nexflow_entry.py \
 rm -f nexflow_entry.py nexflow.spec
 rm -rf build
 
-echo "==> Done: dist/bin/nexflow"
-dist/bin/nexflow --version
+echo "==> Done: dist/nexflow/"
+dist/nexflow/nexflow --version

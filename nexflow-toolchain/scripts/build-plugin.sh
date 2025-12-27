@@ -15,7 +15,7 @@ npm run compile
 if [ "$1" = "--bundled" ]; then
     echo "==> Copying nexflow executable"
     mkdir -p bin
-    cp ../dist/bin/nexflow* bin/ 2>/dev/null || { echo "Error: dist/bin/nexflow not found"; exit 1; }
+    cp -r ../dist/nexflow/* bin/ 2>/dev/null || { echo "Error: dist/nexflow/ not found. Run build-exe.sh first."; exit 1; }
 fi
 
 echo "==> Packaging extension"
