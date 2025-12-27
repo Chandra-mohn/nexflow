@@ -298,11 +298,11 @@ def lsp(tcp: bool, host: str, port: int, log_level: str):
 
     try:
         # Import LSP modules (deferred to avoid loading when not needed)
-        from lsp.server.driver import server
-        from lsp.server.modules.proc_module import ProcModule
-        from lsp.server.modules.schema_module import SchemaModule
-        from lsp.server.modules.transform_module import TransformModule
-        from lsp.server.modules.rules_module import RulesModule
+        from backend.lsp.driver import server
+        from backend.lsp.modules.proc_module import ProcModule
+        from backend.lsp.modules.schema_module import SchemaModule
+        from backend.lsp.modules.transform_module import TransformModule
+        from backend.lsp.modules.rules_module import RulesModule
 
         # Register language modules
         def register_modules():
