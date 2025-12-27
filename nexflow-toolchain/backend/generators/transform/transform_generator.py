@@ -147,7 +147,7 @@ class TransformGenerator(
             if transform.input.is_single and transform.input.single_type:
                 return self._field_type_to_java(transform.input.single_type)
             # For transforms with multiple input fields, use Object for now
-            # TODO: Generate Input POJO classes in future
+            # TODO: Generate Input Record classes (Java Record pattern adopted)
         return "Object"
 
     def _get_output_type(self, transform: ast.TransformDef) -> str:
@@ -156,7 +156,7 @@ class TransformGenerator(
             if transform.output.is_single and transform.output.single_type:
                 return self._field_type_to_java(transform.output.single_type)
             # For transforms with multiple output fields, use Object for now
-            # TODO: Generate Output POJO classes in future
+            # TODO: Generate Output Record classes (Java Record pattern adopted)
         return "Object"
 
     def _get_block_input_type(self, block: ast.TransformBlockDef) -> str:

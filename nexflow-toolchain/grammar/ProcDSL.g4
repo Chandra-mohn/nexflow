@@ -27,7 +27,7 @@
  * - Added emit_audit_event for event sourcing
  * - Added deduplicate construct
  * - Added validate_input block
- * - Added foreach iteration
+ * - Removed foreach iteration (use collection operations: any, all, filter, sum, count)
  * - Added inline transform with assignments
  * - Added call external for API integration
  *
@@ -128,7 +128,6 @@ processingBlock
     | emitAuditStatement
     | deduplicateStatement
     | validateInputStatement
-    | foreachStatement
     | callStatement
     | scheduleStatement
     | setStatement
@@ -459,7 +458,6 @@ processingStatement
     | emitAuditStatement
     | deduplicateStatement
     | validateInputStatement
-    | foreachStatement
     | callStatement
     | scheduleStatement
     | setStatement
@@ -781,17 +779,6 @@ validateInputStatement
 
 validationRule
     : REQUIRE expression ELSE STRING
-    ;
-
-// Foreach iteration
-foreachStatement
-    : FOREACH IDENTIFIER IN IDENTIFIER
-        foreachBody
-      END
-    ;
-
-foreachBody
-    : (processingStatement | emitDecl | ifStatement)+
     ;
 
 // External API calls
@@ -1597,7 +1584,6 @@ THEN          : 'then' ;
 ELSE          : 'else' ;
 ELSEIF        : 'elseif' ;
 ENDIF         : 'endif' ;
-FOREACH       : 'foreach' ;
 IN            : 'in' ;
 CONTINUE      : 'continue' ;
 TERMINATE     : 'terminate' ;

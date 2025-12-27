@@ -256,8 +256,51 @@ class CollectionGeneratorMixin:
     def has_collection_expressions(self, program: 'ast.Program') -> bool:
         """Check if program uses collection expressions.
 
-        This would require walking the AST to find CollectionExpr nodes.
-        For simplicity, we'll return False and let it be manually determined.
+        Walks the AST to find CollectionExpr nodes in decision tables and
+        procedural rules.
         """
-        # TODO: Implement AST walking to detect collection expressions
+        import dataclasses
+
+        def walk_node(node) -> bool:
+            """Recursively walk AST node looking for CollectionExpr."""
+            if node is None:
+                return False
+
+            # Direct match
+            if isinstance(node, CollectionExpr):
+                return True
+
+            # Walk dataclass fields
+            if dataclasses.is_dataclass(node) and not isinstance(node, type):
+                for field in dataclasses.fields(node):
+                    value = getattr(node, field.name)
+                    if walk_value(value):
+                        return True
+
+            return False
+
+        def walk_value(value) -> bool:
+            """Walk a value that may be a node, list, or primitive."""
+            if value is None:
+                return False
+            if isinstance(value, CollectionExpr):
+                return True
+            if isinstance(value, list):
+                return any(walk_value(item) for item in value)
+            if dataclasses.is_dataclass(value) and not isinstance(value, type):
+                return walk_node(value)
+            return False
+
+        # Walk decision tables
+        if hasattr(program, 'decision_tables'):
+            for dt in program.decision_tables:
+                if walk_node(dt):
+                    return True
+
+        # Walk procedural rules
+        if hasattr(program, 'procedural_rules'):
+            for rule in program.procedural_rules:
+                if walk_node(rule):
+                    return True
+
         return False

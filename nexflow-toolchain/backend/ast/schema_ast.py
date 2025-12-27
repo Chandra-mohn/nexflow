@@ -11,5 +11,65 @@ This module re-exports all types from the modular schema/ subpackage
 for backward compatibility.
 """
 
-# Re-export everything from the modular package
-from .schema import *
+# Explicit re-exports from the modular package (no wildcard imports)
+from .schema import (
+    # Enums
+    MutationPattern, CompatibilityMode, TimeSemantics, WatermarkStrategy,
+    LateDataStrategy, IdleBehavior, RetentionPolicy, BaseType, FieldQualifierType,
+    # Common
+    SourceLocation, Duration, SizeSpec, FieldPath, RangeSpec, LengthSpec,
+    # Literals
+    StringLiteral, IntegerLiteral, DecimalLiteral, BooleanLiteral,
+    NullLiteral, ListLiteral, Literal,
+    # Types
+    Constraint, CollectionType, FieldType, FieldQualifier, FieldDecl,
+    IdentityBlock, FieldsBlock, NestedObjectBlock, TypeAlias, TypeAliasBlock,
+    # Blocks
+    DeprecationDecl, VersionBlock, SparsityBlock, RetentionOptions, StreamingBlock,
+    ActionCall, TransitionDecl, TransitionAction, StateMachineBlock,
+    ParameterOption, ParameterDecl, ParametersBlock,
+    EntryField, EntryDecl, EntriesBlock,
+    ConstraintDecl, ConstraintsBlock,
+    # Computed fields
+    ComputedExpression, BinaryExpression, UnaryExpression, FieldRefExpression,
+    LiteralExpression, FunctionCallExpression, WhenBranch, WhenExpression,
+    ComputedFieldDecl, ComputedBlock,
+    # Rules
+    RuleFieldDecl, Expression, Calculation, GivenBlock, CalculateBlock,
+    ReturnBlock, RuleBlock, MigrationStatement, MigrationBlock,
+    # Program
+    SchemaDefinition, Program,
+    # Serialization
+    SerializationFormat, SerializationConfig, SerializationCompatibilityMode,
+)
+
+__all__ = [
+    # Enums
+    'MutationPattern', 'CompatibilityMode', 'TimeSemantics', 'WatermarkStrategy',
+    'LateDataStrategy', 'IdleBehavior', 'RetentionPolicy', 'BaseType', 'FieldQualifierType',
+    # Common
+    'SourceLocation', 'Duration', 'SizeSpec', 'FieldPath', 'RangeSpec', 'LengthSpec',
+    # Literals
+    'StringLiteral', 'IntegerLiteral', 'DecimalLiteral', 'BooleanLiteral',
+    'NullLiteral', 'ListLiteral', 'Literal',
+    # Types
+    'Constraint', 'CollectionType', 'FieldType', 'FieldQualifier', 'FieldDecl',
+    'IdentityBlock', 'FieldsBlock', 'NestedObjectBlock', 'TypeAlias', 'TypeAliasBlock',
+    # Blocks
+    'DeprecationDecl', 'VersionBlock', 'SparsityBlock', 'RetentionOptions', 'StreamingBlock',
+    'ActionCall', 'TransitionDecl', 'TransitionAction', 'StateMachineBlock',
+    'ParameterOption', 'ParameterDecl', 'ParametersBlock',
+    'EntryField', 'EntryDecl', 'EntriesBlock',
+    'ConstraintDecl', 'ConstraintsBlock',
+    # Computed fields
+    'ComputedExpression', 'BinaryExpression', 'UnaryExpression', 'FieldRefExpression',
+    'LiteralExpression', 'FunctionCallExpression', 'WhenBranch', 'WhenExpression',
+    'ComputedFieldDecl', 'ComputedBlock',
+    # Rules
+    'RuleFieldDecl', 'Expression', 'Calculation', 'GivenBlock', 'CalculateBlock',
+    'ReturnBlock', 'RuleBlock', 'MigrationStatement', 'MigrationBlock',
+    # Program
+    'SchemaDefinition', 'Program',
+    # Serialization
+    'SerializationFormat', 'SerializationConfig', 'SerializationCompatibilityMode',
+]

@@ -80,7 +80,6 @@ from .processing import (
     BranchDecl,
     ParallelDecl,
     ValidateInputDecl,
-    ForeachDecl,
     CallDecl,
     ScheduleDecl,
     SetDecl,
@@ -187,7 +186,7 @@ __all__ = [
     'WindowOptions', 'WindowDecl', 'JoinDecl',
     'EvaluateDecl', 'TransitionDecl', 'EmitAuditDecl', 'DeduplicateDecl',
     'LookupDecl', 'BranchDecl', 'ParallelDecl', 'ValidateInputDecl',
-    'ForeachDecl', 'CallDecl', 'ScheduleDecl', 'SetDecl',
+    'CallDecl', 'ScheduleDecl', 'SetDecl',
     'SqlTransformDecl',  # v0.8.0+
     # Correlation
     'TimeoutAction', 'CompletionCondition', 'CompletionClause', 'AwaitDecl', 'HoldDecl',

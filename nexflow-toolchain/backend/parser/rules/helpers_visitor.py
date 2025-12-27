@@ -7,7 +7,7 @@ Helper Methods Visitor Mixin for Rules Parser
 Common helper methods for parsing rules DSL.
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, Union
 
 from backend.ast import rules_ast as ast
@@ -50,5 +50,5 @@ class RulesHelpersVisitorMixin:
         value_str = text.lstrip('$€£')
         try:
             return ast.MoneyLiteral(value=Decimal(value_str))
-        except:
+        except (ValueError, InvalidOperation):
             return ast.MoneyLiteral(value=Decimal(0))

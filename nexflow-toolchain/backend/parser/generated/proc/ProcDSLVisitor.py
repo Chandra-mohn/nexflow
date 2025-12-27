@@ -1,4 +1,4 @@
-# Generated from ProcDSL.g4 by ANTLR 4.13.2
+# Generated from grammar/ProcDSL.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .ProcDSLParser import ProcDSLParser
@@ -201,6 +201,21 @@ class ProcDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by ProcDSLParser#connectorOptions.
     def visitConnectorOptions(self, ctx:ProcDSLParser.ConnectorOptionsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#formatOverride.
+    def visitFormatOverride(self, ctx:ProcDSLParser.FormatOverrideContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#registryOverride.
+    def visitRegistryOverride(self, ctx:ProcDSLParser.RegistryOverrideContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by ProcDSLParser#serializationFormat.
+    def visitSerializationFormat(self, ctx:ProcDSLParser.SerializationFormatContext):
         return self.visitChildren(ctx)
 
 
@@ -566,16 +581,6 @@ class ProcDSLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by ProcDSLParser#validationRule.
     def visitValidationRule(self, ctx:ProcDSLParser.ValidationRuleContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by ProcDSLParser#foreachStatement.
-    def visitForeachStatement(self, ctx:ProcDSLParser.ForeachStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by ProcDSLParser#foreachBody.
-    def visitForeachBody(self, ctx:ProcDSLParser.ForeachBodyContext):
         return self.visitChildren(ctx)
 
 

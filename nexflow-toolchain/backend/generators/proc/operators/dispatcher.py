@@ -87,8 +87,6 @@ class JobOperatorsMixin(
             return f"        // Deduplicate by: {op.key_field}", input_stream, input_type
         elif isinstance(op, ast.BranchDecl):
             return f"        // Branch: {op.branch_name}", input_stream, input_type
-        elif isinstance(op, ast.ForeachDecl):
-            return f"        // Foreach: {op.item_name} in {op.collection}", input_stream, input_type
         elif isinstance(op, ast.CallDecl):
             return f"        // Call: {op.target}", input_stream, input_type
         elif isinstance(op, ast.ScheduleDecl):

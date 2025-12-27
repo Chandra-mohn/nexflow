@@ -165,19 +165,6 @@ class ValidateInputDecl:
 
 
 @dataclass
-class ForeachDecl:
-    """Foreach iteration statement."""
-    item_name: str
-    collection: str
-    body: List = None
-    location: Optional[SourceLocation] = None
-
-    def __post_init__(self):
-        if self.body is None:
-            self.body = []
-
-
-@dataclass
 class CallDecl:
     """Call external function/service statement."""
     target: str

@@ -30,7 +30,7 @@ class ProcProcessingVisitorMixin:
         ast.WindowDecl, ast.JoinDecl, ast.MergeDecl, ast.EvaluateDecl,
         ast.TransitionDecl, ast.EmitAuditDecl, ast.DeduplicateDecl,
         ast.LookupDecl, ast.BranchDecl, ast.ParallelDecl, ast.ValidateInputDecl,
-        ast.ForeachDecl, ast.CallDecl, ast.ScheduleDecl, ast.SetDecl,
+        ast.CallDecl, ast.ScheduleDecl, ast.SetDecl,
         ast.SqlTransformDecl
     ]:
         if ctx.enrichDecl():
@@ -64,8 +64,6 @@ class ProcProcessingVisitorMixin:
             return self.visitParallelStatement(ctx.parallelStatement())
         elif ctx.validateInputStatement():
             return self.visitValidateInputStatement(ctx.validateInputStatement())
-        elif ctx.foreachStatement():
-            return self.visitForeachStatement(ctx.foreachStatement())
         elif ctx.callStatement():
             return self.visitCallStatement(ctx.callStatement())
         elif ctx.scheduleStatement():
@@ -431,8 +429,6 @@ class ProcProcessingVisitorMixin:
             return self.visitSetStatement(ctx.setStatement())
         elif hasattr(ctx, 'validateInputStatement') and ctx.validateInputStatement():
             return self.visitValidateInputStatement(ctx.validateInputStatement())
-        elif hasattr(ctx, 'foreachStatement') and ctx.foreachStatement():
-            return self.visitForeachStatement(ctx.foreachStatement())
         elif hasattr(ctx, 'deduplicateStatement') and ctx.deduplicateStatement():
             return self.visitDeduplicateStatement(ctx.deduplicateStatement())
         elif hasattr(ctx, 'windowDecl') and ctx.windowDecl():
@@ -452,24 +448,6 @@ class ProcProcessingVisitorMixin:
         expression = self._get_text(ctx.expression()) if hasattr(ctx, 'expression') and ctx.expression() else ""
         return ast.ValidateInputDecl(
             expression=expression,
-            location=self._get_location(ctx)
-        )
-
-    def visitForeachStatement(self, ctx) -> ast.ForeachDecl:
-        """Visit foreach statement."""
-        item_name = ""
-        collection = ""
-        if hasattr(ctx, 'IDENTIFIER') and ctx.IDENTIFIER():
-            ids = ctx.IDENTIFIER()
-            if len(ids) >= 2:
-                item_name = ids[0].getText()
-                collection = ids[1].getText()
-            elif len(ids) == 1:
-                item_name = ids[0].getText()
-        return ast.ForeachDecl(
-            item_name=item_name,
-            collection=collection,
-            body=[],  # TODO: Parse foreach body
             location=self._get_location(ctx)
         )
 

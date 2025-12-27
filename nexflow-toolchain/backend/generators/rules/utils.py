@@ -62,21 +62,8 @@ def generate_unsupported_comment(element_type: str, context: str = "") -> str:
     return f"/* UNSUPPORTED: {element_type}{ctx_str} */"
 
 
-def safe_get_attr(obj, attr: str, default=None):
-    """Safely get an attribute with default fallback.
-
-    Args:
-        obj: Object to get attribute from
-        attr: Attribute name
-        default: Default value if attribute doesn't exist or is None
-
-    Returns:
-        Attribute value or default
-    """
-    if obj is None:
-        return default
-    value = getattr(obj, attr, default)
-    return value if value is not None else default
+# Re-export safe_get_attr from central location for backward compatibility
+from backend.generators.common.java_utils import safe_get_attr, safe_get_nested
 
 
 # =============================================================================
