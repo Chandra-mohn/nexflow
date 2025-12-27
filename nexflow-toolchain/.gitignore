@@ -130,6 +130,15 @@ yarn-error.log*
 .yarn
 
 # --------------------------------------------
+# Build artifacts (binaries)
+# --------------------------------------------
+*.vsix
+*.exe
+plugin/out/
+plugin/bin/
+webview/dist/
+
+# --------------------------------------------
 # Project Specific
 # --------------------------------------------
 # Generated code (can be regenerated)
