@@ -5,6 +5,7 @@
   "version": "0.2.0",
   "publisher": "nexflow",
   "license": "MIT",
+  "icon": "icons/nexflow-icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/nexflow/nexflow-toolchain"
