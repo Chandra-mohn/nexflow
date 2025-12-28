@@ -3,6 +3,9 @@
   "displayName": "Nexflow",
   "description": "Complete language support and visual designer for Nexflow DSLs",
   "version": "0.2.0",
+  "author": {
+    "name": "Chandra Mohn"
+  },
   "publisher": "nexflow",
   "license": "MIT",
   "icon": "icons/nexflow-icon.png",

@@ -15,7 +15,8 @@ The Nexflow VS Code Extension provides comprehensive IDE support for all Nexflow
 
 ### Prerequisites
 - VS Code 1.75.0 or higher
-- Python 3.11+ (for Python mode) OR bundled executable
+- **Bundled mode:** No additional requirements
+- **Python mode:** Python 3.11+ (for development)
 
 ### From VSIX Package
 ```bash
@@ -23,20 +24,32 @@ The Nexflow VS Code Extension provides comprehensive IDE support for all Nexflow
 code --install-extension nexflow-0.2.0.vsix
 ```
 
+For detailed installation options, see [SETUP-GUIDE.md](SETUP-GUIDE.md).
+
 ### Runtime Modes
 
-The extension supports two runtime modes:
+The extension automatically detects the best runtime mode:
 
-| Mode | Description | When to Use |
-|------|-------------|-------------|
-| **Python** | Uses system Python + LSP server | Development, full flexibility |
-| **Bundled** | Self-contained executable | Production, no Python required |
+| Mode | Description | Detection |
+|------|-------------|-----------|
+| **Bundled** | Uses `nexflow` executable | Found in extension `bin/`, system PATH, or configured path |
+| **Python** | Uses Python + source code | Found `backend/lsp/` in workspace or parent folders |
+| **None** | Visual Designer only | No runtime found |
 
-Configure in VS Code settings:
+**Detection order:**
+1. User-configured `nexflow.runtime.executable` setting
+2. Extension's bundled `bin/nexflow` (VSIX with `--bundled`)
+3. Project's `dist/nexflow/nexflow` (development)
+4. System PATH (`nexflow` command)
+5. Python mode if `backend/lsp/` found in workspace hierarchy
+6. Falls back to Visual Designer only mode
+
+**Optional configuration:**
 ```json
 {
-    "nexflow.runtime.mode": "python",  // or "bundled"
-    "nexflow.server.path": "/path/to/python"  // Python mode only
+    "nexflow.runtime.executable": "/path/to/nexflow",
+    "nexflow.toolchainPath": "/path/to/nexflow-toolchain",
+    "nexflow.pythonPath": "/path/to/python"
 }
 ```
 

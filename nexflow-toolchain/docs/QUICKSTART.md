@@ -23,40 +23,32 @@ Nexflow is a domain-specific language (DSL) toolchain for building stream proces
 
 ### Option A: VS Code Extension (Recommended)
 
-1. **Install the extension:**
-   ```bash
-   code --install-extension nexflow-0.2.0.vsix
-   ```
+```bash
+# Install the extension
+code --install-extension nexflow-0.2.0.vsix
+```
 
-2. **The extension includes:**
-   - Syntax highlighting for all DSL files
-   - Real-time error diagnostics
-   - Visual flow designer for `.proc` files
-   - Code completion and hover docs
+**What you get:**
+- Syntax highlighting for all DSL files
+- Real-time error diagnostics
+- Visual flow designer for `.proc` files
+- Code completion and hover docs
+- Build and validate commands
+
+The bundled version includes `nexflow` executable - no Python required.
 
 ### Option B: Command Line Only
 
-1. **Prerequisites:**
-   - Python 3.11+
-   - pip
-
-2. **Install dependencies:**
-   ```bash
-   pip install click rich toml antlr4-python3-runtime pygls lsprotocol
-   ```
-
-3. **Run from source:**
-   ```bash
-   cd nexflow-toolchain
-   python -m backend.cli.main --help
-   ```
-
-### Option C: Standalone Executable (Windows)
-
-Use `nexflow.exe` - no Python installation required.
 ```bash
-nexflow.exe --help
+# Using standalone executable (no Python needed)
+nexflow --help
+
+# Or using Python from source
+pip install click rich toml antlr4-python3-runtime pygls lsprotocol
+python -m backend.cli.main --help
 ```
+
+**See [SETUP-GUIDE.md](SETUP-GUIDE.md) for detailed installation options.**
 
 ---
 
@@ -192,6 +184,7 @@ url = "http://localhost:8081"
 
 | Topic | Document |
 |-------|----------|
+| Detailed installation guide | [SETUP-GUIDE.md](SETUP-GUIDE.md) |
 | VS Code extension details | [VSCODE-EXTENSION-GUIDE.md](VSCODE-EXTENSION-GUIDE.md) |
 | CLI and programmatic API | [BACKEND-USAGE.md](BACKEND-USAGE.md) |
 | L1 ProcDSL reference | [L1-ProcDSL-Reference.md](L1-ProcDSL-Reference.md) |

@@ -66,16 +66,21 @@ function findBundledExecutable(context: ExtensionContext): string | null {
   const isWindows = process.platform === "win32";
   const exeName = isWindows ? "nexflow.exe" : "nexflow";
 
+  // Check user-configured executable path first
+  const config = workspace.getConfiguration("nexflow");
+  const configuredExe = config.get<string>("runtime.executable");
+  if (configuredExe && fs.existsSync(configuredExe)) {
+    return configuredExe;
+  }
+
   // Check locations in order of priority
   const searchPaths = [
-    // 1. Extension's bin folder (for VSIX distribution)
+    // 1. Extension's bin folder (for VSIX with --bundled)
     path.join(context.extensionPath, "bin"),
-    // 2. Extension's dist/bin folder
-    path.join(context.extensionPath, "dist", "bin"),
-    // 3. Project dist/bin (development)
-    path.join(context.extensionPath, "..", "dist", "bin"),
-    // 4. Workspace dist/bin
-    ...(workspace.workspaceFolders?.map(f => path.join(f.uri.fsPath, "dist", "bin")) || []),
+    // 2. Project dist/nexflow (development - new onedir structure)
+    path.join(context.extensionPath, "..", "dist", "nexflow"),
+    // 3. Workspace dist/nexflow
+    ...(workspace.workspaceFolders?.map(f => path.join(f.uri.fsPath, "dist", "nexflow")) || []),
   ];
 
   for (const searchPath of searchPaths) {
@@ -83,6 +88,19 @@ function findBundledExecutable(context: ExtensionContext): string | null {
     if (fs.existsSync(candidate)) {
       return candidate;
     }
+  }
+
+  // Check system PATH as last resort
+  const { execSync } = require("child_process");
+  try {
+    const whichCmd = isWindows ? "where" : "which";
+    const result = execSync(`${whichCmd} ${exeName}`, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    const systemPath = result.trim().split("\n")[0];
+    if (systemPath && fs.existsSync(systemPath)) {
+      return systemPath;
+    }
+  } catch {
+    // Not found on PATH
   }
 
   return null;
@@ -124,37 +142,54 @@ function findPythonPath(): string {
 }
 
 /**
- * Find the project root (where lsp/ and backend/ directories live).
+ * Find the project root (where backend/ directory lives).
  * This is needed for PYTHONPATH so Python modules work.
+ * The LSP server is at backend/lsp/ (not lsp/server as in older versions).
  */
 function findProjectRoot(context: ExtensionContext): string {
-  // Extension is at plugin/, so project root is plugin/../ = project root
-  // context.extensionPath = /path/to/nexflow-toolchain/plugin
-  // We need: /path/to/nexflow-toolchain
+  // When developing: Extension is at plugin/, so project root is plugin/../
+  // When installed from VSIX: Extension is in ~/.vscode/extensions/, need to find project in workspace
 
-  const projectRoot = path.resolve(context.extensionPath, "..");
-
-  // Verify lsp/server exists at this location
-  const serverPath = path.join(projectRoot, "lsp", "server");
-  if (fs.existsSync(serverPath)) {
-    return projectRoot;
+  // First, check extension parent (works when running from source/development)
+  const extensionParent = path.resolve(context.extensionPath, "..");
+  const extBackendLspPath = path.join(extensionParent, "backend", "lsp");
+  if (fs.existsSync(extBackendLspPath)) {
+    return extensionParent;
   }
 
-  // Also check for backend/ (for CLI commands)
-  const backendPath = path.join(projectRoot, "backend");
-  if (fs.existsSync(backendPath)) {
-    return projectRoot;
-  }
-
-  // Fallback: check if we're in a different structure
-  // Maybe lsp/ is at the workspace root
+  // Check workspace folders and their parents for backend/lsp
   const workspaceFolders = workspace.workspaceFolders;
   if (workspaceFolders) {
     for (const folder of workspaceFolders) {
-      const wsServerPath = path.join(folder.uri.fsPath, "lsp", "server");
-      if (fs.existsSync(wsServerPath)) {
+      // Check workspace root directly
+      const wsBackendLspPath = path.join(folder.uri.fsPath, "backend", "lsp");
+      if (fs.existsSync(wsBackendLspPath)) {
         return folder.uri.fsPath;
       }
+
+      // Check parent of workspace (e.g., if user opened scripts/ or plugin/ folder)
+      const wsParent = path.resolve(folder.uri.fsPath, "..");
+      const wsParentBackendLspPath = path.join(wsParent, "backend", "lsp");
+      if (fs.existsSync(wsParentBackendLspPath)) {
+        return wsParent;
+      }
+
+      // Check two levels up (e.g., if user opened deep subfolder)
+      const wsGrandparent = path.resolve(folder.uri.fsPath, "..", "..");
+      const wsGrandparentBackendLspPath = path.join(wsGrandparent, "backend", "lsp");
+      if (fs.existsSync(wsGrandparentBackendLspPath)) {
+        return wsGrandparent;
+      }
+    }
+  }
+
+  // Check user's configured toolchain path
+  const config = workspace.getConfiguration("nexflow");
+  const toolchainPath = config.get<string>("toolchainPath");
+  if (toolchainPath) {
+    const configBackendLspPath = path.join(toolchainPath, "backend", "lsp");
+    if (fs.existsSync(configBackendLspPath)) {
+      return toolchainPath;
     }
   }
 
@@ -193,7 +228,7 @@ function determineRuntimeConfig(context: ExtensionContext): RuntimeConfig {
     return {
       mode: "python",
       lspCommand: pythonPath,
-      lspArgs: ["-m", "lsp.server"],
+      lspArgs: ["-m", "backend.lsp"],
       cliCommand: pythonPath,
       cliArgs: ["-m", "backend.cli.main"],
       projectRoot: projectRoot,
