@@ -22,23 +22,23 @@ How data moves through Nexflow layers and what each layer can see and change.
 ## The Data Flow Pattern
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        STANDARD DATA FLOW PATTERN                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   KAFKA          L3              L4              L3              KAFKA       │
-│   INPUT       TRANSFORM        RULES         TRANSFORM          OUTPUT      │
-│                                                                              │
-│  ┌──────┐    ┌──────────┐    ┌────────┐    ┌──────────┐      ┌──────┐      │
-│  │Schema│    │ Enrich   │    │Evaluate│    │  Merge   │      │Schema│      │
-│  │  A   │───►│ & Add    │───►│& Decide│───►│ Results  │─────►│  B   │      │
-│  │      │    │ Fields   │    │        │    │          │      │      │      │
-│  └──────┘    └──────────┘    └────────┘    └──────────┘      └──────┘      │
-│                                                                              │
-│  5 fields    8 fields       Decision      10 fields         10 fields      │
-│              (+3 new)       + Score       (+2 from L4)                      │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------+
+|                        STANDARD DATA FLOW PATTERN                           |
++-----------------------------------------------------------------------------+
+|                                                                             |
+|   KAFKA          L3              L4              L3              KAFKA      |
+|   INPUT       TRANSFORM        RULES         TRANSFORM          OUTPUT      |
+|                                                                             |
+|  +------+    +----------+    +--------+    +----------+      +------+       |
+|  |Schema|    | Enrich   |    |Evaluate|    |  Merge   |      |Schema|       |
+|  |  A   |--->| & Add    |--->|& Decide|--->| Results  |----->|  B   |       |
+|  |      |    | Fields   |    |        |    |          |      |      |       |
+|  +------+    +----------+    +--------+    +----------+      +------+       |
+|                                                                             |
+|  5 fields    8 fields       Decision      10 fields         10 fields       |
+|              (+3 new)       + Score       (+2 from L4)                      |
+|                                                                             |
++-----------------------------------------------------------------------------+
 ```
 
 **Key Insight**: L4 rules return a **separate result** (decision, score, category). L3 transforms merge this result into the main record.
@@ -105,29 +105,29 @@ transform OrderEnrichment {
 
 **Field Visibility in L3:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    L3 TRANSFORM VISIBILITY                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  INPUT (Order)              OUTPUT (EnrichedOrder)          │
-│  ─────────────              ────────────────────            │
-│  order_id      ─────────────► order_id                      │
-│  customer_id   ─────────────► customer_id                   │
-│  amount        ──┬──────────► amount (rounded)              │
-│                  │                                          │
-│  currency      ──┘ (dropped)                                │
-│                                                              │
-│  status        ─────────────► status (uppercased)           │
-│                                                              │
-│                  (computed) ► tax_amount                    │
-│                  (computed) ► total_amount                  │
-│                  (computed) ► processed_at                  │
-│                                                              │
-│  L3 can read: order_id, customer_id, amount, currency,      │
-│               status                                         │
-│  L3 can write: Any field in output schema                   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    L3 TRANSFORM VISIBILITY                  |
++-------------------------------------------------------------+
+|                                                             |
+|  INPUT (Order)              OUTPUT (EnrichedOrder)          |
+|  -------------              --------------------            |
+|  order_id      -----------------> order_id                  |
+|  customer_id   -----------------> customer_id               |
+|  amount        --+--------------> amount (rounded)          |
+|                  |                                          |
+|  currency      --+ (dropped)                                |
+|                                                             |
+|  status        -----------------> status (uppercased)       |
+|                                                             |
+|                  (computed) ----> tax_amount                |
+|                  (computed) ----> total_amount              |
+|                  (computed) ----> processed_at              |
+|                                                             |
+|  L3 can read: order_id, customer_id, amount, currency,      |
+|               status                                        |
+|  L3 can write: Any field in output schema                   |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ---
@@ -167,28 +167,28 @@ schema CreditResult {
 
 **Field Visibility in L4:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    L4 RULES VISIBILITY                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  INPUT (EnrichedOrder)           OUTPUT (CreditResult)      │
-│  ────────────────────            ────────────────────       │
-│  order_id        (readable)                                 │
-│  customer_id     (readable) ────► (used in condition)       │
-│  amount          (readable)                                 │
-│  status          (readable)                                 │
-│  tax_amount      (readable)                                 │
-│  total_amount    (readable) ────► (used in condition)       │
-│  processed_at    (readable)                                 │
-│                                                              │
-│                              ────► decision (NEW)           │
-│                              ────► risk_score (NEW)         │
-│                                                              │
-│  L4 can read: All input fields                              │
-│  L4 can write: ONLY to its output type (CreditResult)       │
-│  L4 CANNOT: Modify EnrichedOrder fields                     │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    L4 RULES VISIBILITY                      |
++-------------------------------------------------------------+
+|                                                             |
+|  INPUT (EnrichedOrder)           OUTPUT (CreditResult)      |
+|  --------------------            --------------------       |
+|  order_id        (readable)                                 |
+|  customer_id     (readable) ------> (used in condition)     |
+|  amount          (readable)                                 |
+|  status          (readable)                                 |
+|  tax_amount      (readable)                                 |
+|  total_amount    (readable) ------> (used in condition)     |
+|  processed_at    (readable)                                 |
+|                                                             |
+|                              ------> decision (NEW)         |
+|                              ------> risk_score (NEW)       |
+|                                                             |
+|  L4 can read: All input fields                              |
+|  L4 can write: ONLY to its output type (CreditResult)       |
+|  L4 CANNOT: Modify EnrichedOrder fields                     |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ---
@@ -227,19 +227,19 @@ L1 wires everything together. It can see all types but doesn't transform data it
 
 ```
 process OrderProcessor {
-    // RECEIVE: Kafka → Order (L2 schema)
+    // RECEIVE: Kafka -> Order (L2 schema)
     receive Order from kafka "orders-input"
         format confluent_avro
         consumer_group "order-processors"
 
-    // TRANSFORM: Order → EnrichedOrder (L3)
+    // TRANSFORM: Order -> EnrichedOrder (L3)
     transform using OrderEnrichment
 
-    // EVALUATE: EnrichedOrder → CreditResult (L4)
+    // EVALUATE: EnrichedOrder -> CreditResult (L4)
     // Note: This returns CreditResult, not modified EnrichedOrder
     evaluate using CreditDecision
 
-    // TRANSFORM: EnrichedOrder + CreditResult → FinalOrder (L3)
+    // TRANSFORM: EnrichedOrder + CreditResult -> FinalOrder (L3)
     transform using MergeDecision
 
     // ROUTE: Based on field values
@@ -253,30 +253,30 @@ process OrderProcessor {
 
 **L1 Visibility:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    L1 PROCESS VISIBILITY                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  L1 CAN SEE:                                                │
-│  ─────────────                                              │
-│  • All L2 schema names (Order, EnrichedOrder, FinalOrder)   │
-│  • All L3 transform names (OrderEnrichment, MergeDecision)  │
-│  • All L4 rules names (CreditDecision)                      │
-│  • Field names for routing (credit_decision)                │
-│  • Kafka topics, formats, consumer groups                   │
-│                                                              │
-│  L1 CAN CHANGE:                                             │
-│  ──────────────                                             │
-│  • Flow routing (which sink based on field values)          │
-│  • Parallelism, windowing, error handling                   │
-│                                                              │
-│  L1 CANNOT:                                                 │
-│  ───────────                                                │
-│  • Modify field values (that's L3's job)                    │
-│  • Evaluate business rules (that's L4's job)                │
-│  • Define data structure (that's L2's job)                  │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    L1 PROCESS VISIBILITY                    |
++-------------------------------------------------------------+
+|                                                             |
+|  L1 CAN SEE:                                                |
+|  -----------                                                |
+|  * All L2 schema names (Order, EnrichedOrder, FinalOrder)   |
+|  * All L3 transform names (OrderEnrichment, MergeDecision)  |
+|  * All L4 rules names (CreditDecision)                      |
+|  * Field names for routing (credit_decision)                |
+|  * Kafka topics, formats, consumer groups                   |
+|                                                             |
+|  L1 CAN CHANGE:                                             |
+|  --------------                                             |
+|  * Flow routing (which sink based on field values)          |
+|  * Parallelism, windowing, error handling                   |
+|                                                             |
+|  L1 CANNOT:                                                 |
+|  ----------                                                 |
+|  * Modify field values (that's L3's job)                    |
+|  * Evaluate business rules (that's L4's job)                |
+|  * Define data structure (that's L2's job)                  |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ---
@@ -286,94 +286,94 @@ process OrderProcessor {
 ### File Structure
 ```
 src/
-├── schema/
-│   ├── order_input.schema      # L2: Input from Kafka
-│   ├── enriched_order.schema   # L2: After first transform
-│   ├── credit_result.schema    # L2: L4 output type
-│   └── final_order.schema      # L2: Output to Kafka
-├── transform/
-│   ├── enrich_order.xform      # L3: Add computed fields
-│   └── merge_decision.xform    # L3: Combine record + decision
-├── rules/
-│   └── credit_decision.rules   # L4: Business rules
-└── flow/
-    └── order_processor.proc    # L1: Orchestration
++-- schema/
+|   +-- order_input.schema      # L2: Input from Kafka
+|   +-- enriched_order.schema   # L2: After first transform
+|   +-- credit_result.schema    # L2: L4 output type
+|   +-- final_order.schema      # L2: Output to Kafka
++-- transform/
+|   +-- enrich_order.xform      # L3: Add computed fields
+|   +-- merge_decision.xform    # L3: Combine record + decision
++-- rules/
+|   +-- credit_decision.rules   # L4: Business rules
++-- flow/
+    +-- order_processor.proc    # L1: Orchestration
 ```
 
 ### Data Flow Visualization
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         COMPLETE DATA FLOW                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  KAFKA INPUT: orders-input                                                  │
-│  ┌─────────────────────┐                                                    │
-│  │ Order               │                                                    │
-│  │ ─────               │                                                    │
-│  │ order_id: "ORD-123" │                                                    │
-│  │ customer_id: "VIP1" │                                                    │
-│  │ amount: 500.00      │                                                    │
-│  │ currency: "USD"     │                                                    │
-│  │ status: "pending"   │                                                    │
-│  └──────────┬──────────┘                                                    │
-│             │                                                                │
-│             ▼                                                                │
-│  L3 TRANSFORM: OrderEnrichment                                              │
-│  ┌─────────────────────┐                                                    │
-│  │ EnrichedOrder       │                                                    │
-│  │ ─────────────       │                                                    │
-│  │ order_id: "ORD-123" │  (passed through)                                  │
-│  │ customer_id: "VIP1" │  (passed through)                                  │
-│  │ amount: 500.00      │  (passed through)                                  │
-│  │ status: "PENDING"   │  (uppercased)                                      │
-│  │ tax_amount: 50.00   │  (computed: amount * 0.1)                          │
-│  │ total_amount: 550.00│  (computed: amount + tax)                          │
-│  │ processed_at: now() │  (computed: current time)                          │
-│  └──────────┬──────────┘                                                    │
-│             │                                                                │
-│             ▼                                                                │
-│  L4 RULES: CreditDecision                                                   │
-│  ┌─────────────────────┐    ┌─────────────────────┐                         │
-│  │ EnrichedOrder       │    │ CreditResult        │                         │
-│  │ (input - read only) │───►│ (output - new data) │                         │
-│  │                     │    │ ─────────────       │                         │
-│  │ total_amount: 550   │    │ decision: "AUTO_    │                         │
-│  │ customer_id: "VIP1" │    │           APPROVE"  │                         │
-│  │                     │    │ risk_score: 0.2     │                         │
-│  └─────────────────────┘    └──────────┬──────────┘                         │
-│             │                          │                                     │
-│             └───────────┬──────────────┘                                     │
-│                         │                                                    │
-│                         ▼                                                    │
-│  L3 TRANSFORM: MergeDecision                                                │
-│  ┌─────────────────────────────┐                                            │
-│  │ FinalOrder                  │                                            │
-│  │ ──────────                  │                                            │
-│  │ order_id: "ORD-123"         │  (from EnrichedOrder)                      │
-│  │ customer_id: "VIP1"         │  (from EnrichedOrder)                      │
-│  │ amount: 500.00              │  (from EnrichedOrder)                      │
-│  │ status: "PENDING"           │  (from EnrichedOrder)                      │
-│  │ tax_amount: 50.00           │  (from EnrichedOrder)                      │
-│  │ total_amount: 550.00        │  (from EnrichedOrder)                      │
-│  │ processed_at: 2025-01-15... │  (from EnrichedOrder)                      │
-│  │ credit_decision: "AUTO_APP" │  (from CreditResult)                       │
-│  │ risk_score: 0.2             │  (from CreditResult)                       │
-│  └──────────┬──────────────────┘                                            │
-│             │                                                                │
-│             ▼                                                                │
-│  L1 ROUTE: by credit_decision                                               │
-│             │                                                                │
-│             ├──► "AUTO_APPROVE" ──► approved-orders                         │
-│             ├──► "REVIEW"       ──► review-queue                            │
-│             └──► "DECLINE"      ──► declined-orders                         │
-│                                                                              │
-│  KAFKA OUTPUT: approved-orders                                              │
-│  ┌─────────────────────────────┐                                            │
-│  │ FinalOrder (9 fields)       │                                            │
-│  └─────────────────────────────┘                                            │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------+
+|                         COMPLETE DATA FLOW                                  |
++-----------------------------------------------------------------------------+
+|                                                                             |
+|  KAFKA INPUT: orders-input                                                  |
+|  +---------------------+                                                    |
+|  | Order               |                                                    |
+|  | -----               |                                                    |
+|  | order_id: "ORD-123" |                                                    |
+|  | customer_id: "VIP1" |                                                    |
+|  | amount: 500.00      |                                                    |
+|  | currency: "USD"     |                                                    |
+|  | status: "pending"   |                                                    |
+|  +----------+----------+                                                    |
+|             |                                                               |
+|             v                                                               |
+|  L3 TRANSFORM: OrderEnrichment                                              |
+|  +---------------------+                                                    |
+|  | EnrichedOrder       |                                                    |
+|  | -------------       |                                                    |
+|  | order_id: "ORD-123" |  (passed through)                                  |
+|  | customer_id: "VIP1" |  (passed through)                                  |
+|  | amount: 500.00      |  (passed through)                                  |
+|  | status: "PENDING"   |  (uppercased)                                      |
+|  | tax_amount: 50.00   |  (computed: amount * 0.1)                          |
+|  | total_amount: 550.00|  (computed: amount + tax)                          |
+|  | processed_at: now() |  (computed: current time)                          |
+|  +----------+----------+                                                    |
+|             |                                                               |
+|             v                                                               |
+|  L4 RULES: CreditDecision                                                   |
+|  +---------------------+    +---------------------+                         |
+|  | EnrichedOrder       |    | CreditResult        |                         |
+|  | (input - read only) |--->| (output - new data) |                         |
+|  |                     |    | -------------       |                         |
+|  | total_amount: 550   |    | decision: "AUTO_    |                         |
+|  | customer_id: "VIP1" |    |           APPROVE"  |                         |
+|  |                     |    | risk_score: 0.2     |                         |
+|  +---------------------+    +----------+----------+                         |
+|             |                          |                                    |
+|             +------------+-------------+                                    |
+|                          |                                                  |
+|                          v                                                  |
+|  L3 TRANSFORM: MergeDecision                                                |
+|  +-----------------------------+                                            |
+|  | FinalOrder                  |                                            |
+|  | ----------                  |                                            |
+|  | order_id: "ORD-123"         |  (from EnrichedOrder)                      |
+|  | customer_id: "VIP1"         |  (from EnrichedOrder)                      |
+|  | amount: 500.00              |  (from EnrichedOrder)                      |
+|  | status: "PENDING"           |  (from EnrichedOrder)                      |
+|  | tax_amount: 50.00           |  (from EnrichedOrder)                      |
+|  | total_amount: 550.00        |  (from EnrichedOrder)                      |
+|  | processed_at: 2025-01-15... |  (from EnrichedOrder)                      |
+|  | credit_decision: "AUTO_APP" |  (from CreditResult)                       |
+|  | risk_score: 0.2             |  (from CreditResult)                       |
+|  +----------+------------------+                                            |
+|             |                                                               |
+|             v                                                               |
+|  L1 ROUTE: by credit_decision                                               |
+|             |                                                               |
+|             +--> "AUTO_APPROVE" --> approved-orders                         |
+|             +--> "REVIEW"       --> review-queue                            |
+|             +--> "DECLINE"      --> declined-orders                         |
+|                                                                             |
+|  KAFKA OUTPUT: approved-orders                                              |
+|  +-----------------------------+                                            |
+|  | FinalOrder (9 fields)       |                                            |
+|  +-----------------------------+                                            |
+|                                                                             |
++-----------------------------------------------------------------------------+
 ```
 
 ---
@@ -382,41 +382,41 @@ src/
 
 | Action | L1 | L2 | L3 | L4 | L0 |
 |--------|----|----|----|----|-----|
-| Read input fields | ✗ | ✗ | ✅ | ✅ | ✅ |
-| Add new fields | ✗ | ✅ (define) | ✅ | ✗ | ✅ |
-| Modify field values | ✗ | ✗ | ✅ | ✗ | ✅ |
-| Remove fields | ✗ | ✗ | ✅ | ✗ | ✅ |
-| Return decisions | ✗ | ✗ | ✗ | ✅ | ✅ |
-| Route messages | ✅ | ✗ | ✗ | ✗ | ✗ |
-| Define data structure | ✗ | ✅ | ✗ | ✗ | ✅ |
-| Call custom Java code | ✗ | ✗ | ✅ | ✗ | N/A |
+| Read input fields | [N] | [N] | [Y] | [Y] | [Y] |
+| Add new fields | [N] | [Y] (define) | [Y] | [N] | [Y] |
+| Modify field values | [N] | [N] | [Y] | [N] | [Y] |
+| Remove fields | [N] | [N] | [Y] | [N] | [Y] |
+| Return decisions | [N] | [N] | [N] | [Y] | [Y] |
+| Route messages | [Y] | [N] | [N] | [N] | [N] |
+| Define data structure | [N] | [Y] | [N] | [N] | [Y] |
+| Call custom Java code | [N] | [N] | [Y] | [N] | N/A |
 
 ---
 
 ## Common Patterns
 
-### Pattern 1: Enrich → Evaluate → Merge
+### Pattern 1: Enrich -> Evaluate -> Merge
 ```
-receive A → transform (A→B) → evaluate (B→Result) → transform (B+Result→C) → emit C
+receive A -> transform (A->B) -> evaluate (B->Result) -> transform (B+Result->C) -> emit C
 ```
 
 ### Pattern 2: Multiple Rule Evaluations
 ```
 receive A
-  → transform (A→B)
-  → evaluate CreditRules (B→CreditResult)
-  → evaluate FraudRules (B→FraudResult)
-  → transform (B+CreditResult+FraudResult→C)
-  → emit C
+  -> transform (A->B)
+  -> evaluate CreditRules (B->CreditResult)
+  -> evaluate FraudRules (B->FraudResult)
+  -> transform (B+CreditResult+FraudResult->C)
+  -> emit C
 ```
 
 ### Pattern 3: Conditional Transformation
 ```
 receive A
-  → evaluate CategoryRules (A→Category)
-  → route by category
-      when "PREMIUM" → transform PremiumEnrich → emit to premium-topic
-      when "STANDARD" → transform StandardEnrich → emit to standard-topic
+  -> evaluate CategoryRules (A->Category)
+  -> route by category
+      when "PREMIUM" -> transform PremiumEnrich -> emit to premium-topic
+      when "STANDARD" -> transform StandardEnrich -> emit to standard-topic
 ```
 
 ---
