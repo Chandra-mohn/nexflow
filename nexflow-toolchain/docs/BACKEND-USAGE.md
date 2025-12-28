@@ -85,6 +85,24 @@ nexflow parse src/rules/credit.rules --format json
 
 # Output as tree structure
 nexflow parse src/rules/credit.rules --format tree
+
+# Output as graph (nodes/edges for visual designer)
+nexflow parse src/flow/order.proc --format graph
+```
+
+The `--format graph` output is used by the VS Code visual designer and returns:
+```json
+{
+  "nodes": [
+    {"id": "receive_0", "type": "source", "label": "orders-topic", ...},
+    {"id": "transform_1", "type": "transform", "label": "OrderEnrichment", ...},
+    {"id": "emit_2", "type": "sink", "label": "processed-orders", ...}
+  ],
+  "edges": [
+    {"source": "receive_0", "target": "transform_1"},
+    {"source": "transform_1", "target": "emit_2"}
+  ]
+}
 ```
 
 ### Project Information
@@ -114,6 +132,25 @@ nexflow clean
 # Remove all build artifacts
 nexflow clean --all
 ```
+
+### Language Server
+```bash
+# Start LSP server in stdio mode (for VS Code)
+nexflow lsp
+
+# Start LSP server in TCP mode (for debugging)
+nexflow lsp --tcp --port 2087
+
+# With verbose logging
+nexflow lsp --log-level DEBUG
+```
+
+The LSP server provides IDE features:
+- Real-time diagnostics
+- Code completion
+- Hover documentation
+- Document symbols/outline
+- Go to definition
 
 ## Project Configuration (nexflow.toml)
 
@@ -482,4 +519,99 @@ pytest --cov=backend tests/
 
 # Verbose output
 pytest -v tests/
+```
+
+## Build Scripts
+
+### Building the Standalone Executable
+
+The `build-exe.sh` script creates a standalone executable using PyInstaller:
+
+```bash
+# Build the executable
+./scripts/build-exe.sh
+
+# Output: dist/nexflow/
+#   - nexflow (or nexflow.exe on Windows)
+#   - Supporting libraries
+```
+
+The executable is self-contained and doesn't require Python to be installed.
+
+**Cross-Platform Notes:**
+- On macOS/Linux: Uses `python3` if available, falls back to `python`
+- On Windows: Uses `python`
+
+### Building the VS Code Extension
+
+The `build-plugin.sh` script packages the VS Code extension:
+
+```bash
+# Build extension (Python mode - requires Python at runtime)
+./scripts/build-plugin.sh
+
+# Build extension with bundled executable (no Python required)
+./scripts/build-exe.sh              # First, build the executable
+./scripts/build-plugin.sh --bundled # Then, bundle it into the extension
+
+# Output: plugin/nexflow-X.Y.Z.vsix
+```
+
+### Build Output Locations
+
+| Script | Output | Description |
+|--------|--------|-------------|
+| `build-exe.sh` | `dist/nexflow/` | Standalone executable + libraries |
+| `build-plugin.sh` | `plugin/*.vsix` | VS Code extension package |
+
+## Programmatic API
+
+### Parsing Files
+
+```python
+from backend.parser import parse
+
+# Parse a file
+result = parse(content, "flow")  # or "schema", "transform", "rules"
+
+if result.success:
+    ast = result.ast
+    # Work with AST
+else:
+    for error in result.errors:
+        print(f"Error: {error}")
+```
+
+### Building a Project
+
+```python
+from backend.cli.project import Project
+from backend.cli.commands import build_project
+
+# Load project
+project = Project.load()  # Reads nexflow.toml
+
+# Build
+result = build_project(project, target="flink", dry_run=False)
+
+if result.success:
+    print(f"Generated {len(result.files)} files")
+else:
+    for error in result.errors:
+        print(f"Error: {error}")
+```
+
+### Using the LSP Server Programmatically
+
+```python
+from backend.lsp.driver import server
+from backend.lsp.modules.proc_module import ProcModule
+
+# Register modules
+server.register_module(ProcModule())
+
+# Start server
+server.start_io()  # stdio mode
+# or
+server.start_tcp("127.0.0.1", 2087)  # TCP mode
 ```

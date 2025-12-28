@@ -284,16 +284,32 @@ else
 endif
 ```
 
-### Foreach
+### Collection Operations
+
+Instead of explicit iteration, ProcDSL uses declarative collection operations:
 
 ```
-foreach item in order.items
-    transform using validate_item
-    if item.valid then
-        emit to valid_items
-    endif
-end
+// Check if any item meets a condition
+if any(order.items, item => item.quantity > 100) then
+    set order.bulk_order = true
+endif
+
+// Check if all items meet a condition
+if all(order.items, item => item.valid) then
+    emit to valid_orders
+endif
+
+// Filter items
+let high_value_items = filter(order.items, item => item.price > 1000)
+
+// Sum values
+let total = sum(order.items, item => item.quantity * item.price)
+
+// Count items
+let item_count = count(order.items, item => item.active)
 ```
+
+Available collection operations: `any`, `all`, `filter`, `sum`, `count`, `first`, `last`, `min`, `max`
 
 ### Call External
 
@@ -912,7 +928,9 @@ end
 
 **Connectors**: `kafka`, `mongodb`, `redis`, `state_store`, `scheduler`
 
-**Processing**: `transform`, `using`, `evaluate`, `route`, `lookup`, `set`, `let`, `if`, `foreach`, `call`, `deduplicate`, `validate_input`
+**Processing**: `transform`, `using`, `evaluate`, `route`, `lookup`, `set`, `let`, `if`, `call`, `deduplicate`, `validate_input`
+
+**Collection Operations**: `any`, `all`, `filter`, `sum`, `count`, `first`, `last`, `min`, `max`
 
 **Output**: `emit`, `to`, `broadcast`, `round_robin`, `persist`
 

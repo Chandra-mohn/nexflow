@@ -15,34 +15,29 @@ The Nexflow VS Code Extension provides comprehensive IDE support for all Nexflow
 
 ### Prerequisites
 - VS Code 1.75.0 or higher
-- Python 3.11+ with pip
-- Required Python packages: `pygls`, `lsprotocol`
+- Python 3.11+ (for Python mode) OR bundled executable
 
 ### From VSIX Package
 ```bash
-# Install the extension from package
-code --install-extension nexflow-lsp-0.1.0.vsix
+# Install the extension
+code --install-extension nexflow-0.2.0.vsix
 ```
 
-### From Source (Development)
-```bash
-# Navigate to client directory
-cd lsp/client
+### Runtime Modes
 
-# Install dependencies
-npm install
+The extension supports two runtime modes:
 
-# Compile TypeScript
-npm run compile
+| Mode | Description | When to Use |
+|------|-------------|-------------|
+| **Python** | Uses system Python + LSP server | Development, full flexibility |
+| **Bundled** | Self-contained executable | Production, no Python required |
 
-# For development with auto-rebuild
-npm run watch
-```
-
-### Python Server Dependencies
-```bash
-# Install Python LSP dependencies
-pip install pygls lsprotocol
+Configure in VS Code settings:
+```json
+{
+    "nexflow.runtime.mode": "python",  // or "bundled"
+    "nexflow.server.path": "/path/to/python"  // Python mode only
+}
 ```
 
 ## Features
@@ -58,10 +53,37 @@ Full syntax highlighting for all DSL keywords:
 
 | DSL | Keywords |
 |-----|----------|
-| ProcDSL | `process`, `receive`, `emit`, `transform`, `route`, `persist`, `state`, `each`, `parallel`, `branch` |
-| SchemaDSL | `schema`, `entity`, `field`, `required`, `optional`, `constraint`, `pattern` |
+| ProcDSL | `process`, `receive`, `emit`, `transform`, `route`, `persist`, `state`, `parallel`, `branch`, `enrich`, `lookup` |
+| SchemaDSL | `schema`, `entity`, `field`, `required`, `optional`, `constraint`, `pattern`, `serialization` |
 | TransformDSL | `transform`, `input`, `output`, `mapping`, `field`, `filter`, `flatten` |
 | RulesDSL | `rules`, `decision`, `when`, `then`, `otherwise`, `hit_policy` |
+
+### Visual Flow Designer (NEW)
+
+For `.proc` files, the extension includes an interactive visual designer:
+
+**Opening the Designer:**
+1. Open any `.proc` file
+2. Click the **"Open Visual Designer"** icon in the editor title bar
+3. Or use Command Palette: `Nexflow: Open Visual Designer`
+
+**Designer Features:**
+- Interactive node-based flow visualization
+- Drag-and-drop node positioning
+- Zoom and pan navigation
+- Export flow as PNG image
+- Real-time sync with code editor
+- Node types: Source, Sink, Transform, Route, Enrich, Persist
+
+**Node Color Legend:**
+| Color | Node Type |
+|-------|-----------|
+| Blue | Source (receive) |
+| Green | Sink (emit) |
+| Purple | Transform |
+| Orange | Route/Branch |
+| Cyan | Enrich/Lookup |
+| Gray | Persist |
 
 ### Code Completion
 Context-aware auto-completion:
@@ -100,16 +122,20 @@ Access settings via `File > Preferences > Settings` and search for "Nexflow".
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `nexflow.server.path` | Path to Python interpreter for LSP server | System Python |
+| `nexflow.runtime.mode` | Runtime mode: `python` or `bundled` | `python` |
+| `nexflow.server.path` | Path to Python interpreter (Python mode) | System Python |
 | `nexflow.trace.server` | Trace level: `off`, `messages`, `verbose` | `off` |
 | `nexflow.diagnostics.enabled` | Enable real-time diagnostics | `true` |
+| `nexflow.visualDesigner.autoOpen` | Auto-open designer for .proc files | `false` |
 
 ### Example settings.json
 ```json
 {
+    "nexflow.runtime.mode": "python",
     "nexflow.server.path": "/path/to/venv/bin/python",
     "nexflow.trace.server": "messages",
-    "nexflow.diagnostics.enabled": true
+    "nexflow.diagnostics.enabled": true,
+    "nexflow.visualDesigner.autoOpen": false
 }
 ```
 
@@ -131,17 +157,18 @@ The extension automatically associates these file types:
 A typical Nexflow project has this structure:
 ```
 my-project/
-├── flows/           # L1 process definitions
-│   ├── main.proc
-├── schemas/         # L2 schema definitions
-│   ├── input.schema
-│   └── output.schema
-├── transforms/      # L3 transformations
-│   └── mappings.xform
-├── rules/           # L4 business rules
-│   └── validation.rules
-└── infra/           # L5 infrastructure bindings
-    └── config.infra
+├── nexflow.toml         # Project configuration
+├── src/
+│   ├── flow/            # L1 process definitions
+│   │   └── main.proc
+│   ├── schema/          # L2 schema definitions
+│   │   ├── input.schema
+│   │   └── output.schema
+│   ├── transform/       # L3 transformations
+│   │   └── mappings.xform
+│   └── rules/           # L4 business rules
+│       └── validation.rules
+└── generated/           # Output directory
 ```
 
 ### Imports
@@ -149,8 +176,8 @@ Nexflow DSLs support importing definitions from other files:
 
 ```
 // In a .proc file
-import "schemas/input.schema"
-import "transforms/mappings.xform"
+import "schema/input.schema"
+import "transform/mappings.xform"
 import "rules/validation.rules"
 ```
 
@@ -167,6 +194,7 @@ The extension validates import paths and provides go-to-definition support.
 | Rename Symbol | `F2` | `F2` |
 | Format Document | `Shift+Alt+F` | `Shift+Option+F` |
 | Toggle Outline | `Ctrl+Shift+O` | `Cmd+Shift+O` |
+| Open Visual Designer | - | - |
 
 ## Troubleshooting
 
@@ -176,7 +204,7 @@ The extension validates import paths and provides go-to-definition support.
 3. Reload VS Code window (`Ctrl+Shift+P` → "Reload Window")
 
 ### LSP Server Not Starting
-1. Check Python is installed and accessible
+1. Check Python is installed and accessible (Python mode)
 2. Verify required packages: `pip show pygls lsprotocol`
 3. Check Output panel ("Nexflow LSP") for error messages
 4. Try setting explicit Python path in settings
@@ -185,6 +213,11 @@ The extension validates import paths and provides go-to-definition support.
 1. Ensure `nexflow.diagnostics.enabled` is `true`
 2. Check file is saved (some diagnostics require save)
 3. Look for errors in Output panel
+
+### Visual Designer Not Opening
+1. Ensure file is a `.proc` file
+2. Check for parse errors in the file first
+3. Try reloading the window
 
 ### Server Crashes
 1. Enable verbose tracing: set `nexflow.trace.server` to `verbose`
@@ -205,21 +238,49 @@ The extension validates import paths and provides go-to-definition support.
 │   Extension     │◄──────►│   Server        │
 │   (TypeScript)  │  JSON  │                 │
 │                 │  RPC   │   ┌───────────┐ │
-│   - UI          │        │   │ ProcModule│ │
+│   - UI/Webview  │        │   │ ProcModule│ │
 │   - File Watch  │        │   │ SchemaModule│
 │   - Triggers    │        │   │ TransformModule│
 │                 │        │   │ RulesModule │
 └─────────────────┘        └───┴───────────┘─┘
 ```
 
-### Language Modules
-Each DSL has a dedicated Python module:
-- `ProcModule` - L1 ProcDSL parsing and validation
-- `SchemaModule` - L2 SchemaDSL parsing and validation
-- `TransformModule` - L3 TransformDSL parsing and validation
-- `RulesModule` - L4 RulesDSL parsing and validation
+### Extension Components
 
-Modules implement the `LanguageModule` interface providing:
+```
+plugin/
+├── src/                  # TypeScript extension source
+│   ├── extension.ts      # Main entry point
+│   ├── lspClient.ts      # Language client
+│   └── visualDesigner.ts # Webview provider
+├── webview/              # React visual designer
+│   └── src/
+│       ├── App.tsx
+│       └── components/
+├── syntaxes/             # TextMate grammars
+│   ├── proc.tmLanguage.json
+│   ├── schema.tmLanguage.json
+│   ├── transform.tmLanguage.json
+│   └── rules.tmLanguage.json
+└── package.json          # Extension manifest
+```
+
+### Language Server (Python)
+
+```
+backend/lsp/
+├── __main__.py           # Entry point
+├── driver.py             # Main LSP server
+├── registry.py           # Module registry
+└── modules/
+    ├── proc_module.py    # L1 ProcDSL
+    ├── schema_module.py  # L2 SchemaDSL
+    ├── transform_module.py # L3 TransformDSL
+    └── rules_module.py   # L4 RulesDSL
+```
+
+### Language Modules
+Each DSL has a dedicated Python module implementing:
 - `get_diagnostics()` - Parse errors and warnings
 - `get_completions()` - Auto-completion items
 - `get_hover()` - Hover documentation
@@ -228,33 +289,46 @@ Modules implement the `LanguageModule` interface providing:
 - `get_references()` - Find all references
 - `format_document()` - Code formatting
 
-## Development
+## Building the Extension
 
-### Building the Extension
-```bash
-cd lsp/client
-npm run compile
-npm run package  # Creates .vsix file
-```
+### Prerequisites
+- Node.js 18+
+- npm
 
-### Running Tests
+### Build Scripts
+
 ```bash
-npm run test
+# Build the VS Code plugin (Python mode)
+./scripts/build-plugin.sh
+
+# Build with bundled executable
+./scripts/build-exe.sh        # First, build the executable
+./scripts/build-plugin.sh --bundled  # Then, bundle it
 ```
 
 ### Development Mode
-1. Open `lsp/client` in VS Code
-2. Press `F5` to launch Extension Development Host
-3. Open a `.proc` file to test
+1. Open `plugin/` in VS Code
+2. Run `npm install`
+3. Press `F5` to launch Extension Development Host
+4. Open a `.proc` file to test
 
-### Modifying Server
-The Python server is in `lsp/server/`:
-- `driver.py` - Main LSP server
-- `registry.py` - Module registry
-- `modules/` - Language-specific modules
-- `__main__.py` - Entry point
+### Manual Build
+```bash
+cd plugin
+npm install
+cd webview && npm install && npm run build && cd ..
+npm run compile
+npx vsce package
+```
 
 ## Version History
+
+### 0.2.0 (Current)
+- Visual flow designer for `.proc` files
+- Bundled executable mode (no Python required)
+- Improved diagnostics and error messages
+- PNG export from visual designer
+- Cross-platform build scripts
 
 ### 0.1.0
 - Initial release
