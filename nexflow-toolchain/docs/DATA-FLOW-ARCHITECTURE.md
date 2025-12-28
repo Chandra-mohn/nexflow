@@ -17,12 +17,139 @@ Nexflow transforms declarative DSL definitions into production-ready Apache Flin
 
 | Layer | File Type | Purpose | Output |
 |-------|-----------|---------|--------|
-| **L0** | External | External systems (Kafka, DBs, Registry) | N/A - infrastructure |
+| **L0** | `.java`, `.kt` | Hand-coded components (custom functions, utilities) | Compiled classes (referenced by L1-L4) |
 | **L1** | `.proc` | Process orchestration | `*Job.java` - Flink DAG |
 | **L2** | `.schema` | Data structure definitions | `*.java` - Records, Builders |
 | **L3** | `.xform` | Field mappings & transformations | `*Transform.java` - MapFunctions |
 | **L4** | `.rules` | Business decision logic | `*Rules.java` - Rule engines |
 | **L5** | `.toml` | Infrastructure configuration | Runtime config injection |
+| **External** | N/A | Infrastructure (Kafka, DBs, Schema Registry) | N/A - runtime dependencies |
+
+---
+
+## L0: Hand-Coded Components
+
+L0 represents **developer-written code** that extends or customizes the generated pipeline. These components are referenced by DSL layers (L1-L4) and compiled alongside generated code.
+
+### L0 Component Types
+
+| Component Type | Used By | Purpose | Example |
+|----------------|---------|---------|---------|
+| **Custom Functions** | L3 Transform | Complex business logic not expressible in DSL | `GeoDistanceCalculator.java` |
+| **Lookup Services** | L1 Process | External data enrichment | `CustomerLookupService.java` |
+| **Custom Serializers** | L2 Schema | Special serialization formats | `EncryptedAvroSerializer.java` |
+| **Validation Logic** | L1 Process | Complex validation rules | `FraudDetectionValidator.java` |
+| **Aggregators** | L1 Process | Custom aggregation functions | `WeightedAverageAggregator.java` |
+| **State Handlers** | L1 Process | Custom state management | `SessionStateHandler.java` |
+| **Connectors** | L1 Process | Custom source/sink connectors | `RedisLookupConnector.java` |
+
+### L0 Project Structure
+
+```
+project/
+├── src/
+│   ├── main/
+│   │   └── java/com/company/
+│   │       ├── functions/              # L0 - Custom functions
+│   │       │   ├── GeoDistanceCalculator.java
+│   │       │   └── RiskScoreComputer.java
+│   │       ├── services/               # L0 - Lookup services
+│   │       │   ├── CustomerLookupService.java
+│   │       │   └── InventoryService.java
+│   │       ├── validators/             # L0 - Custom validators
+│   │       │   └── FraudDetectionValidator.java
+│   │       └── serializers/            # L0 - Custom serializers
+│   │           └── EncryptedAvroSerializer.java
+│   └── dsl/
+│       ├── flow/                       # L1 - .proc files
+│       ├── schema/                     # L2 - .schema files
+│       ├── transform/                  # L3 - .xform files
+│       └── rules/                      # L4 - .rules files
+└── generated/                          # Generated code (L1-L4 output)
+```
+
+### Referencing L0 from DSL Layers
+
+**From L1 (Process):**
+```
+process OrderProcessor {
+    receive Order from kafka "orders"
+
+    // Reference L0 custom validator
+    validate using com.company.validators.FraudDetectionValidator
+
+    // Reference L0 lookup service
+    enrich from com.company.services.CustomerLookupService
+        on customer_id
+
+    emit to "enriched-orders"
+}
+```
+
+**From L3 (Transform):**
+```
+transform OrderEnrichment {
+    input Order
+    output EnrichedOrder
+
+    mapping
+        order_id -> order_id
+        // Reference L0 custom function
+        com.company.functions.GeoDistanceCalculator.calculate(lat, lon) -> distance
+        com.company.functions.RiskScoreComputer.compute(amount, customer) -> risk_score
+    end
+}
+```
+
+### L0 Integration in Build Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Build Pipeline with L0                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────┐                                                     │
+│  │  L0 Components  │  (Developer-written Java/Kotlin)                   │
+│  │  src/main/java/ │                                                     │
+│  └────────┬────────┘                                                     │
+│           │                                                              │
+│           │  ┌─────────────────────────────────────────┐                │
+│           │  │  DSL Files (L1-L4)                      │                │
+│           │  │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐│                │
+│           │  │  │.proc  │ │.schema│ │.xform │ │.rules ││                │
+│           │  │  └───┬───┘ └───┬───┘ └───┬───┘ └───┬───┘│                │
+│           │  └──────┼─────────┼─────────┼─────────┼────┘                │
+│           │         │         │         │         │                      │
+│           │         └─────────┴─────────┴─────────┘                      │
+│           │                         │                                    │
+│           │                         ▼                                    │
+│           │               ┌─────────────────┐                            │
+│           │               │  nexflow build  │                            │
+│           │               │  (Generates L1-L4 Java)                      │
+│           │               └────────┬────────┘                            │
+│           │                        │                                     │
+│           │                        ▼                                     │
+│           │               ┌─────────────────┐                            │
+│           │               │  generated/     │                            │
+│           │               │  (L1-L4 Java)   │                            │
+│           │               └────────┬────────┘                            │
+│           │                        │                                     │
+│           └────────────────────────┤                                     │
+│                                    │                                     │
+│                                    ▼                                     │
+│                          ┌─────────────────┐                             │
+│                          │   mvn compile   │                             │
+│                          │  (Compiles ALL) │                             │
+│                          └────────┬────────┘                             │
+│                                   │                                      │
+│                                   ▼                                      │
+│                          ┌─────────────────┐                             │
+│                          │    app.jar      │                             │
+│                          │  L0 + L1-L4     │                             │
+│                          └─────────────────┘                             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -33,26 +160,29 @@ Nexflow transforms declarative DSL definitions into production-ready Apache Flin
 │                                    DESIGN TIME (Developer)                                               │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                          │
-│   L2 SchemaDSL              L3 TransformDSL           L4 RulesDSL              L1 ProcDSL               │
-│   ─────────────             ──────────────            ──────────────           ───────────              │
-│   order.schema              enrich.xform              credit.rules             process.proc             │
-│   ┌───────────┐             ┌───────────┐             ┌───────────┐            ┌───────────┐            │
-│   │ schema    │             │ transform │             │ rules     │            │ process   │            │
-│   │  Order {  │             │  Enrich { │             │  Credit { │            │  Main {   │            │
-│   │   id      │             │   map ... │             │   decide  │            │   receive │            │
-│   │   amount  │             │   filter  │             │   when... │            │   xform   │            │
-│   │   status  │             │ }         │             │ }         │            │   emit    │            │
-│   │ }         │             └───────────┘             └───────────┘            │ }         │            │
-│   └───────────┘                   │                         │                  └───────────┘            │
-│         │                         │                         │                        │                  │
-│         └─────────────────────────┴─────────────────────────┴────────────────────────┘                  │
-│                                              │                                                           │
-│                                              ▼                                                           │
-│                                    ┌─────────────────┐                                                   │
-│                                    │  nexflow build  │                                                   │
-│                                    └────────┬────────┘                                                   │
-│                                              │                                                           │
-└──────────────────────────────────────────────┼───────────────────────────────────────────────────────────┘
+│   L0 Hand-Coded            L2 SchemaDSL         L3 TransformDSL      L4 RulesDSL        L1 ProcDSL      │
+│   ────────────             ─────────────        ──────────────       ──────────────     ───────────     │
+│   *.java / *.kt            order.schema         enrich.xform         credit.rules      process.proc    │
+│   ┌───────────┐            ┌───────────┐        ┌───────────┐        ┌───────────┐     ┌───────────┐   │
+│   │ Custom    │            │ schema    │        │ transform │        │ rules     │     │ process   │   │
+│   │ Functions │◄───────────│  Order {  │        │  Enrich { │        │  Credit { │     │  Main {   │   │
+│   │ Services  │  imports   │   id      │        │   map ... │        │   decide  │     │   receive │   │
+│   │ Validators│            │   amount  │        │   filter  │        │   when... │     │   xform   │   │
+│   │ Connectors│            │ }         │        │ }         │        │ }         │     │   emit    │   │
+│   └───────────┘            └───────────┘        └───────────┘        └───────────┘     │ }         │   │
+│         │                        │                    │                    │           └───────────┘   │
+│         │                        │                    │                    │                 │          │
+│         │                        └────────────────────┴────────────────────┴─────────────────┘          │
+│         │                                             │                                                  │
+│         │                                             ▼                                                  │
+│         │                                   ┌─────────────────┐                                          │
+│         │                                   │  nexflow build  │                                          │
+│         │                                   │  (Generates L1-L4 Java)                                    │
+│         │                                   └────────┬────────┘                                          │
+│         │                                            │                                                   │
+│         └────────────────────────────────────────────┤  (combined at mvn compile)                       │
+│                                                      │                                                   │
+└──────────────────────────────────────────────────────┼───────────────────────────────────────────────────┘
                                                │
                                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -112,8 +242,8 @@ Nexflow transforms declarative DSL definitions into production-ready Apache Flin
 │                                    RUNTIME (Flink Cluster)                                               │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                          │
-│   L0 External Systems                                                                                    │
-│   ───────────────────                                                                                    │
+│   External Systems (Infrastructure)                                                                      │
+│   ─────────────────────────────────                                                                                    │
 │                                                                                                          │
 │   ┌──────────────┐          ┌───────────────────────────────────────────┐         ┌──────────────┐      │
 │   │   Kafka      │          │              Flink Job                    │         │   Kafka      │      │
