@@ -23,6 +23,7 @@ if __name__ == '__main__':
 EOF
 
 # Build with PyInstaller (onedir for faster startup)
+# Note: lsprotocol is required by pygls for LSP type definitions
 $PYTHON -m PyInstaller nexflow_entry.py \
     --onedir \
     --name nexflow \
@@ -32,10 +33,13 @@ $PYTHON -m PyInstaller nexflow_entry.py \
     --console \
     --collect-submodules backend \
     --collect-submodules pygls \
+    --collect-submodules lsprotocol \
     --collect-submodules antlr4 \
     --hidden-import click \
     --hidden-import rich \
     --hidden-import toml \
+    --hidden-import cattrs \
+    --hidden-import attrs \
     --log-level WARN
 
 # Cleanup
