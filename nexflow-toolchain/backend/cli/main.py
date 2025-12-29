@@ -288,12 +288,19 @@ def lsp(tcp: bool, host: str, port: int, log_level: str):
     """
     import logging
 
-    # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, log_level),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stderr)]
-    )
+    # CRITICAL: In stdio mode, we MUST NOT output anything to stdout/stderr
+    # as it breaks the LSP JSON-RPC protocol. Only log in TCP mode.
+    if tcp:
+        # TCP mode: safe to log to stderr
+        logging.basicConfig(
+            level=getattr(logging, log_level),
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=[logging.StreamHandler(sys.stderr)]
+        )
+    else:
+        # Stdio mode: disable ALL logging to avoid breaking LSP protocol
+        logging.disable(logging.CRITICAL)
+
     logger = logging.getLogger("nexflow-lsp")
 
     try:
@@ -304,49 +311,29 @@ def lsp(tcp: bool, host: str, port: int, log_level: str):
         from backend.lsp.modules.transform_module import TransformModule
         from backend.lsp.modules.rules_module import RulesModule
 
-        # Register language modules
-        def register_modules():
-            try:
-                server.register_module(ProcModule())
-                logger.info("Registered L1 ProcDSL module")
-            except Exception as e:
-                logger.error(f"Failed to register ProcModule: {e}")
-
-            try:
-                server.register_module(SchemaModule())
-                logger.info("Registered L2 SchemaDSL module")
-            except Exception as e:
-                logger.error(f"Failed to register SchemaModule: {e}")
-
-            try:
-                server.register_module(TransformModule())
-                logger.info("Registered L3 TransformDSL module")
-            except Exception as e:
-                logger.error(f"Failed to register TransformModule: {e}")
-
-            try:
-                server.register_module(RulesModule())
-                logger.info("Registered L4 RulesDSL module")
-            except Exception as e:
-                logger.error(f"Failed to register RulesModule: {e}")
-
-        register_modules()
-        logger.info("Starting Nexflow Language Server...")
+        # Register language modules (silently in stdio mode)
+        server.register_module(ProcModule())
+        server.register_module(SchemaModule())
+        server.register_module(TransformModule())
+        server.register_module(RulesModule())
 
         if tcp:
-            logger.info(f"Running in TCP mode on {host}:{port}")
+            logger.info("Registered all language modules")
+            logger.info(f"Starting Nexflow Language Server on {host}:{port}")
             server.start_tcp(host, port)
         else:
-            logger.info("Running in stdio mode")
+            # Start stdio server silently
             server.start_io()
 
     except ImportError as e:
-        console.print(f"[red]Error:[/red] LSP modules not available: {e}")
-        console.print("Make sure pygls and lsprotocol are installed:")
-        console.print("  pip install pygls lsprotocol")
+        if tcp:
+            console.print(f"[red]Error:[/red] LSP modules not available: {e}")
+            console.print("Make sure pygls and lsprotocol are installed:")
+            console.print("  pip install pygls lsprotocol")
         sys.exit(1)
     except Exception as e:
-        console.print(f"[red]Error:[/red] Failed to start LSP server: {e}")
+        if tcp:
+            console.print(f"[red]Error:[/red] Failed to start LSP server: {e}")
         sys.exit(1)
 
 

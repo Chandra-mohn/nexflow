@@ -16,14 +16,7 @@ from backend.lsp.modules.schema_module import SchemaModule
 from backend.lsp.modules.transform_module import TransformModule
 from backend.lsp.modules.rules_module import RulesModule
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stderr)
-    ]
-)
+# Don't configure logging at module level - defer to main() based on mode
 logger = logging.getLogger("nexflow-lsp")
 
 
@@ -89,19 +82,28 @@ def main():
 
     args = parser.parse_args()
 
-    # Set log level
-    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    # CRITICAL: In stdio mode, we MUST NOT output anything to stdout/stderr
+    # as it breaks the LSP JSON-RPC protocol. Only log in TCP mode.
+    if args.tcp:
+        # TCP mode: safe to log to stderr
+        logging.basicConfig(
+            level=getattr(logging, args.log_level),
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=[logging.StreamHandler(sys.stderr)]
+        )
+    else:
+        # Stdio mode: disable ALL logging to avoid breaking LSP protocol
+        logging.disable(logging.CRITICAL)
 
-    # Register language modules
+    # Register language modules (silently in stdio mode)
     register_modules()
 
-    logger.info("Starting Nexflow Language Server...")
-
     if args.tcp:
+        logger.info("Starting Nexflow Language Server...")
         logger.info(f"Running in TCP mode on {args.host}:{args.port}")
         server.start_tcp(args.host, args.port)
     else:
-        logger.info("Running in stdio mode")
+        # Start stdio server silently
         server.start_io()
 
 

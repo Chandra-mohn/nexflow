@@ -14,11 +14,8 @@ from lsprotocol import types
 from .registry import ModuleRegistry
 from .modules.base import LanguageModule
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Get logger but DON'T configure it here - let the CLI handle configuration
+# This avoids outputting to stderr when running in stdio mode
 logger = logging.getLogger("nexflow-lsp")
 
 
