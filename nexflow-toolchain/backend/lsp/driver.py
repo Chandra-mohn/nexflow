@@ -8,7 +8,11 @@ Routes requests to appropriate modules based on file extension.
 import logging
 from typing import Optional, List
 
-from pygls.lsp.server import LanguageServer
+# pygls 1.x uses pygls.server, older versions used pygls.lsp.server
+try:
+    from pygls.server import LanguageServer  # pygls >= 1.0
+except ImportError:
+    from pygls.lsp.server import LanguageServer  # pygls < 1.0
 from lsprotocol import types
 
 from .registry import ModuleRegistry
