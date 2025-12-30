@@ -1,6 +1,12 @@
+# Development files
 .vscode/**
 .vscode-test/**
 src/**
+**/*.ts
+!out/**/*.d.ts
+**/*.map
+
+# Webview source (dist is bundled)
 webview/src/**
 webview/node_modules/**
 webview/package.json
@@ -9,9 +15,18 @@ webview/tsconfig.json
 webview/vite.config.ts
 webview/tailwind.config.js
 webview/postcss.config.js
+
+# Node modules (extension is bundled via esbuild)
+node_modules/**
+
+# Git and config
 .gitignore
-**/*.ts
-!out/**/*.d.ts
-**/*.map
+.eslintrc.json
+tsconfig.json
+
+# Keep these
+!out/**
 !webview/dist/**
 !bin/**
+!syntaxes/**
+!icons/**

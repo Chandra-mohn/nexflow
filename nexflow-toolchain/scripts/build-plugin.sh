@@ -18,8 +18,14 @@ if [ "$1" = "--bundled" ]; then
     cp -r ../dist/nexflow/* bin/ 2>/dev/null || { echo "Error: dist/nexflow/ not found. Run build-exe.sh first."; exit 1; }
 fi
 
+echo "==> Pruning dev dependencies for smaller package"
+npm prune --production
+
 echo "==> Packaging extension"
-npx vsce package
+npx vsce package --no-dependencies
+
+# Restore dev dependencies for development
+npm install
 
 # Cleanup bundled binary
 [ -d bin ] && rm -rf bin
