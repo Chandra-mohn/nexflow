@@ -158,27 +158,27 @@ def ast_to_summary(ast: Any, file_path: Path) -> str:
     if hasattr(ast, 'decision_tables'):
         lines.append(f"Decision Tables: {len(ast.decision_tables)}")
         for dt in ast.decision_tables:
-            lines.append(f"  • {dt.name}")
+            lines.append(f"  - {dt.name}")
 
     if hasattr(ast, 'procedural_rules'):
         lines.append(f"Procedural Rules: {len(ast.procedural_rules)}")
         for rule in ast.procedural_rules:
-            lines.append(f"  • {rule.name}")
+            lines.append(f"  - {rule.name}")
 
     if hasattr(ast, 'processes'):
         lines.append(f"Processes: {len(ast.processes)}")
         for proc in ast.processes:
-            lines.append(f"  • {proc.name}")
+            lines.append(f"  - {proc.name}")
 
     if hasattr(ast, 'schemas'):
         lines.append(f"Schemas: {len(ast.schemas)}")
         for schema in ast.schemas:
-            lines.append(f"  • {schema.name}")
+            lines.append(f"  - {schema.name}")
 
     if hasattr(ast, 'transforms'):
         lines.append(f"Transforms: {len(ast.transforms)}")
         for t in ast.transforms:
-            lines.append(f"  • {t.name}")
+            lines.append(f"  - {t.name}")
 
     return "\n".join(lines)
 

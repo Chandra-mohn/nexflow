@@ -26,7 +26,9 @@ from rich import print as rprint
 from .project import Project, ProjectError
 from .commands import build_project, validate_project, parse_file, init_project, clean_project
 
-console = Console()
+# Configure console for Windows compatibility (cp1252 can't encode Unicode symbols)
+# force_terminal=False and legacy_windows=True help with encoding issues
+console = Console(force_terminal=False, legacy_windows=True)
 
 # Version
 __version__ = "0.1.0"
@@ -81,18 +83,18 @@ def build(ctx: click.Context, target: str, output: Optional[str], dry_run: bool,
 
         if result.success:
             if dry_run:
-                console.print("[green]✓[/green] Validation passed. Files that would be generated:")
+                console.print("[green][OK][/green] Validation passed. Files that would be generated:")
                 for f in result.files:
-                    console.print(f"  • {f}")
+                    console.print(f"  - {f}")
             else:
-                console.print(f"[green]✓[/green] Build successful. Generated {len(result.files)} files.")
+                console.print(f"[green][OK][/green] Build successful. Generated {len(result.files)} files.")
                 if verbose:
                     for f in result.files:
-                        console.print(f"  • {f}")
+                        console.print(f"  - {f}")
         else:
-            console.print("[red]✗[/red] Build failed.")
+            console.print("[red][FAIL][/red] Build failed.")
             for error in result.errors:
-                console.print(f"  [red]•[/red] {error}")
+                console.print(f"  [red]-[/red] {error}")
             sys.exit(1)
 
     except ProjectError as e:
@@ -126,12 +128,12 @@ def validate(ctx: click.Context, path: Optional[str]):
             result = validate_project(project.src_dir, verbose, project)
 
         if result.success:
-            console.print(f"[green]✓[/green] Validation passed. {result.file_count} files checked.")
+            console.print(f"[green][OK][/green] Validation passed. {result.file_count} files checked.")
         else:
-            console.print(f"[red]✗[/red] Validation failed. {len(result.errors)} errors found.")
+            console.print(f"[red][FAIL][/red] Validation failed. {len(result.errors)} errors found.")
             for error in result.errors:
                 loc = f"{error.file}:{error.line}:{error.column}" if error.line else error.file
-                console.print(f"  [red]•[/red] {loc}: {error.message}")
+                console.print(f"  [red]-[/red] {loc}: {error.message}")
             sys.exit(1)
 
     except ProjectError as e:
@@ -166,9 +168,9 @@ def parse(ctx: click.Context, file: str, output_format: str):
         if result.success:
             console.print(result.output)
         else:
-            console.print(f"[red]✗[/red] Parse failed.")
+            console.print(f"[red][FAIL][/red] Parse failed.")
             for error in result.errors:
-                console.print(f"  [red]•[/red] Line {error.line}: {error.message}")
+                console.print(f"  [red]-[/red] Line {error.line}: {error.message}")
             sys.exit(1)
 
     except Exception as e:
@@ -193,10 +195,10 @@ def init(name: str, force: bool):
         result = init_project(name, force)
 
         if result.success:
-            console.print(f"[green]✓[/green] Initialized project '{name}'")
+            console.print(f"[green][OK][/green] Initialized project '{name}'")
             console.print("  Created:")
             for item in result.created:
-                console.print(f"    • {item}")
+                console.print(f"    - {item}")
             console.print("\n  Next steps:")
             console.print("    1. Add DSL files to src/")
             console.print("    2. Run: nexflow build")
@@ -225,7 +227,7 @@ def clean(clean_all: bool):
         result = clean_project(project, clean_all)
 
         if result.success:
-            console.print(f"[green]✓[/green] Cleaned {result.removed_count} items.")
+            console.print(f"[green][OK][/green] Cleaned {result.removed_count} items.")
         else:
             console.print(f"[yellow]![/yellow] Nothing to clean.")
 
@@ -257,7 +259,7 @@ def info():
         # Show file counts
         console.print("\nDSL Files:")
         for lang, count in project.file_counts.items():
-            console.print(f"  • {lang}: {count} files")
+            console.print(f"  - {lang}: {count} files")
 
     except ProjectError as e:
         console.print(f"[red]Error:[/red] {e}")

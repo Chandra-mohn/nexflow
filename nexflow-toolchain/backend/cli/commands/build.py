@@ -97,7 +97,7 @@ def build_project(project: Project, target: str, output: Optional[str],
         return result
 
     if verbose:
-        print(f"  ✓ Validation passed ({validation_result.warning_count} warnings)")
+        print(f"  [OK] Validation passed ({validation_result.warning_count} warnings)")
 
     # Store context for type flow in code generation
     validation_context = getattr(validation_result, 'context', None)
@@ -250,7 +250,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
                 result.errors.append(error_msg)
                 result.success = False
                 if verbose:
-                    print(f"    ✗ Error: {e}")
+                    print(f"    [FAIL] Error: {e}")
 
     # Print policy warnings (they don't fail the build)
     if policy_warnings:
@@ -360,7 +360,7 @@ def verify_maven_compilation(output_path: Path, verbose: bool) -> BuildResult:
                 result.errors.append("Maven compilation failed (run with --verbose for details)")
         else:
             if verbose:
-                print("  ✓ Maven compilation successful")
+                print("  [OK] Maven compilation successful")
 
     except subprocess.TimeoutExpired:
         result.errors.append("Maven compilation timed out (5 minutes)")
@@ -449,7 +449,7 @@ def _build_with_l6_compiler(
     if verbose:
         print("\n  Compilation Summary:")
         for phase, layer_result in compilation_result.layers.items():
-            status = "✓" if layer_result.success else "✗"
+            status = "[OK]" if layer_result.success else "[FAIL]"
             print(f"    {status} {phase.name}: {layer_result.files_parsed} parsed, "
                   f"{layer_result.files_generated} generated")
 

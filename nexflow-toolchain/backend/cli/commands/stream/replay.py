@@ -287,15 +287,15 @@ def replay(
         # Summary
         console.print()
         if dry_run:
-            console.print(f"[green]✓[/green] Dry run complete: {sent:,} messages would be replayed")
+            console.print(f"[green][OK][/green] Dry run complete: {sent:,} messages would be replayed")
         else:
-            console.print(f"[green]✓[/green] Replay complete: {sent:,} messages sent")
+            console.print(f"[green][OK][/green] Replay complete: {sent:,} messages sent")
 
         if skipped > 0:
             console.print(f"[yellow]⚠[/yellow] {skipped:,} messages skipped (filtered or out of time range)")
 
         if errors > 0:
-            console.print(f"[red]✗[/red] {errors:,} messages failed to send")
+            console.print(f"[red][FAIL][/red] {errors:,} messages failed to send")
 
     except ValueError as e:
         console.print(f"[red]Configuration error:[/red] {e}")

@@ -194,7 +194,7 @@ def decode(
         if output:
             output_path = Path(output)
             output_path.write_text(output_content, encoding='utf-8')
-            console.print(f"[green]✓[/green] Decoded {len(messages)} messages to {output_path}")
+            console.print(f"[green][OK][/green] Decoded {len(messages)} messages to {output_path}")
         else:
             print(output_content)
 

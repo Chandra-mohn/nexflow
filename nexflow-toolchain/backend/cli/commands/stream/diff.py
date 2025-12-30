@@ -293,11 +293,11 @@ def _output_summary(result: DiffResult, source1: str, source2: str,
 
     if result.matching:
         pct = len(result.matching) / total_compared * 100 if total_compared else 0
-        lines.append(f"  ✓ Matching: {len(result.matching):,} ({pct:.1f}%)")
+        lines.append(f"  [OK] Matching: {len(result.matching):,} ({pct:.1f}%)")
 
     if result.different:
         pct = len(result.different) / total_compared * 100 if total_compared else 0
-        lines.append(f"  ✗ Different: {len(result.different):,} ({pct:.1f}%)")
+        lines.append(f"  [FAIL] Different: {len(result.different):,} ({pct:.1f}%)")
 
     if result.right_only:
         lines.append(f"  + Only in {source2}: {len(result.right_only):,}")
@@ -310,7 +310,7 @@ def _output_summary(result: DiffResult, source1: str, source2: str,
         lines.append("")
         lines.append("Field-level differences:")
         for field, count in sorted(result.field_changes.items(), key=lambda x: -x[1])[:10]:
-            lines.append(f"  • {field}: {count} changes")
+            lines.append(f"  - {field}: {count} changes")
 
     # Sample differences
     if result.different:
@@ -402,6 +402,6 @@ def _output_json(result: DiffResult, source1: str, source2: str, output: Optiona
 
     if output:
         Path(output).write_text(json_output)
-        console.print(f"[green]✓[/green] Report saved to {output}")
+        console.print(f"[green][OK][/green] Report saved to {output}")
     else:
         print(json_output)
