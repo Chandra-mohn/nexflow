@@ -4,7 +4,7 @@
 process order_processing
     parallelism hint 2
     partition by customer_id
-    time by timestamp
+    time by order_timestamp
         watermark delay 5 seconds
     mode stream
 
