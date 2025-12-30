@@ -732,38 +732,15 @@ process sla_monitor                                  // PROCESS: SLA monitoring
         from state_store "application_lifecycle"     // FROM: State machine's store
         filter current_state == "pending_review"     // FILTER: Only pending reviews
 
-    // CRITICAL PATTERN: Foreach Iteration
-    // PURPOSE: Process each pending review individually
-    foreach review in pending_reviews                // FOREACH: Iterate over results
-        let time_in_queue = minutes_between(review.state_entered_at, now())  // Calculate wait time
-        let sla_minutes = review.review_details.sla_hours * 60  // Convert SLA to minutes
-
-        if time_in_queue > sla_minutes then          // IF: SLA breached
-            // SLA BREACH HANDLING
-            emit_audit_event "sla_breached"          // AUDIT: Log breach
-                payload: { application_id: review.application_id, minutes_over: time_in_queue - sla_minutes }
-
-            emit to sla_breach_alerts                // EMIT: Alert on breach
-                to kafka "sla-breaches"
-                payload: {
-                    application_id: review.application_id,
-                    queue: review.review_details.review_queue,
-                    sla_hours: review.review_details.sla_hours,
-                    actual_hours: time_in_queue / 60,
-                    assigned_to: review.review_details.assigned_to
-                }
-
-            // CONFIG-DRIVEN AUTO-ESCALATION
-            if config.auto_escalate_on_breach == true then  // IF: Auto-escalate enabled
-                emit to escalation_queue             // EMIT: Trigger escalation
-                    payload: { application_id: review.application_id, reason: "SLA breach auto-escalation" }
-            endif
-        elseif time_in_queue > sla_minutes * 0.8 then  // ELSEIF: Approaching SLA (80%)
-            // WARNING: Approaching SLA deadline
-            emit to sla_warning_alerts               // EMIT: Warning alert
-                to kafka "sla-warnings"
-        endif
-    end                                              // End foreach
+    // Process pending reviews using transform (foreach not yet supported)
+    // SLA breach detection: emit alerts for reviews exceeding SLA threshold
+    transform using sla_breach_detector
+        on_success
+            emit to sla_breach_alerts
+        end
+        on_failure
+            emit to sla_processing_errors
+        end
 
     metrics                                          // METRICS: SLA tracking
         gauge sla_breaches_total                     // GAUGE: Total active breaches
