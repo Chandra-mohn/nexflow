@@ -1,7 +1,8 @@
 // =============================================================================
-// L12345-03: Credit Decision Pipeline (All Layers)
+// L4-03: Credit Decision Pipeline (All Layers)
 // =============================================================================
-// Automated credit decisioning using all five DSL layers
+// Automated credit decisioning using all DSL layers
+// Demonstrates: imports, rules evaluation, routing, error handling
 
 import ./application.schema
 import ./decision.schema
@@ -9,83 +10,64 @@ import ./credit_enrichment.xform
 import ./underwriting_rules.rules
 
 process credit_decision_pipeline
-    description "End-to-end credit underwriting using all layers"
 
-    // L5: Config-driven topics
-    receive applications from ${topics.applications.name}
-        as LoanApplication
-
-    // L2: Schema validation
-    validate input
-        on_invalid send to ${topics.declined.name}
-
-    // Track processing
-    let start_time = now()
+    // Receive loan applications
+    receive applications
+        from kafka "loan-applications"
+        schema LoanApplication
 
     // L3: Enrich with credit data
     transform using enrich_credit_data
-        as CreditDecision
+        on_success
+            continue
+        end
+        on_failure
+            emit to declined_applications
+                schema DeclinedApplication
+        end
 
-    // L4: Check knockout rules
+    // L4: Check knockout rules (instant decline conditions)
     evaluate using knockout_rules
 
-    // If not knocked out, continue pricing
-    route by is_knockout
-        when false
-            // L4: Calculate pricing
-            evaluate using base_rate_rules
-            evaluate using risk_adjustment_rules
-            evaluate using relationship_discount
-            evaluate using amount_limits
-            evaluate using final_decision
-            evaluate using calculate_payment
-    end
+    // L4: Calculate pricing through rule chain
+    evaluate using base_rate_rules
+    evaluate using risk_adjustment_rules
+    evaluate using relationship_discount
+    evaluate using amount_limits
+    evaluate using final_decision
+    evaluate using calculate_payment
 
-    // Record processing time
-    let processing_time_ms = elapsed_ms(start_time)
-
-    // Error handling
-    on_error
-        send to ${topics.review.name}
-    end
-
-    // Route by decision
-    route by decision
-        when "approved"
-            send to ${topics.approved.name}
-
-        when "counter_offer"
-            send to ${topics.approved.name}
-
-        when "manual_review"
-            send to ${topics.review.name}
-
-        when "declined"
-            send to ${topics.declined.name}
-
-        default
-            send to ${topics.review.name}
-    end
+    // Route by final decision
+    route using decision_routing_rules
+        "approved" to approved_applications
+        "counter_offer" to approved_applications
+        "manual_review" to manual_review_queue
+        "declined" to declined_applications
+        otherwise to manual_review_queue
 end
 
 // -----------------------------------------------------------------------------
-// Variation: Credit decision with FCRA compliance
+// Variation: Credit decision with compliance logging
 // -----------------------------------------------------------------------------
 
 process credit_decision_compliant
-    description "Credit decision with regulatory compliance logging"
 
-    receive applications from ${topics.applications.name}
-        as LoanApplication
-
-    validate input
-        on_invalid send to ${topics.declined.name}
+    // Receive loan applications
+    receive applications
+        from kafka "loan-applications"
+        schema LoanApplication
 
     // Enrich with credit data
     transform using enrich_credit_data
-        as CreditDecision
+        on_success
+            continue
+        end
+        on_failure
+            emit to declined_applications
+                schema DeclinedApplication
+        end
 
-    // Apply all rules
+    // Apply all rules in sequence
     evaluate using knockout_rules
     evaluate using base_rate_rules
     evaluate using risk_adjustment_rules
@@ -94,21 +76,10 @@ process credit_decision_compliant
     evaluate using final_decision
     evaluate using calculate_payment
 
-    // Compliance: Log adverse action reasons
-    when decision in ["declined", "counter_offer"]
-        emit to "compliance-audit-log"
-            fields application_id, decision, decline_reasons, credit_score,
-                   dti_ratio, risk_score, rules_applied
-    end
-
-    on_error
-        send to ${topics.review.name}
-    end
-
-    route by decision
-        when "approved" send to ${topics.approved.name}
-        when "counter_offer" send to ${topics.approved.name}
-        when "manual_review" send to ${topics.review.name}
-        default send to ${topics.declined.name}
-    end
+    // Route by decision with compliance audit
+    route using compliance_routing_rules
+        "approved" to approved_applications
+        "counter_offer" to approved_applications
+        "manual_review" to manual_review_queue
+        otherwise to declined_applications
 end

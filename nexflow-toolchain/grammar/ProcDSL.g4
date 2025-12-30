@@ -71,7 +71,7 @@ importPathSegment
     ;
 
 importFileExtension
-    : DOT (SCHEMA | TRANSFORM | 'flow' | 'rules')  // File extension marks end of import
+    : DOT (SCHEMA | TRANSFORM | 'xform' | 'rules')  // Allowed: .schema, .transform, .xform, .rules
     ;
 
 processDefinition
