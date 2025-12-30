@@ -174,10 +174,10 @@ def replay(
 
         table.add_row("Source", f"{source_topic} ({kafka_profile.name} cluster)")
         table.add_row("Target", target_topic)
-        table.add_row("Offset Range", f"{from_offset} → {to_offset}")
+        table.add_row("Offset Range", f"{from_offset} -> {to_offset}")
 
         if from_time or to_time:
-            table.add_row("Time Range", f"{from_time or 'start'} → {to_time or 'now'}")
+            table.add_row("Time Range", f"{from_time or 'start'} -> {to_time or 'now'}")
 
         if filter_expr:
             table.add_row("Filter", filter_expr)
@@ -292,7 +292,7 @@ def replay(
             console.print(f"[green][OK][/green] Replay complete: {sent:,} messages sent")
 
         if skipped > 0:
-            console.print(f"[yellow]⚠[/yellow] {skipped:,} messages skipped (filtered or out of time range)")
+            console.print(f"[yellow][WARN][/yellow] {skipped:,} messages skipped (filtered or out of time range)")
 
         if errors > 0:
             console.print(f"[red][FAIL][/red] {errors:,} messages failed to send")

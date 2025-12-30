@@ -397,7 +397,7 @@ class MasterCompiler:
             full_path.write_text(gen_file.content)
 
             if self.verbose:
-                print(f"    → {gen_file.path}")
+                print(f"    -> {gen_file.path}")
 
         result.generation_result = all_files
         return result

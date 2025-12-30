@@ -66,7 +66,7 @@ def build(ctx: click.Context, target: str, output: Optional[str], dry_run: bool,
     """
     Build the project - compile DSL files to target code.
 
-    Performs full pipeline: parse → validate → generate → verify (optional).
+    Performs full pipeline: parse -> validate -> generate -> verify (optional).
 
     \b
     Example:

@@ -221,7 +221,7 @@ def _process_to_graph(proc) -> dict:
             node_id = f"process:transition_{edge_id}"
             node_type = "process"
             node_data = {
-                "label": f"→ {op.target_state}",
+                "label": f"-> {op.target_state}",
                 "targetState": op.target_state,
                 "opType": "transition"
             }
@@ -231,7 +231,7 @@ def _process_to_graph(proc) -> dict:
             node_id = f"process:audit_{edge_id}"
             node_type = "process"
             node_data = {
-                "label": f"📋 {op.event_name}",
+                "label": f"[EVT] {op.event_name}",
                 "eventName": op.event_name,
                 "opType": "emit_audit"
             }
@@ -304,7 +304,7 @@ def _process_to_graph(proc) -> dict:
             node_id = f"process:schedule_{edge_id}"
             node_type = "process"
             node_data = {
-                "label": f"⏰ {op.target}",
+                "label": f"[TMR] {op.target}",
                 "target": op.target,
                 "opType": "schedule"
             }

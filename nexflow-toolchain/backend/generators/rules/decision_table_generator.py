@@ -230,12 +230,12 @@ class DecisionTableGeneratorMixin(DecisionTableRowsMixin):
         if len(params) == 0:
             return "String"
 
-        # Multiple return params → use Output POJO
+        # Multiple return params -> use Output POJO
         if len(params) > 1:
             table_name = getattr(table, 'name', 'unknown')
             return to_pascal_case(table_name) + "Output"
 
-        # Single return param → use its Java type
+        # Single return param -> use its Java type
         param_type = getattr(params[0], 'param_type', None)
         return get_java_type(param_type)
 

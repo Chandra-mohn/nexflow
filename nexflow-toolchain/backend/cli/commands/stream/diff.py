@@ -357,7 +357,7 @@ def _output_table(result: DiffResult, source1: str, source2: str, output: Option
 
     for key, left, right in result.different[:10]:
         diffs = _compare_values(left, right)
-        details = ", ".join(f"{f}: {_format_value(l)} → {_format_value(r)}" for f, l, r in diffs[:3])
+        details = ", ".join(f"{f}: {_format_value(l)} -> {_format_value(r)}" for f, l, r in diffs[:3])
         table.add_row("[yellow]~[/yellow]", key, details)
 
     console.print(table)

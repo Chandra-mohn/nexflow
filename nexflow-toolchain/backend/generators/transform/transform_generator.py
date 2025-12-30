@@ -4,7 +4,7 @@
 """
 Transform Generator Module
 
-Main generator class for L3 Transform DSL → Java transform functions.
+Main generator class for L3 Transform DSL -> Java transform functions.
 Orchestrates mixin classes for modular generation.
 
 COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md

@@ -101,7 +101,7 @@ def peek(
 
     # Handle unmask confirmation
     if unmask:
-        if not click.confirm("⚠️  This will show unmasked PII data. Are you sure?"):
+        if not click.confirm("[WARN]  This will show unmasked PII data. Are you sure?"):
             console.print("[yellow]Cancelled[/yellow]")
             return
 

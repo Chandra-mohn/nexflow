@@ -9,7 +9,7 @@ Consolidates duplicated naming and conversion utilities.
 
 Single source of truth for:
 - Naming conventions (camelCase, PascalCase, snake_case)
-- Type mapping (Nexflow types → Java types)
+- Type mapping (Nexflow types -> Java types)
 - Duration/time utilities
 - Java code templates (headers, imports, class declarations)
 - Safe attribute access patterns

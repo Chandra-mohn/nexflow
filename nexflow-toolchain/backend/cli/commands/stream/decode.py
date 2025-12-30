@@ -199,7 +199,7 @@ def decode(
             print(output_content)
 
         if errors > 0:
-            console.print(f"[yellow]⚠[/yellow] {errors} messages failed to decode", err=True)
+            console.print(f"[yellow][WARN][/yellow] {errors} messages failed to decode", err=True)
 
     except ValueError as e:
         console.print(f"[red]Configuration error:[/red] {e}")

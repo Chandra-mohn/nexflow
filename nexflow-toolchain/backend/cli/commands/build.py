@@ -4,7 +4,7 @@
 """
 Build Command Implementation
 
-Full pipeline: parse → validate → generate → verify (optional).
+Full pipeline: parse -> validate -> generate -> verify (optional).
 
 L6 INTEGRATION:
 When .infra files are present, uses L6 MasterCompiler for infrastructure-aware
@@ -24,7 +24,7 @@ from .types import BuildResult
 def build_project(project: Project, target: str, output: Optional[str],
                   dry_run: bool, verbose: bool, verify: bool = False) -> BuildResult:
     """
-    Build project - full pipeline: parse → validate → generate.
+    Build project - full pipeline: parse -> validate -> generate.
 
     If .infra files are present, uses L6 MasterCompiler for infrastructure-aware
     code generation. Otherwise uses the standard pipeline.
@@ -90,7 +90,7 @@ def build_project(project: Project, target: str, output: Optional[str],
     # Add warnings (don't fail build)
     for warning in validation_result.warnings:
         if verbose:
-            print(f"  ⚠ {warning}")
+            print(f"  [WARN] {warning}")
 
     if not validation_result.success:
         result.success = False
@@ -198,7 +198,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
             full_path.write_text(gen_file.content)
             result.files.append(str(full_path))
             if verbose:
-                print(f"    → {gen_file.path} (Runtime Library)")
+                print(f"    -> {gen_file.path} (Runtime Library)")
     except Exception as e:
         result.errors.append(f"Runtime library generation failed: {e}")
         result.success = False
@@ -243,7 +243,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
                     result.files.append(str(full_path))
 
                     if verbose:
-                        print(f"    → {gen_file.path}")
+                        print(f"    -> {gen_file.path}")
 
             except Exception as e:
                 error_msg = f"{file_path.name}: Generation failed - {e}"
@@ -255,7 +255,7 @@ def generate_code(asts: Dict[str, Dict[Path, Any]], target: str,
     # Print policy warnings (they don't fail the build)
     if policy_warnings:
         for warning in policy_warnings:
-            print(f"  ⚠ {warning}")
+            print(f"  [WARN] {warning}")
 
     return result
 
@@ -295,13 +295,13 @@ def generate_pom_file(output_path: Path, project: Project, target: str,
         )
 
         if verbose:
-            print(f"    → pom.xml")
+            print(f"    -> pom.xml")
 
         return str(pom_path)
 
     except Exception as e:
         if verbose:
-            print(f"    ⚠ Warning: Failed to generate pom.xml: {e}")
+            print(f"    [WARN] Failed to generate pom.xml: {e}")
         return None
 
 

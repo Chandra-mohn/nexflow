@@ -5,7 +5,7 @@
 Policy Validator Module
 
 Validates serialization format choices against organization policies.
-Enforces top-down governance: Org → Team → Schema → Connector.
+Enforces top-down governance: Org -> Team -> Schema -> Connector.
 
 Enforcement behavior:
     - Violation of org policy: Warning (allows build to proceed)
@@ -111,7 +111,7 @@ class PolicyValidator:
     Validates serialization format choices against organization policy.
 
     Implements the governance hierarchy:
-        Organization → Team → Schema → Connector
+        Organization -> Team -> Schema -> Connector
 
     Each level can only use formats allowed by the level above.
     """
@@ -144,7 +144,7 @@ class PolicyValidator:
         """
         result = ValidationResult()
 
-        # Case 1: No format specified → use org default
+        # Case 1: No format specified -> use org default
         if requested_format is None:
             result.resolved_format = self.org_policy.default_format
             result.used_default = True
@@ -174,7 +174,7 @@ class PolicyValidator:
             ))
             return result
 
-        # Case 3: Format allowed → use it
+        # Case 3: Format allowed -> use it
         result.resolved_format = requested_format
         return result
 

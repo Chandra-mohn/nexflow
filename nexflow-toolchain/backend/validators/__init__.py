@@ -100,10 +100,10 @@ def validate_project_asts(
                 if verbose:
                     if file_result.errors:
                         for err in file_result.errors:
-                            print(f"    ✗ {err}")
+                            print(f"    [FAIL] {err}")
                     if file_result.warnings:
                         for warn in file_result.warnings:
-                            print(f"    ⚠ {warn}")
+                            print(f"    [WARN] {warn}")
 
             except Exception as e:
                 result.add_error(
@@ -112,7 +112,7 @@ def validate_project_asts(
                     code="VALIDATION_EXCEPTION"
                 )
                 if verbose:
-                    print(f"    ✗ Exception: {e}")
+                    print(f"    [FAIL] Exception: {e}")
 
     # Attach context to result for type flow in code generation
     if return_context:

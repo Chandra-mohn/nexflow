@@ -4,7 +4,7 @@
 """
 Proc Generator Module
 
-Main generator class for L1 Process DSL → Apache Flink Java code.
+Main generator class for L1 Process DSL -> Apache Flink Java code.
 Orchestrates mixin classes for modular generation.
 
 COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md

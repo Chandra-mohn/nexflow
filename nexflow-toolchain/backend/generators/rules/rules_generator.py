@@ -4,7 +4,7 @@
 """
 Rules Generator Module
 
-Main generator class for L4 Rules DSL → Java rule evaluators.
+Main generator class for L4 Rules DSL -> Java rule evaluators.
 Orchestrates mixin classes for modular generation.
 
 COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
