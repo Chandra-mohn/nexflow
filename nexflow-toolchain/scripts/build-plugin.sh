@@ -19,7 +19,7 @@ if [ "$1" = "--bundled" ]; then
 fi
 
 echo "==> Pruning dev dependencies for smaller package"
-npm prune --production
+npm prune --omit=dev
 
 echo "==> Packaging extension"
 npx vsce package --no-dependencies
