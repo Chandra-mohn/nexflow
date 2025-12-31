@@ -41,8 +41,14 @@
     "languages": [
       {
         "id": "procdsl",
-        "aliases": ["ProcDSL", "procdsl", "L1"],
-        "extensions": [".proc"],
+        "aliases": [
+          "ProcDSL",
+          "procdsl",
+          "L1"
+        ],
+        "extensions": [
+          ".proc"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./icons/proc.svg",
@@ -51,8 +57,14 @@
       },
       {
         "id": "schemadsl",
-        "aliases": ["SchemaDSL", "schemadsl", "L2"],
-        "extensions": [".schema"],
+        "aliases": [
+          "SchemaDSL",
+          "schemadsl",
+          "L2"
+        ],
+        "extensions": [
+          ".schema"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./icons/schema.svg",
@@ -61,8 +73,15 @@
       },
       {
         "id": "transformdsl",
-        "aliases": ["TransformDSL", "transformdsl", "L3"],
-        "extensions": [".xform", ".transform"],
+        "aliases": [
+          "TransformDSL",
+          "transformdsl",
+          "L3"
+        ],
+        "extensions": [
+          ".xform",
+          ".transform"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./icons/transform.svg",
@@ -71,8 +90,14 @@
       },
       {
         "id": "rulesdsl",
-        "aliases": ["RulesDSL", "rulesdsl", "L4"],
-        "extensions": [".rules"],
+        "aliases": [
+          "RulesDSL",
+          "rulesdsl",
+          "L4"
+        ],
+        "extensions": [
+          ".rules"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./icons/rules.svg",
@@ -325,7 +350,11 @@
         },
         "nexflow.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Trace communication between VS Code and the Nexflow language server."
         },
@@ -374,14 +403,14 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run build:webview && npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts",
     "build:webview": "cd webview && npm run build",
-    "package": "vsce package"
+    "package": "vsce package",
+    "vscode:prepublish": "npm run build:webview && npm run compile"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
@@ -391,8 +420,8 @@
     "@types/vscode": "^1.75.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.22.0",
     "eslint": "^8.50.0",
-    "typescript": "^5.2.0",
-    "@vscode/vsce": "^2.22.0"
+    "typescript": "^5.2.0"
   }
 }

@@ -48,6 +48,39 @@ export function clearRuntimeCache(): void {
 }
 
 /**
+ * Cached extension path for bundled executable detection
+ */
+let extensionPath: string | null = null;
+
+/**
+ * Set the extension path for bundled executable detection.
+ * Call this from extension.ts during activation.
+ */
+export function setExtensionPath(extPath: string): void {
+  extensionPath = extPath;
+  clearRuntimeCache(); // Clear cache so new path is used
+}
+
+/**
+ * Detect bundled nexflow executable in extension's bin folder
+ */
+function detectBundledExe(): string | null {
+  if (!extensionPath) {
+    return null;
+  }
+
+  const isWindows = process.platform === "win32";
+  const exeName = isWindows ? "nexflow.exe" : "nexflow";
+  const bundledPath = path.join(extensionPath, "bin", exeName);
+
+  if (fs.existsSync(bundledPath)) {
+    return bundledPath;
+  }
+
+  return null;
+}
+
+/**
  * Detect nexflow.exe in system PATH
  */
 function detectExeInPath(): string | null {
@@ -189,7 +222,20 @@ export async function getNexflowRuntime(): Promise<NexflowRuntime> {
     }
   }
 
-  // Priority 3: Auto-detect nexflow.exe in PATH
+  // Priority 3: Check for bundled executable in extension's bin folder
+  const bundledExe = detectBundledExe();
+  if (bundledExe) {
+    cachedRuntime = {
+      command: bundledExe,
+      baseArgs: [],
+      isPythonMode: false,
+      developerMode,
+      source: "path", // Treat bundled as "path" for logging
+    };
+    return cachedRuntime;
+  }
+
+  // Priority 4: Auto-detect nexflow.exe in system PATH
   const pathExe = detectExeInPath();
   if (pathExe) {
     cachedRuntime = {
@@ -202,7 +248,7 @@ export async function getNexflowRuntime(): Promise<NexflowRuntime> {
     return cachedRuntime;
   }
 
-  // Priority 4: Fallback to Python module
+  // Priority 5: Fallback to Python module
   cachedRuntime = {
     command: getPythonPath(),
     baseArgs: ["-m", "nexflow"],

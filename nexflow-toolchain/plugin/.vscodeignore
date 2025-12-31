@@ -16,8 +16,23 @@ webview/vite.config.ts
 webview/tailwind.config.js
 webview/postcss.config.js
 
-# Node modules (extension is bundled via esbuild)
-node_modules/**
+# Exclude dev dependencies from node_modules (keep vscode-languageclient and deps)
+node_modules/@azure/**
+node_modules/@eslint/**
+node_modules/@eslint-community/**
+node_modules/@humanwhocodes/**
+node_modules/@nodelib/**
+node_modules/@types/**
+node_modules/@typescript-eslint/**
+node_modules/@typespec/**
+node_modules/@ungap/**
+node_modules/@vscode/vsce/**
+node_modules/typescript/**
+node_modules/eslint*/**
+node_modules/glob/**
+node_modules/rimraf/**
+node_modules/prettier/**
+node_modules/.bin/**
 
 # Git and config
 .gitignore

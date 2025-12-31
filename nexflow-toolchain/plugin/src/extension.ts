@@ -37,6 +37,7 @@ import {
 import { BuildRunner } from "./buildRunner";
 import { VisualDesignerPanel } from "./visualDesigner/panel";
 import { StreamExplorerProvider, registerStreamCommands } from "./streamExplorer";
+import { setExtensionPath } from "./runtime";
 
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel;
@@ -262,6 +263,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
     outputChannel.appendLine(`Extension path: ${context.extensionPath}`);
     outputChannel.appendLine(`Platform: ${process.platform}`);
     outputChannel.appendLine(`Workspace folders: ${workspace.workspaceFolders?.map(f => f.uri.fsPath).join(", ") || "(none)"}`);
+
+    // Set extension path for runtime detection (used by Visual Designer, etc.)
+    setExtensionPath(context.extensionPath);
 
     // Determine runtime configuration
     const runtimeConfig = determineRuntimeConfig(context);

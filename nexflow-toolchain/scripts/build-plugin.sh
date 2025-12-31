@@ -21,10 +21,17 @@ if [ "$1" != "--no-bundle" ]; then
 fi
 
 echo "==> Packaging extension"
-# Note: vsce runs vscode:prepublish automatically, which rebuilds webview and compiles TypeScript
-# We've already done this above, but vsce expects it in prepublish for consistency
 mkdir -p ../dist
-npx vsce package --no-dependencies --out ../dist/
+
+# Temporarily remove prepublish to prevent vsce from re-running build
+PREPUBLISH=$(npm pkg get scripts.vscode:prepublish)
+npm pkg delete scripts.vscode:prepublish
+
+# Package extension (vscodeignore excludes dev deps)
+npx vsce package --out ../dist/
+
+# Restore prepublish script
+npm pkg set scripts.vscode:prepublish="npm run build:webview && npm run compile"
 
 # Cleanup bundled binary
 [ -d bin ] && rm -rf bin
