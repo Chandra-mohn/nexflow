@@ -7,6 +7,7 @@ import { JoinNode } from "./JoinNode";
 import { MarkerNode } from "./MarkerNode";
 import { ProcessNode } from "./ProcessNode";
 import { EnrichNode } from "./EnrichNode";
+import { PersistNode } from "./PersistNode";
 
 export const nodeTypes = {
   stream: StreamNode,
@@ -18,4 +19,5 @@ export const nodeTypes = {
   marker: MarkerNode,
   process: ProcessNode,
   enrich: EnrichNode,
+  persist: PersistNode,
 };

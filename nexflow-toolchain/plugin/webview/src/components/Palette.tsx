@@ -51,6 +51,13 @@ const PALETTE_NODES: PaletteNode[] = [
     description: "Stream join",
     defaultData: { label: "join", joinType: "inner", onFields: [], within: "10 seconds" },
   },
+  {
+    type: "persist",
+    label: "Persist",
+    icon: "🗄️",
+    description: "Database sink (MongoDB)",
+    defaultData: { label: "persist", storeName: "", schema: "", async: true },
+  },
 ];
 
 interface PaletteProps {

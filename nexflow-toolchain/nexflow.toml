@@ -1,5 +1,4 @@
 # Nexflow Project Configuration
-# https://github.com/your-org/nexflow
 
 [project]
 name = "nexflow-toolchain"

@@ -127,6 +127,16 @@ body {
   border-color: #10b981;
 }
 
+.nexflow-node-persist {
+  background: #2f2a1e;
+  border-color: #d97706;
+}
+
+.nexflow-node-meta {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* Multi-output nodes (rules, route) */
 .nexflow-node-multi-output {
   display: flex;

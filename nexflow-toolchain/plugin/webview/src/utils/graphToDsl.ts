@@ -172,6 +172,17 @@ export function graphToDsl(
         lines.push(`    marker ${data.markerName || data.label || "checkpoint"}`);
         lines.push("");
         break;
+
+      case "persist":
+        lines.push(`    persist to ${data.storeName || data.label || "store"}`);
+        if (data.async !== false) {
+          lines.push(`        async`);
+        }
+        if (data.schema) {
+          lines.push(`        schema ${data.schema}`);
+        }
+        lines.push("");
+        break;
     }
   }
 
