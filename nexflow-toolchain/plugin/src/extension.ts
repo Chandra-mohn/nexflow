@@ -602,7 +602,71 @@ export async function activate(context: ExtensionContext): Promise<void> {
     );
     context.subscriptions.push(generateFileCommand);
 
-    outputChannel.appendLine(`Nexflow commands registered (build, validate, generate, visual designer)`);
+    // Register Import Schema from Excel command
+    const importSchemaFromExcelCommand = commands.registerCommand(
+      "nexflow.importSchemaFromExcel",
+      async (uri?: Uri) => {
+        // Pick Excel file
+        const files = await window.showOpenDialog({
+          canSelectMany: false,
+          filters: { "Excel Workbook": ["xlsx", "xls"] },
+          title: "Select Excel workbook to import",
+          openLabel: "Import",
+        });
+
+        if (!files || files.length === 0) {
+          return;
+        }
+
+        const excelFile = files[0].fsPath;
+
+        // Determine output directory
+        let outputDir: string;
+
+        if (uri) {
+          // Called from context menu on a file or folder
+          const stat = fs.statSync(uri.fsPath);
+          outputDir = stat.isDirectory() ? uri.fsPath : path.dirname(uri.fsPath);
+        } else {
+          // Called from command palette - use workspace root
+          const workspaceFolder = workspace.workspaceFolders?.[0];
+          if (!workspaceFolder) {
+            window.showErrorMessage("No workspace folder open");
+            return;
+          }
+          outputDir = workspaceFolder.uri.fsPath;
+        }
+
+        // Run the import command
+        const terminal = window.createTerminal({
+          name: "Nexflow Schema Import",
+          cwd: runtimeConfig.projectRoot || outputDir,
+        });
+
+        // Build command based on runtime mode
+        let cmd: string;
+        if (runtimeConfig.mode === "bundled") {
+          cmd = `"${runtimeConfig.cliCommand}" schema import "${excelFile}" -o "${outputDir}"`;
+        } else if (runtimeConfig.mode === "python") {
+          cmd = `"${runtimeConfig.pythonPath}" -m backend.cli.main schema import "${excelFile}" -o "${outputDir}"`;
+        } else {
+          window.showErrorMessage(
+            "Nexflow runtime not available. Please configure the toolchain path."
+          );
+          return;
+        }
+
+        terminal.sendText(cmd);
+        terminal.show();
+
+        window.showInformationMessage(
+          `Importing schemas from ${path.basename(excelFile)} to ${outputDir}`
+        );
+      }
+    );
+    context.subscriptions.push(importSchemaFromExcelCommand);
+
+    outputChannel.appendLine(`Nexflow commands registered (build, validate, generate, visual designer, schema import)`);
 
     // Initialize Stream Explorer
     const workspaceRoot = workspace.workspaceFolders?.[0]?.uri.fsPath || "";

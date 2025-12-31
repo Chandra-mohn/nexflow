@@ -182,6 +182,11 @@
       {
         "command": "nexflow.stream.configureCluster",
         "title": "Nexflow: Configure Kafka Cluster"
+      },
+      {
+        "command": "nexflow.importSchemaFromExcel",
+        "title": "Nexflow: Import Schema from Excel...",
+        "icon": "$(file-add)"
       }
     ],
     "menus": {
@@ -205,6 +210,10 @@
         {
           "command": "nexflow.openVisualDesignerFromUI",
           "when": "resourceFilename =~ /\\.proc\\.ui$/"
+        },
+        {
+          "command": "nexflow.importSchemaFromExcel",
+          "when": "true"
         }
       ],
       "explorer/context": [
@@ -227,6 +236,11 @@
           "command": "nexflow.build",
           "when": "explorerResourceIsFolder",
           "group": "nexflow@2"
+        },
+        {
+          "command": "nexflow.importSchemaFromExcel",
+          "when": "resourceExtname == .schema || explorerResourceIsFolder",
+          "group": "nexflow@3"
         }
       ],
       "editor/context": [
@@ -239,6 +253,11 @@
           "command": "nexflow.generateFile",
           "when": "resourceExtname == .schema || resourceExtname == .xform || resourceExtname == .proc || resourceExtname == .rules",
           "group": "nexflow@1"
+        },
+        {
+          "command": "nexflow.importSchemaFromExcel",
+          "when": "resourceExtname == .schema",
+          "group": "nexflow@2"
         }
       ],
       "editor/title": [
