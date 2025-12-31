@@ -17,7 +17,7 @@ export function PersistNode({ data }: PersistNodeProps) {
       <Handle type="target" position={Position.Left} id="left" />
 
       <div className="flex items-center gap-2">
-        <span className="text-lg">🗄️</span>
+        <span className="text-lg">🛢️</span>
         <div>
           <div className="nexflow-node-label">{data.label}</div>
           <div className="nexflow-node-type">

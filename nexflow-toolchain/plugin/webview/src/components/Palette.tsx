@@ -54,7 +54,7 @@ const PALETTE_NODES: PaletteNode[] = [
   {
     type: "persist",
     label: "Persist",
-    icon: "🗄️",
+    icon: "🛢️",
     description: "Database sink (MongoDB)",
     defaultData: { label: "persist", storeName: "", schema: "", async: true },
   },
