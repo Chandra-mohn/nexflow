@@ -340,6 +340,38 @@ def lsp(tcp: bool, host: str, port: int, log_level: str):
 
 
 # ============================================================================
+# Schema Commands
+# ============================================================================
+
+@cli.group()
+def schema():
+    """
+    Schema management tools.
+
+    Import, validate, and manage Nexflow schema definitions.
+
+    \b
+    Commands:
+        import  - Import Excel workbooks to Schema DSL
+
+    \b
+    Example:
+        nexflow schema import Orders.xlsx -o ./schemas/orders/
+        nexflow schema import *.xlsx -o ./schemas/ --resolve-shortcuts
+    """
+    pass
+
+
+# Import and register schema commands
+try:
+    from .commands.schema_import import schema_import
+    schema.add_command(schema_import)
+except ImportError:
+    # Schema import not available (missing openpyxl)
+    pass
+
+
+# ============================================================================
 # Stream Investigation Commands
 # ============================================================================
 
