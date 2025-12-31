@@ -24,10 +24,12 @@ EOF
 
 # Build with PyInstaller (onedir for faster startup)
 # Note: lsprotocol is required by pygls for LSP type definitions
+# Exclude large unnecessary libraries to reduce bundle size
 $PYTHON -m PyInstaller nexflow_entry.py \
     --onedir \
+    --noconfirm \
     --name nexflow \
-    --distpath dist \
+    --distpath dist/bin \
     --workpath build \
     --specpath . \
     --console \
@@ -40,11 +42,26 @@ $PYTHON -m PyInstaller nexflow_entry.py \
     --hidden-import toml \
     --hidden-import cattrs \
     --hidden-import attrs \
-    --log-level WARN
+    --exclude-module numpy \
+    --exclude-module scipy \
+    --exclude-module pandas \
+    --exclude-module matplotlib \
+    --exclude-module PIL \
+    --exclude-module tkinter \
+    --exclude-module _tkinter \
+    --exclude-module tcl \
+    --exclude-module tk \
+    --exclude-module IPython \
+    --exclude-module jupyter \
+    --exclude-module notebook \
+    --exclude-module pytest \
+    --exclude-module setuptools \
+    --exclude-module pip \
+    --log-level ERROR
 
 # Cleanup
 rm -f nexflow_entry.py nexflow.spec
 rm -rf build
 
-echo "==> Done: dist/nexflow/"
-dist/nexflow/nexflow --version
+echo "==> Done: dist/bin/nexflow/"
+dist/bin/nexflow/nexflow --version

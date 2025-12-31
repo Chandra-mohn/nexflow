@@ -1,6 +1,8 @@
 #!/bin/bash
 # Build VS Code plugin
-# Usage: ./scripts/build-plugin.sh [--bundled]
+# Usage: ./scripts/build-plugin.sh [--no-bundle]
+#   Default: bundles nexflow executable into plugin
+#   --no-bundle: skip bundling (smaller package, requires separate nexflow install)
 set -e
 cd "$(dirname "$0")/.."
 
@@ -11,23 +13,21 @@ cd webview && npm install && npm run build && cd ..
 echo "==> Compiling TypeScript"
 npm run compile
 
-# Copy bundled executable if requested
-if [ "$1" = "--bundled" ]; then
-    echo "==> Copying nexflow executable"
+# Bundle executable by default, skip with --no-bundle
+if [ "$1" != "--no-bundle" ]; then
+    echo "==> Bundling nexflow executable"
     mkdir -p bin
-    cp -r ../dist/nexflow/* bin/ 2>/dev/null || { echo "Error: dist/nexflow/ not found. Run build-exe.sh first."; exit 1; }
+    cp -r ../dist/bin/nexflow/* bin/ 2>/dev/null || { echo "Error: dist/bin/nexflow/ not found. Run build-exe.sh first."; exit 1; }
 fi
 
-echo "==> Pruning dev dependencies for smaller package"
-npm prune --omit=dev
-
 echo "==> Packaging extension"
-npx vsce package --no-dependencies
-
-# Restore dev dependencies for development
-npm install
+# Note: vsce runs vscode:prepublish automatically, which rebuilds webview and compiles TypeScript
+# We've already done this above, but vsce expects it in prepublish for consistency
+mkdir -p ../dist
+npx vsce package --no-dependencies --out ../dist/
 
 # Cleanup bundled binary
 [ -d bin ] && rm -rf bin
 
-echo "==> Done: $(ls -1 *.vsix | tail -1)"
+VSIX=$(ls -1 ../dist/*.vsix | tail -1)
+echo "==> Done: $VSIX"
