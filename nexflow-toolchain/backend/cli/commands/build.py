@@ -411,7 +411,7 @@ def _build_with_l6_compiler(
     The L6 compiler properly orders compilation phases and passes
     infrastructure bindings to the L1 ProcGenerator.
     """
-    from ...compiler import MasterCompiler, CompilationPhase
+    from ...compiler import MasterCompiler
 
     result = BuildResult(success=True)
 

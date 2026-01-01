@@ -9,7 +9,6 @@ Added in v0.6.0+ for phase-based execution control.
 Extended in v0.7.0+ for processing date support.
 """
 
-from typing import List, Optional
 
 from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser

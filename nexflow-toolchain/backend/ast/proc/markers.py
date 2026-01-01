@@ -10,13 +10,11 @@ AST nodes for EOD markers and phase-based execution control.
 from dataclasses import dataclass, field
 from typing import Optional, List, Union, TYPE_CHECKING
 
-from .common import SourceLocation, Duration
+from .common import SourceLocation
 from .enums import PhaseType, MarkerConditionType
 
 if TYPE_CHECKING:
-    from .input import ReceiveDecl
-    from .processing import TransformDecl, EnrichDecl
-    from .output import EmitDecl, PersistDecl
+    pass
 
 
 @dataclass

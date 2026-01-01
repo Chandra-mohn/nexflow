@@ -8,7 +8,7 @@ Handles parsing of state machine blocks: states, transitions, and actions.
 Updated for grammar v0.5.0+ with intuitive state and transition syntax.
 """
 
-from typing import List, Optional
+from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.parser.generated.schema import SchemaDSLParser

@@ -16,7 +16,7 @@ Single source of truth for:
 """
 
 import re
-from typing import Optional, Any
+from typing import Any
 
 
 # =============================================================================

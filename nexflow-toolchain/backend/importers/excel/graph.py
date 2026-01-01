@@ -12,14 +12,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 import logging
 
-from .models import ServiceDomain, Entity, Relationship, to_pascal_case
+from .models import ServiceDomain, Entity
 
 logger = logging.getLogger(__name__)
 
 
 class GraphError(Exception):
     """Error in relationship graph building."""
-    pass
 
 
 @dataclass

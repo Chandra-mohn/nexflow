@@ -9,14 +9,14 @@ Supports SSL/SASL authentication and multiple cluster profiles.
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 from .config import KafkaConfig, KafkaProfile
 from .decoder import DecodedMessage, MessageDecoder
 from .filter import matches_filter
-from .pii import PIIMasker, create_masker
+from .pii import create_masker
 
 
 @dataclass
@@ -62,7 +62,7 @@ class KafkaClient:
             return self._consumer
 
         try:
-            from confluent_kafka import Consumer, OFFSET_BEGINNING, OFFSET_END
+            from confluent_kafka import Consumer
         except ImportError:
             raise RuntimeError("confluent-kafka is required. Install with: pip install confluent-kafka")
 

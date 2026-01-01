@@ -16,7 +16,6 @@ from .models import (
     EnumValue,
     EntityQualifier,
     PersistencePattern,
-    RelationshipType,
     to_pascal_case,
     to_camel_case,
     to_upper_snake,

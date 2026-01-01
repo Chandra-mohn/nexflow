@@ -8,7 +8,7 @@
 The Nexflow VS Code Extension provides comprehensive IDE support for all Nexflow DSL languages:
 - **L1 ProcDSL** (`.proc`) - Process Orchestration
 - **L2 SchemaDSL** (`.schema`) - Data Schema Definitions
-- **L3 TransformDSL** (`.xform`, `.transform`) - Data Transformations
+- **L3 TransformDSL** (`.xform`) - Data Transformations
 - **L4 RulesDSL** (`.rules`) - Business Decision Logic
 
 ## Installation
@@ -34,7 +34,6 @@ The extension automatically detects the best runtime mode:
 |------|-------------|-----------|
 | **Bundled** | Uses `nexflow` executable | Found in extension `bin/`, system PATH, or configured path |
 | **Python** | Uses Python + source code | Found `backend/lsp/` in workspace or parent folders |
-| **None** | Visual Designer only | No runtime found |
 
 **Detection order:**
 1. User-configured `nexflow.runtime.executable` setting

@@ -7,7 +7,7 @@ Operator Generator Mixin
 Generates Flink processing operators from L1 enrich, transform, route declarations.
 """
 
-from typing import List, Set, Union
+from typing import Set, Union
 
 from backend.ast import proc_ast as ast
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case

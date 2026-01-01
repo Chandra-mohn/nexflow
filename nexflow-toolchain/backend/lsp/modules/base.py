@@ -8,7 +8,7 @@ registered and loaded independently.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from lsprotocol import types
 
 
@@ -94,7 +94,6 @@ class LanguageModule(ABC):
 
         Examples: 'procdsl', 'schemadsl', 'transformdsl', 'rulesdsl'
         """
-        pass
 
     @property
     @abstractmethod
@@ -104,7 +103,6 @@ class LanguageModule(ABC):
 
         Examples: ['.proc'], ['.schema'], ['.xform'], ['.rules']
         """
-        pass
 
     @property
     @abstractmethod
@@ -114,7 +112,6 @@ class LanguageModule(ABC):
 
         Examples: 'ProcDSL (L1 Process Orchestration)'
         """
-        pass
 
     # =========================================================================
     # Optional Properties (override to customize)
@@ -161,7 +158,6 @@ class LanguageModule(ABC):
         Returns:
             List of LSP Diagnostic objects
         """
-        pass
 
     def get_completions(
         self,

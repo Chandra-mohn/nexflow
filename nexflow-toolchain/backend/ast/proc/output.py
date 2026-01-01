@@ -7,7 +7,7 @@ Process AST Output and Completion Blocks
 Output and completion-related dataclasses for process AST.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, List, Union
 from enum import Enum
 

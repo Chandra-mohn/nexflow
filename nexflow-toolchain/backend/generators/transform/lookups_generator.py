@@ -17,7 +17,7 @@ L3 Lookups Block Features:
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import transform_ast as ast
 

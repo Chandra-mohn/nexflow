@@ -19,7 +19,6 @@ from .base import LanguageModule, ModuleCapabilities
 
 # Import existing parser infrastructure from backend
 from backend.parser.rules_parser import RulesParser
-from backend.parser.base import ParseResult
 
 
 class RulesModule(LanguageModule):

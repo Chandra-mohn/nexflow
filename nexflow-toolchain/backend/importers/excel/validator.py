@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import logging
 
-from .models import ServiceDomain, Entity, Attribute, Relationship
+from .models import ServiceDomain
 from .graph import DomainGraph
 
 logger = logging.getLogger(__name__)

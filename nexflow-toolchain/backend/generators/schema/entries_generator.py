@@ -8,7 +8,6 @@ Generates Java reference data code from Schema AST definitions.
 Supports reference_data pattern with static lookup tables.
 """
 
-from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

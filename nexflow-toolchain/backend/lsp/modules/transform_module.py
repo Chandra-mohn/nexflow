@@ -19,7 +19,6 @@ from .base import LanguageModule, ModuleCapabilities
 
 # Import existing parser infrastructure from backend
 from backend.parser.transform_parser import TransformParser
-from backend.parser.base import ParseResult
 
 
 class TransformModule(LanguageModule):

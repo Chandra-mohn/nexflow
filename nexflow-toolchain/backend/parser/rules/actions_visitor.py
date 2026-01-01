@@ -8,7 +8,6 @@ Handles parsing of actions block for action method declarations.
 RFC REFERENCE: See docs/RFC-Method-Implementation-Strategy.md (Solution 5)
 """
 
-from typing import Optional, List
 
 from backend.ast import rules_ast as ast
 from backend.parser.generated.rules import RulesDSLParser

@@ -14,7 +14,7 @@ Key characteristics of Java Records:
 - 80% less boilerplate code than traditional POJOs
 """
 
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

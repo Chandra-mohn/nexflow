@@ -9,7 +9,7 @@ Uses Flink native state with TTL for cache semantics.
 Supports both TTL-based and key-based caching strategies.
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import transform_ast as ast
 

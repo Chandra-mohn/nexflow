@@ -18,7 +18,6 @@ functions/ subpackage for maintainability.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from backend.generators.base import (
     BaseGenerator,

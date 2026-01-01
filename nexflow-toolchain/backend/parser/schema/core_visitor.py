@@ -8,7 +8,7 @@ Handles parsing of core schema elements: program, schema definition,
 patterns, versions, identity blocks, fields blocks, and nested objects.
 """
 
-from typing import List, Optional, Union
+from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.ast.common import ImportStatement

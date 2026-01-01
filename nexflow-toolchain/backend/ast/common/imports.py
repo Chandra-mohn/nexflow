@@ -7,7 +7,7 @@ Import Statement AST Type
 Represents an import statement in any DSL file (L1-L4).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
 

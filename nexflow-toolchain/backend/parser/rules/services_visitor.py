@@ -7,7 +7,6 @@ Services Visitor Mixin for Rules Parser
 Handles parsing of services block for external service declarations.
 """
 
-from typing import Optional, List
 
 from backend.ast import rules_ast as ast
 from backend.parser.generated.rules import RulesDSLParser

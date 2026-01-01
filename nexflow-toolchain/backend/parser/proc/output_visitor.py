@@ -11,7 +11,6 @@ Updated for grammar v0.5.0+ which uses emitDecl directly in bodyContent
 instead of a separate outputBlock.
 """
 
-from typing import Union
 
 from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser

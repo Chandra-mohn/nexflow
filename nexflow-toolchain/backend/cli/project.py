@@ -17,7 +17,6 @@ from backend.config.org_policy import OrganizationPolicy, load_org_policy
 
 class ProjectError(Exception):
     """Error related to project configuration or structure."""
-    pass
 
 
 # DSL language extensions and their layer mapping

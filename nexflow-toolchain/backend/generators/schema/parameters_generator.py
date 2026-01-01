@@ -8,7 +8,6 @@ Generates Java parameter configuration code from Schema AST definitions.
 Supports operational_parameters pattern with defaults, ranges, and scheduling.
 """
 
-from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

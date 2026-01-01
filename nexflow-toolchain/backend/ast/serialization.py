@@ -15,7 +15,7 @@ Hierarchy:
 5. Built-in default (json)
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 

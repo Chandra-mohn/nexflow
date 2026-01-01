@@ -13,7 +13,6 @@ Extended for v0.6.0+ with business date, markers, and phases support.
 Extended for v0.7.0+ with processing date support.
 """
 
-from typing import List, Optional
 
 from backend.ast import proc_ast as ast
 from backend.ast.common import ImportStatement

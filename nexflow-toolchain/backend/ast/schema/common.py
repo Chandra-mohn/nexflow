@@ -7,8 +7,8 @@ Schema AST Common Types
 Common dataclass types used across schema AST definitions.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, List, Union, Any
+from dataclasses import dataclass
+from typing import Optional, List, Union
 
 
 @dataclass

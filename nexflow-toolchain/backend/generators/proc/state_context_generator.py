@@ -16,7 +16,7 @@ The generated ProcessContext class provides:
 - List operations: getList(), addToList(), clearList()
 """
 
-from typing import Set, List, Dict, Optional
+from typing import Set
 
 from backend.ast import proc_ast as ast
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case, duration_to_ms

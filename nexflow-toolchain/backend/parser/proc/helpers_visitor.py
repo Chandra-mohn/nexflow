@@ -11,7 +11,7 @@ Updated for grammar v0.5.0+ which uses keywordOrIdentifier for field paths
 to allow keywords as valid field names.
 """
 
-from typing import List, Optional
+from typing import List
 
 from backend.ast import proc_ast as ast
 from backend.parser.common import BaseVisitorMixin

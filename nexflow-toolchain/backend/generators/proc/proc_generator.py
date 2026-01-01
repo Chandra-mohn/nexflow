@@ -24,7 +24,7 @@ When an InfraConfig is provided, the generator uses BindingResolver to:
 """
 
 from pathlib import Path
-from typing import Optional, Set
+from typing import Optional
 
 from backend.ast import proc_ast as ast
 from backend.ast.infra import InfraConfig

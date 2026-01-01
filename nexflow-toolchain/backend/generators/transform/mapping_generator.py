@@ -7,7 +7,7 @@ Mapping Generator Mixin
 Generates Java mapping code from L3 Transform mappings blocks.
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import transform_ast as ast
 

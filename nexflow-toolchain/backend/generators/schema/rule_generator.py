@@ -8,7 +8,6 @@ Generates Java rule evaluation code from Schema AST definitions.
 Supports business_logic pattern with given/calculate/return blocks.
 """
 
-from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

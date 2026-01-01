@@ -16,7 +16,7 @@ Key features:
 """
 
 from typing import List, Dict, Set, Callable, Any
-from backend.generators.common.java_utils import to_camel_case, to_pascal_case, get_java_type
+from backend.generators.common.java_utils import to_camel_case
 
 
 class RecordBuilderMixin:

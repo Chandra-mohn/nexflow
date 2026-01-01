@@ -9,7 +9,7 @@ when viewing production data.
 """
 
 import re
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, Set
 
 from .config import PIIConfig
 

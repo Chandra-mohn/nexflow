@@ -16,7 +16,7 @@ Enforcement behavior:
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from backend.ast.serialization import SerializationFormat
 from backend.config.org_policy import OrganizationPolicy

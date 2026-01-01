@@ -18,7 +18,7 @@ L3 Params Block Features:
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import transform_ast as ast
 

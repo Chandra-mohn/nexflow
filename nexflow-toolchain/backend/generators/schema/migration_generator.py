@@ -8,7 +8,6 @@ Generates Java migration code from Schema AST definitions.
 Supports schema evolution with field mappings and transformation expressions.
 """
 
-from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

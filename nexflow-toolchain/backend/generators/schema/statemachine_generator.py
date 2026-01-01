@@ -8,7 +8,6 @@ Generates Java state machine code from Schema AST definitions.
 Supports state enums, transition validation, and action dispatch.
 """
 
-from typing import List, Dict
 
 from backend.ast import schema_ast as ast
 from backend.generators.base import BaseGenerator

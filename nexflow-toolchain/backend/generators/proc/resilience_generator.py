@@ -7,7 +7,7 @@ Resilience Generator Mixin
 Generates Flink resilience code from L1 resilience declarations.
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import proc_ast as ast
 

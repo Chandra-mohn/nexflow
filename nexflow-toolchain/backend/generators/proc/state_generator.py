@@ -7,7 +7,7 @@ State Generator Mixin
 Generates Flink state management code from L1 state declarations.
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import proc_ast as ast
 

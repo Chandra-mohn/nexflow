@@ -8,7 +8,6 @@ Handles parsing of expressions, literals, function calls, and all expression typ
 including binary, unary, when, index, and optional chain expressions.
 """
 
-from typing import Union
 
 from backend.ast import transform_ast as ast
 from backend.parser.generated.transform import TransformDSLParser

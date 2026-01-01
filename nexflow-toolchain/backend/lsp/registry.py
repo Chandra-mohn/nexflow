@@ -5,7 +5,7 @@ Manages registration and lookup of language modules.
 Supports dynamic loading and extension-based routing.
 """
 
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional
 from pathlib import Path
 import logging
 

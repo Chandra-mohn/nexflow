@@ -11,16 +11,14 @@ Supports both online (schema registry) and offline (local schema files) modes.
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from backend.ast.serialization import SerializationFormat
 
 
 class DecodingError(Exception):
     """Error during message decoding."""
-    pass
 
 
 @dataclass
@@ -53,12 +51,10 @@ class Decoder(ABC):
     @abstractmethod
     def decode(self, data: bytes) -> Any:
         """Decode binary data to Python object."""
-        pass
 
     @abstractmethod
     def get_format(self) -> SerializationFormat:
         """Get the serialization format this decoder handles."""
-        pass
 
 
 class JsonDecoder(Decoder):
@@ -115,7 +111,6 @@ class ConfluentAvroDecoder(Decoder):
     def __init__(self, registry_url: str, registry_config: Optional[Dict[str, Any]] = None):
         try:
             from confluent_kafka.schema_registry import SchemaRegistryClient
-            from confluent_kafka.schema_registry.avro import AvroDeserializer
         except ImportError:
             raise DecodingError("confluent-kafka is required for Confluent Avro decoding. "
                               "Install with: pip install confluent-kafka[avro]")
@@ -164,9 +159,7 @@ class ProtobufDecoder(Decoder):
 
     def __init__(self, proto_path: Path, message_type: str):
         try:
-            from google.protobuf import descriptor_pb2
-            from google.protobuf.descriptor_pool import DescriptorPool
-            from google.protobuf.message_factory import MessageFactory
+            pass
         except ImportError:
             raise DecodingError("protobuf is required for Protobuf decoding. "
                               "Install with: pip install protobuf")

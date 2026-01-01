@@ -11,7 +11,7 @@ Generates Flink connectors for non-Kafka sources:
 - Scheduler (Cron-based)
 """
 
-from typing import List, Set
+from typing import Set
 
 from backend.ast import proc_ast as ast
 from backend.generators.common.java_utils import to_camel_case

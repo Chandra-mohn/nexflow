@@ -9,7 +9,7 @@ This is the bridge between the process DSL and actual infrastructure.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 from backend.ast.infra import (
     InfraConfig,
@@ -18,7 +18,6 @@ from backend.ast.infra import (
     KafkaConfig,
     MongoDBConfig,
     ResourceConfig,
-    InfraValidationError,
 )
 
 

@@ -9,10 +9,9 @@ Generates Java computed property methods from Schema AST computed blocks.
 COVENANT REFERENCE: See docs/COVENANT-Code-Generation-Principles.md
 """
 
-from typing import Dict, List, Optional, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from backend.ast import schema_ast as ast
-from backend.generators.base import BaseGenerator
 
 if TYPE_CHECKING:
     from backend.generators.schema_generator import SchemaGenerator

@@ -8,7 +8,7 @@ Handles parsing of processing operations: enrich, transform, route,
 aggregate, window, join, and merge declarations.
 """
 
-from typing import Optional, Union
+from typing import Union
 
 from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser

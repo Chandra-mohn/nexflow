@@ -20,7 +20,7 @@ This generates MongoSink with AsyncSinkWriter pattern.
 ─────────────────────────────────────────────────────────────────────
 """
 
-from typing import Optional, Set
+from typing import Set
 
 from backend.ast.proc import EmitDecl, PersistDecl, PersistMode, PersistErrorAction
 from backend.generators.infra import BindingResolver, ResolvedMongoDBPersistence

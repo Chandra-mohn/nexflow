@@ -7,7 +7,7 @@ Function Generator Mixin
 Generates Java function class structure for L3 Transforms.
 """
 
-from typing import Set, List
+from typing import Set
 
 from backend.ast import transform_ast as ast
 from backend.generators.transform.function_process import FunctionProcessMixin

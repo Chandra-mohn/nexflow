@@ -9,7 +9,6 @@ _wire_operator() dispatcher for routing to appropriate operator handlers.
 """
 
 from backend.ast import proc_ast as ast
-from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 from .basic_operators import BasicOperatorsMixin
 from .window_join_operators import WindowJoinOperatorsMixin

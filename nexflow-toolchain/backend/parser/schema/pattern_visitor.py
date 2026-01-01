@@ -8,7 +8,6 @@ Handles parsing of pattern-specific blocks: parameters (operational_parameters),
 entries (reference_data), rules (business_logic), and migrations.
 """
 
-from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.parser.generated.schema import SchemaDSLParser

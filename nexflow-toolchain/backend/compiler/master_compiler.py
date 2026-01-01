@@ -294,7 +294,7 @@ class MasterCompiler:
         with_infrastructure: bool = False
     ) -> LayerResult:
         """Compile a single layer (schema, transform, rules, or proc)."""
-        from backend.parser import parse as parse_dsl, PARSERS
+        from backend.parser import parse as parse_dsl
         from backend.generators import get_generator
 
         result = LayerResult(phase=phase)

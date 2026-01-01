@@ -7,12 +7,11 @@ Sink Generator Mixin
 Generates Flink sink connections from L1 emit declarations.
 """
 
-from typing import Optional, Set, List
+from typing import Set, List
 
 from backend.ast import proc_ast as ast
 from backend.ast.serialization import SerializationConfig, SerializationFormat
-from backend.config.org_policy import OrganizationPolicy
-from backend.config.policy_validator import PolicyValidator, ValidationResult, ViolationLevel
+from backend.config.policy_validator import PolicyValidator
 from backend.generators.common.java_utils import to_pascal_case, to_camel_case
 
 

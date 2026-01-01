@@ -21,7 +21,6 @@ from typing import Optional
 import click
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
 
 from .project import Project, ProjectError
 from .commands import build_project, validate_project, parse_file, init_project, clean_project
@@ -359,7 +358,6 @@ def schema():
         nexflow schema import Orders.xlsx -o ./schemas/orders/
         nexflow schema import *.xlsx -o ./schemas/ --resolve-shortcuts
     """
-    pass
 
 
 # Import and register schema commands
@@ -396,7 +394,6 @@ def stream():
         nexflow stream replay orders-prod orders-dev --profile dev
         nexflow stream diff orders-v1 orders-v2 --key order_id
     """
-    pass
 
 
 # Import and register stream commands

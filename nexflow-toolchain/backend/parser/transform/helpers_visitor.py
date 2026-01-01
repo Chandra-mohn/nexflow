@@ -8,7 +8,7 @@ Common helper methods for field paths, durations, and utility functions
 used across all transform visitor mixins.
 """
 
-from typing import List, Optional, Union
+from typing import List, Union
 
 from backend.ast import transform_ast as ast
 from backend.parser.common import BaseVisitorMixin

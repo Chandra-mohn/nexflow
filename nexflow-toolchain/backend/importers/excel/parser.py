@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 class ExcelParseError(Exception):
     """Error during Excel parsing."""
-    pass
 
 
 class ExcelParser:

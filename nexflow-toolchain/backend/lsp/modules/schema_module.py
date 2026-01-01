@@ -7,7 +7,7 @@ Handles .schema files with syntax validation, completions, symbols, and hover.
 
 import sys
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional
 from lsprotocol import types
 
 # Add project root to path for imports (NOT backend, to avoid ast module conflict)
@@ -19,7 +19,6 @@ from .base import LanguageModule, ModuleCapabilities
 
 # Import existing parser infrastructure from backend
 from backend.parser.schema_parser import SchemaParser
-from backend.parser.base import ParseResult
 
 
 class SchemaModule(LanguageModule):

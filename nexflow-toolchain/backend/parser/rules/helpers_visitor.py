@@ -8,11 +8,10 @@ Common helper methods for parsing rules DSL.
 """
 
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Union
+from typing import Optional
 
 from backend.ast import rules_ast as ast
 from backend.parser.base import SourceLocation
-from backend.parser.generated.rules import RulesDSLParser
 
 
 class RulesHelpersVisitorMixin:

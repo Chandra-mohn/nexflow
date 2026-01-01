@@ -8,10 +8,9 @@ Validates L1 Proc DSL ASTs for semantic correctness.
 """
 
 from pathlib import Path
-from typing import Optional, Set, Any
+from typing import Optional, Set
 
-from backend.ast import proc_ast as ast
-from backend.validators.base import BaseValidator, ValidationResult, ValidationContext
+from backend.validators.base import BaseValidator, ValidationResult
 
 
 class ProcValidator(BaseValidator):

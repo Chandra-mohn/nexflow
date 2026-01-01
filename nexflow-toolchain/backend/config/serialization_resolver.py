@@ -42,7 +42,6 @@ from backend.config.org_policy import OrganizationPolicy, load_org_policy
 from backend.config.policy_validator import (
     PolicyValidator,
     ValidationResult,
-    ViolationLevel,
 )
 
 
