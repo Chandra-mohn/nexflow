@@ -6,7 +6,6 @@
  *
  * ANTLR4 Grammar for L4 Business Rules DSL
  *
- * Version: 1.1.0
  * Specification: docs/L4-Business-Rules.md
  *
  * This grammar defines the syntax for business rules including:
@@ -15,10 +14,6 @@
  * - Hit Policies: first_match, single_hit, multi_hit
  * - Condition Types: equals, range, in_set, pattern, null_check
  * - Action Types: assign, calculate, lookup, call, emit
- *
- * MERGED FROM:
- * - docs/grammar/RulesDSL.g4 (decision tables, money/percentage literals)
- * - rules-dsl/Rules.g4 (rich procedural rules, dual quotes, nested blocks)
  *
  * SEMANTIC VALIDATION NOTES (enforced by compiler, not grammar):
  * - Decision tables should have exhaustive conditions (wildcard row)
@@ -42,7 +37,7 @@ program
     ;
 
 // ----------------------------------------------------------------------------
-// Import Statement (v0.7.0+)
+// Import Statement
 // ----------------------------------------------------------------------------
 
 importStatement
@@ -132,7 +127,6 @@ durationUnit
 
 // ----------------------------------------------------------------------------
 // Actions Block (Action Method Declarations)
-// RFC REFERENCE: See docs/RFC-Method-Implementation-Strategy.md (Solution 5)
 // ----------------------------------------------------------------------------
 
 actionsBlock
@@ -258,7 +252,7 @@ paramType
     : baseType
     | MONEY_TYPE
     | PERCENTAGE_TYPE
-    | IDENTIFIER                              // Custom type reference
+    | IDENTIFIER
     ;
 
 baseType
@@ -267,7 +261,7 @@ baseType
     | BOOLEAN_TYPE
     | DATE_TYPE
     | TIMESTAMP_TYPE
-    | BIZDATE_TYPE       // v0.6.0+: Business date type
+    | BIZDATE_TYPE
     ;
 
 inlineComment
@@ -342,7 +336,7 @@ condition
     | nullCondition                           // is null, is not null
     | comparisonCondition                     // > 1000, >= 700, != "closed"
     | expressionCondition                     // Complex boolean expression
-    | markerStateCondition                    // v0.6.0+: marker eod_1 fired
+    | markerStateCondition                    // marker eod_1 fired
     ;
 
 exactMatch
@@ -381,7 +375,7 @@ expressionCondition
     : LPAREN booleanExpr RPAREN
     ;
 
-// v0.6.0+: Marker state condition for phase-aware rules
+// Marker state condition for phase-aware rules
 markerStateCondition
     : MARKER IDENTIFIER FIRED                     // marker eod_1 fired
     | MARKER IDENTIFIER PENDING                   // marker eod_1 pending
@@ -747,7 +741,7 @@ numberLiteral
 // Keywords - Structure
 // ----------------------------------------------------------------------------
 
-IMPORT         : 'import' ;  // v0.7.0+: For import statements
+IMPORT         : 'import' ;
 DECISION_TABLE : 'decision_table' ;
 RULE           : 'rule' ;
 END            : 'end' ;
@@ -871,10 +865,10 @@ DATE_TYPE       : 'date' ;
 TIMESTAMP_TYPE  : 'timestamp' ;
 MONEY_TYPE      : 'money' ;
 PERCENTAGE_TYPE : 'percentage' ;
-BIZDATE_TYPE    : 'bizdate' ;  // v0.6.0+: Business date type
+BIZDATE_TYPE    : 'bizdate' ;
 
 // ----------------------------------------------------------------------------
-// Keywords - Markers (v0.6.0+)
+// Keywords - Markers
 // ----------------------------------------------------------------------------
 
 MARKER          : 'marker' ;
@@ -922,7 +916,7 @@ ARROW   : '->' ;
 PIPE     : '|' ;
 COLON    : ':' ;
 COMMA    : ',' ;
-DOTDOT   : '..' ;  // v0.7.0+: Must come before DOT for correct lexing
+DOTDOT   : '..' ;  // Must come before DOT for correct lexing
 DOT      : '.' ;
 LPAREN   : '(' ;
 RPAREN   : ')' ;

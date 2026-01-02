@@ -6,38 +6,9 @@
  *
  * ANTLR4 Grammar for L1 Process Orchestration DSL
  *
- * Version: 0.5.0
- * Specification: ../L1-Process-Orchestration-DSL.md
- * Runtime Spec: ../L1-Runtime-Semantics.md
- *
  * This grammar defines the syntax for Nexflow, a controlled natural language
  * for defining streaming and batch data processing pipelines.
  *
- * v0.5.0 Changes:
- * - Added connector syntax (kafka, mongodb, elasticsearch, scheduler)
- * - Added inline aggregation functions (count(), sum(), etc.)
- * - Added evaluate block for L4 rules integration
- * - Added branch construct for conditional sub-pipelines
- * - Added parallel construct for fan-out processing
- * - Added metrics block for observability
- * - Added state_machine construct
- * - Added enhanced error handling (retry with backoff)
- * - Added lookup with cache, state_store sources
- * - Added schedule construct for delayed actions
- * - Added emit_audit_event for event sourcing
- * - Added deduplicate construct
- * - Added validate_input block
- * - Removed foreach iteration (use collection operations: any, all, filter, sum, count)
- * - Added inline transform with assignments
- * - Added call external for API integration
- *
- * SEMANTIC VALIDATION NOTES (enforced by compiler, not grammar):
- * - Every process MUST have at least one output: emit, route using, or aggregate
- * - Window blocks MUST be followed by aggregate
- * - Join requires exactly two aliased inputs
- * - Await requires exactly two receive blocks
- * - Batch mode cannot use watermark, window, or await
- * - Partition key field must exist in input schema
  */
 
 grammar ProcDSL;
@@ -55,7 +26,7 @@ program
     ;
 
 // ----------------------------------------------------------------------------
-// Import Statement (v0.7.0+)
+// Import Statement
 // ----------------------------------------------------------------------------
 
 importStatement
@@ -77,26 +48,26 @@ importFileExtension
 processDefinition
     : PROCESS processName
         executionBlock?
-        businessDateDecl?           // v0.6.0+: business_date from calendar
-        processingDateDecl?         // v0.7.0+: processing_date auto (system time)
-        markersBlock?               // v0.6.0+: EOD marker definitions
+        businessDateDecl?
+        processingDateDecl?
+        markersBlock?
         stateMachineDecl?
-        processBodyOrPhases         // v0.6.0+: either statements or phase blocks
+        processBodyOrPhases
         stateBlock?
         processTailBlocks?
       END
     ;
 
-// v0.6.0+: Process body can be traditional statements OR phase blocks
+// Process body can be traditional statements OR phase blocks
 processBodyOrPhases
-    : bodyContent*                  // Traditional: interleaved statements
-    | phaseBlock+                   // Phase-based: explicit phase blocks
+    : bodyContent*
+    | phaseBlock+
     ;
 
 // Allow metrics and resilience blocks in any order
 processTailBlocks
-    : metricsBlock resilienceBlock?     // metrics before on error
-    | resilienceBlock metricsBlock?     // on error before metrics
+    : metricsBlock resilienceBlock?
+    | resilienceBlock metricsBlock?
     ;
 
 // Body content allows interleaved processing and output
@@ -132,8 +103,8 @@ processingBlock
     | scheduleStatement
     | setStatement
     | lookupStatement
-    | signalStatement         // v0.6.0+: signal emission
-    | sqlStatement            // v0.8.0+: embedded SQL block
+    | signalStatement
+    | sqlStatement
     ;
 
 // ----------------------------------------------------------------------------
@@ -185,17 +156,17 @@ modeType
     ;
 
 // ----------------------------------------------------------------------------
-// Business Date and Markers (v0.6.0+)
+// Business Date and Markers
 // ----------------------------------------------------------------------------
 
 // Business date calendar reference
 businessDateDecl
-    : BUSINESS_DATE FROM IDENTIFIER     // business_date from trading_calendar
+    : BUSINESS_DATE FROM IDENTIFIER
     ;
 
-// Processing date - system time when record is processed (v0.7.0+)
+// Processing date - system time when record is processed
 processingDateDecl
-    : PROCESSING_DATE AUTO              // processing_date auto (system clock)
+    : PROCESSING_DATE AUTO
     ;
 
 // Markers block - EOD marker definitions
@@ -325,16 +296,16 @@ connectorOptions
     | timestampBounds                              // Kafka/Parquet timestamp bounds
     | parquetOptions                               // Parquet-specific options
     | csvOptions                                   // CSV-specific options
-    | formatOverride                               // v0.8.0+: Serialization format override
-    | registryOverride                             // v0.8.0+: Schema registry URL override
+    | formatOverride                               // Serialization format override
+    | registryOverride                             // Schema registry URL override
     ;
 
-// v0.8.0+: Serialization format override (use sparingly)
+// Serialization format override (use sparingly)
 formatOverride
     : FORMAT serializationFormat
     ;
 
-// v0.8.0+: Schema registry URL override
+// Schema registry URL override
 registryOverride
     : REGISTRY STRING
     ;
@@ -1339,7 +1310,7 @@ paramField
 // Keywords - Structure
 // ----------------------------------------------------------------------------
 
-IMPORT        : 'import' ;  // v0.7.0+: For import statements
+IMPORT        : 'import' ;
 PROCESS       : 'process' ;
 END           : 'end' ;
 
@@ -1365,7 +1336,7 @@ MICRO_BATCH   : 'micro_batch' ;
 EVENTS        : 'events' ;
 
 // ----------------------------------------------------------------------------
-// Keywords - Business Date, Processing Date and Markers (v0.6.0+, v0.7.0+)
+// Keywords - Business Date, Processing Date and Markers
 // ----------------------------------------------------------------------------
 
 BUSINESS_DATE   : 'business_date' ;
@@ -1425,8 +1396,8 @@ MONGODB       : 'mongodb' ;
 REDIS         : 'redis' ;
 SCHEDULER     : 'scheduler' ;
 STATE_STORE   : 'state_store' ;
-PARQUET       : 'parquet' ;        // v0.8.0+: Parquet file source/sink
-CSV           : 'csv' ;            // v0.8.0+: CSV file source/sink
+PARQUET       : 'parquet' ;
+CSV           : 'csv' ;
 GROUP         : 'group' ;
 OFFSET        : 'offset' ;
 LATEST        : 'latest' ;
@@ -1443,16 +1414,16 @@ INDEX         : 'index' ;
 TEMPLATE      : 'template' ;
 CHANNEL       : 'channel' ;
 PAYLOAD       : 'payload' ;
-TIMESTAMP     : 'timestamp' ;      // v0.8.0+: For timestamp bounds
-PARTITION_BY  : 'partition_by' ;   // v0.8.0+: Parquet partitioning
-SCHEMA_PATH   : 'schema_path' ;    // v0.8.0+: External schema reference
-DELIMITER     : 'delimiter' ;      // v0.8.0+: CSV delimiter
-QUOTE         : 'quote' ;          // v0.8.0+: CSV quote character
-ESCAPE_CHAR   : 'escape_char' ;    // v0.8.0+: CSV escape character
-HEADER        : 'header' ;         // v0.8.0+: CSV header flag
-NULL_VALUE    : 'null_value' ;     // v0.8.0+: CSV null representation
+TIMESTAMP     : 'timestamp' ;
+PARTITION_BY  : 'partition_by' ;   // Parquet partitioning
+SCHEMA_PATH   : 'schema_path' ;    // External schema reference
+DELIMITER     : 'delimiter' ;      // CSV delimiter
+QUOTE         : 'quote' ;          // CSV quote character
+ESCAPE_CHAR   : 'escape_char' ;    // CSV escape character
+HEADER        : 'header' ;         // CSV header flag
+NULL_VALUE    : 'null_value' ;     // CSV null representation
 
-// v0.8.0+: Serialization format keywords
+// Serialization format keywords
 FORMAT        : 'format' ;
 REGISTRY      : 'registry' ;
 JSON_FORMAT   : 'json' ;
@@ -1755,11 +1726,11 @@ LBRACKET      : '[' ;
 RBRACKET      : ']' ;
 COLON         : ':' ;
 COMMA         : ',' ;
-DOTDOT        : '..' ;  // v0.7.0+: Must come before DOT for correct lexing
+DOTDOT        : '..' ;  // Must come before DOT for correct lexing
 DOT           : '.' ;
 
 // ----------------------------------------------------------------------------
-// SQL Block and Keywords (v0.8.0+)
+// SQL Block and Keywords
 // ----------------------------------------------------------------------------
 
 // SQL keyword for embedded SQL statements

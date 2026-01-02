@@ -6,9 +6,6 @@
  *
  * ANTLR4 Grammar for L3 Transform Catalog DSL
  *
- * Version: 1.0.0
- * Specification: ../L3-Transform-Catalog.md
- *
  * This grammar defines the syntax for data transformations including:
  * - Field-level transforms (single field operations)
  * - Expression-level transforms (multi-input calculations)
@@ -39,7 +36,7 @@ program
     ;
 
 // ----------------------------------------------------------------------------
-// Import Statement (v0.7.0+)
+// Import Statement
 // ----------------------------------------------------------------------------
 
 importStatement
@@ -486,7 +483,7 @@ expression
     | expression arithmeticOp expression                          // Arithmetic
     | expression comparisonOp expression                          // Comparison
     | expression logicalOp expression                             // Logical
-    | expression (DEFAULT_KW | '??') expression                    // Null coalescing
+    | expression (DEFAULT_KW | '??') expression                   // Null coalescing
     | expression 'between' expression 'and' expression            // Between
     | expression 'not' 'between' expression 'and' expression      // Not between
     | expression 'in' listLiteral                                 // In set (with brackets)
@@ -609,7 +606,7 @@ functionName
     | 'string'      // Allow string as function name (also base type)
     | 'integer'     // Allow integer as function name (also base type)
     | 'decimal'     // Allow decimal as function name (also base type)
-    // Collection functions (RFC: Collection Operations Instead of Loops)
+    // Collection functions (Collection Operations Instead of Loops)
     | 'any'         // any(collection, predicate) -> boolean
     | 'all'         // all(collection, predicate) -> boolean
     | 'none'        // none(collection, predicate) -> boolean
@@ -703,26 +700,6 @@ numberLiteral
 // ============================================================================
 // LEXER RULES
 // ============================================================================
-
-// ----------------------------------------------------------------------------
-// Keywords (grouped by category)
-// ----------------------------------------------------------------------------
-
-// Structure: transform, transform_block, end, input, output, apply, mappings
-// Composition: compose, sequential, parallel, conditional, use, then
-// Validation: validate_input, validate_output, invariant, on_invalid, on_error
-// Metadata: version, description, previous_version, compatibility, backward, forward, full, none
-// Purity: pure, cache, ttl, key
-// Types: string, integer, decimal, boolean, date, timestamp, uuid, bytes, list, set, map
-// Constraints: range, length, pattern, values, precision, scale
-// Qualifiers: nullable, required, default
-// Expressions: when, otherwise, between, in, is, not, and, or, null
-// Actions: action, reject, skip, use_default, raise, emit_to, emit_all_errors
-// Recalculation: on_change, recalculate
-// Error handling: error_code, error_message, log_level, severity
-// Severity levels: error, warning, info, debug
-// Compatibility modes: backward, forward, full, none
-
 // ----------------------------------------------------------------------------
 // Literals
 // ----------------------------------------------------------------------------
@@ -749,7 +726,7 @@ BOOLEAN
 
 // Keywords that must be recognized before IDENTIFIER
 
-// Import (v0.7.0+)
+// Import
 IMPORT : 'import' ;
 
 DEFAULT_KW

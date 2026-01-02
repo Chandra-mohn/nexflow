@@ -6,9 +6,6 @@
  *
  * ANTLR4 Grammar for L2 Schema Registry DSL
  *
- * Version: 1.0.0
- * Specification: ../L2-Schema-Registry.md
- *
  * This grammar defines the syntax for schema definitions including:
  * - Data mutation patterns (9 patterns)
  * - Type system (base, constrained, domain, collection types)
@@ -37,7 +34,7 @@ program
     ;
 
 // ----------------------------------------------------------------------------
-// Import Statement (v0.7.0+)
+// Import Statement
 // ----------------------------------------------------------------------------
 
 importStatement
@@ -64,7 +61,7 @@ schemaDefinition
         retentionDecl?
         identityBlock?
         streamingBlock?
-        serializationBlock?             // Serialization format configuration (v0.8.0+)
+        serializationBlock?             // Serialization format configuration
         fieldsBlock?
         nestedObjectBlock*
         computedBlock?                  // Computed/derived fields
@@ -293,7 +290,7 @@ retentionPolicy
     ;
 
 // ----------------------------------------------------------------------------
-// Serialization Block (v0.8.0+ - Kafka Serialization Format Configuration)
+// Serialization Block (Kafka Serialization Format Configuration)
 // ----------------------------------------------------------------------------
 // Declares the preferred serialization format for this schema.
 // Used for Kafka sources/sinks. Can be overridden at process level.
@@ -781,44 +778,11 @@ numberLiteral
     | '-' DECIMAL
     ;
 
-// ============================================================================
-// LEXER RULES
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// Keywords (grouped by category)
-// ----------------------------------------------------------------------------
-
-// Structure: schema, end, types
-// Patterns: master_data, immutable_ledger, versioned_configuration,
-//           operational_parameters, event_log, state_machine, temporal_data,
-//           reference_data, business_logic
-// Version: version, compatibility, backward, forward, full, none,
-//          previous_version, deprecated, deprecated_since, removal_version,
-//          migration_guide
-// Blocks: identity, streaming, fields, parameters, entries, rule, migration,
-//         transitions, on_transition, given, calculate, return
-// Types: string, integer, decimal, boolean, date, timestamp, uuid, bytes,
-//        list, set, map, object
-// Streaming: key_fields, time_field, time_semantics, event_time, processing_time,
-//            ingestion_time, watermark_delay, watermark_strategy, watermark_field,
-//            max_out_of_orderness, watermark_interval, bounded_out_of_orderness,
-//            periodic, punctuated, late_data_handling, late_data_stream,
-//            side_output, drop, update, allowed_lateness, idle_timeout,
-//            idle_behavior, mark_idle, advance_to_infinity, keep_waiting,
-//            sparsity, dense, moderate, sparse, retention, time, size, policy,
-//            delete_oldest, archive, compact
-// Qualifiers: required, optional, unique, cannot_change, encrypted, default
-// Constraints: range, length, pattern, values, precision, scale
-// State machine: for_entity, states, initial_state, from, to
-// Expressions: when, otherwise, and, or, null
-// Other: retention, pattern
-
 // ----------------------------------------------------------------------------
 // Keywords
 // ----------------------------------------------------------------------------
 
-// Import (v0.7.0+)
+// Import
 IMPORT : 'import' ;
 
 PII : 'pii' ;
