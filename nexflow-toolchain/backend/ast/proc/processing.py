@@ -8,16 +8,17 @@ Processing-related dataclasses for process AST.
 """
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
-from .common import SourceLocation, Duration
-from .execution import LatenessDecl, LateDataDecl
-from .enums import WindowType, JoinType
+from .common import Duration, SourceLocation
+from .enums import JoinType, WindowType
+from .execution import LateDataDecl, LatenessDecl
 
 
 @dataclass
 class EnrichDecl:
     """Enrich using lookup declaration."""
+
     lookup_name: str
     on_fields: List[str]
     select_fields: Optional[List[str]] = None
@@ -30,6 +31,7 @@ class TransformDecl:
 
     Can include on_success/on_failure blocks for conditional processing.
     """
+
     transform_name: str
     on_success: Optional[List] = None  # List of processing operations on success
     on_failure: Optional[List] = None  # List of processing operations on failure
@@ -44,6 +46,7 @@ class RouteDecl:
     - route using <rule_name>: References an L4 rules table
     - route when <condition>: Inline conditional routing
     """
+
     rule_name: Optional[str] = None  # For 'route using' form
     condition: Optional[str] = None  # For 'route when' form (expression as string)
     location: Optional[SourceLocation] = None
@@ -52,6 +55,7 @@ class RouteDecl:
 @dataclass
 class AggregateDecl:
     """Aggregate using L3 declaration."""
+
     transform_name: str
     location: Optional[SourceLocation] = None
 
@@ -59,6 +63,7 @@ class AggregateDecl:
 @dataclass
 class MergeDecl:
     """Merge multiple streams declaration."""
+
     streams: List[str]
     output_alias: Optional[str] = None
     location: Optional[SourceLocation] = None
@@ -67,6 +72,7 @@ class MergeDecl:
 @dataclass
 class WindowOptions:
     """Window configuration options."""
+
     lateness: Optional[LatenessDecl] = None
     late_data: Optional[LateDataDecl] = None
 
@@ -74,10 +80,11 @@ class WindowOptions:
 @dataclass
 class WindowDecl:
     """Window declaration."""
+
     window_type: WindowType
     size: Duration
     slide: Optional[Duration] = None  # For sliding windows
-    key_by: Optional[str] = None  # Key by field path (v0.5.0+)
+    key_by: Optional[str] = None  # Key by field path
     options: Optional[WindowOptions] = None
     location: Optional[SourceLocation] = None
 
@@ -85,6 +92,7 @@ class WindowDecl:
 @dataclass
 class JoinDecl:
     """Join declaration."""
+
     left: str
     right: str
     on_fields: List[str]
@@ -98,9 +106,11 @@ class JoinDecl:
 # These represent various DSL statements that affect the processing pipeline
 # =============================================================================
 
+
 @dataclass
 class EvaluateDecl:
     """Evaluate expression statement."""
+
     expression: str
     location: Optional[SourceLocation] = None
 
@@ -108,6 +118,7 @@ class EvaluateDecl:
 @dataclass
 class TransitionDecl:
     """State transition statement."""
+
     target_state: str
     location: Optional[SourceLocation] = None
 
@@ -115,6 +126,7 @@ class TransitionDecl:
 @dataclass
 class EmitAuditDecl:
     """Emit audit event statement."""
+
     event_name: str
     location: Optional[SourceLocation] = None
 
@@ -122,6 +134,7 @@ class EmitAuditDecl:
 @dataclass
 class DeduplicateDecl:
     """Deduplicate by field statement."""
+
     key_field: str
     location: Optional[SourceLocation] = None
 
@@ -129,6 +142,7 @@ class DeduplicateDecl:
 @dataclass
 class LookupDecl:
     """Lookup data source statement."""
+
     source_name: str
     location: Optional[SourceLocation] = None
 
@@ -136,6 +150,7 @@ class LookupDecl:
 @dataclass
 class BranchDecl:
     """Parallel branch statement."""
+
     branch_name: str
     body: List = None  # List of statements in the branch
     location: Optional[SourceLocation] = None
@@ -148,6 +163,7 @@ class BranchDecl:
 @dataclass
 class ParallelDecl:
     """Parallel execution block."""
+
     name: str
     branches: List[BranchDecl] = None
     location: Optional[SourceLocation] = None
@@ -160,6 +176,7 @@ class ParallelDecl:
 @dataclass
 class ValidateInputDecl:
     """Validate input statement."""
+
     expression: str
     location: Optional[SourceLocation] = None
 
@@ -167,6 +184,7 @@ class ValidateInputDecl:
 @dataclass
 class CallDecl:
     """Call external function/service statement."""
+
     target: str
     location: Optional[SourceLocation] = None
 
@@ -174,6 +192,7 @@ class CallDecl:
 @dataclass
 class ScheduleDecl:
     """Schedule delayed execution statement."""
+
     delay: Duration
     target: str
     location: Optional[SourceLocation] = None
@@ -182,6 +201,7 @@ class ScheduleDecl:
 @dataclass
 class SetDecl:
     """Set variable statement."""
+
     variable: str
     value: str
     location: Optional[SourceLocation] = None
@@ -189,7 +209,7 @@ class SetDecl:
 
 @dataclass
 class SqlTransformDecl:
-    """Embedded SQL transform statement (v0.8.0+).
+    """Embedded SQL transform statement
 
     Allows embedding SQL directly in the ProcDSL for Flink SQL or Spark SQL execution.
 
@@ -201,6 +221,7 @@ class SqlTransformDecl:
         ```
         as SalesSummary
     """
-    sql_content: str                          # Raw SQL content
-    output_type: Optional[str] = None         # Optional output schema name
+
+    sql_content: str  # Raw SQL content
+    output_type: Optional[str] = None  # Optional output schema name
     location: Optional[SourceLocation] = None

@@ -7,12 +7,12 @@ Sink Generator Mixin
 Generates Flink sink connections from L1 emit declarations.
 """
 
-from typing import Set, List
+from typing import List, Set
 
 from backend.ast import proc_ast as ast
 from backend.ast.serialization import SerializationConfig, SerializationFormat
 from backend.config.policy_validator import PolicyValidator
-from backend.generators.common.java_utils import to_pascal_case, to_camel_case
+from backend.generators.common.java_utils import to_camel_case, to_pascal_case
 
 
 class SinkGeneratorMixin:
@@ -25,9 +25,11 @@ class SinkGeneratorMixin:
     - Side outputs for multiple emit targets
     """
 
-    def generate_sink_code(self, process: ast.ProcessDefinition, input_stream: str) -> str:
+    def generate_sink_code(
+        self, process: ast.ProcessDefinition, input_stream: str
+    ) -> str:
         """Generate sink connection code for a process."""
-        # v0.5.0+: process.emits is direct list
+        # process.emits is direct list
         if not process.emits:
             return "// No output sinks defined\n"
 
@@ -43,7 +45,7 @@ class SinkGeneratorMixin:
         for emit in emits:
             lines.append(self._generate_sink(emit, input_stream, process))
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _generate_output_tags(self, emits: List[ast.EmitDecl]) -> str:
         """Generate OutputTag declarations for side outputs."""
@@ -53,11 +55,13 @@ class SinkGeneratorMixin:
             schema_class = self._get_emit_schema_class(emit)
             lines.append(
                 f"private static final OutputTag<{schema_class}> {tag_name} = "
-                f"new OutputTag<{schema_class}>(\"{emit.target}\") {{}};"
+                f'new OutputTag<{schema_class}>("{emit.target}") {{}};'
             )
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def _generate_sink(self, emit: ast.EmitDecl, input_stream: str, process: ast.ProcessDefinition) -> str:
+    def _generate_sink(
+        self, emit: ast.EmitDecl, input_stream: str, process: ast.ProcessDefinition
+    ) -> str:
         """Generate sink code for a single emit declaration.
 
         Supports fanout strategies:
@@ -92,7 +96,7 @@ class SinkGeneratorMixin:
             f"    .setBootstrapServers(KAFKA_BOOTSTRAP_SERVERS)",
             f"    .setRecordSerializer(",
             f"        KafkaRecordSerializationSchema.<{schema_class}>builder()",
-            f"            .setTopic(\"{target}\")",
+            f'            .setTopic("{target}")',
             f"            .setValueSerializationSchema({serializer_code})",
             "            .build()",
             "    )",
@@ -103,19 +107,23 @@ class SinkGeneratorMixin:
 
         # Apply fanout transformation before sink
         if fanout_transform:
-            lines.extend([
-                f"{input_stream}{fanout_transform}.sinkTo({sink_name})",
-                f"    .name(\"sink-{target}\");",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"{input_stream}{fanout_transform}.sinkTo({sink_name})",
+                    f'    .name("sink-{target}");',
+                    "",
+                ]
+            )
         else:
-            lines.extend([
-                f"{input_stream}.sinkTo({sink_name})",
-                f"    .name(\"sink-{target}\");",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"{input_stream}.sinkTo({sink_name})",
+                    f'    .name("sink-{target}");',
+                    "",
+                ]
+            )
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _get_emit_schema_class(self, emit: ast.EmitDecl) -> str:
         """Get the schema class name for an emit declaration."""
@@ -135,15 +143,15 @@ class SinkGeneratorMixin:
     def get_sink_imports(self) -> Set[str]:
         """Get required imports for sink generation."""
         return {
-            'org.apache.flink.connector.kafka.sink.KafkaSink',
-            'org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema',
-            'org.apache.flink.connector.base.DeliveryGuarantee',
-            'org.apache.flink.streaming.api.functions.ProcessFunction.Context',
-            'org.apache.flink.util.OutputTag',
+            "org.apache.flink.connector.kafka.sink.KafkaSink",
+            "org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema",
+            "org.apache.flink.connector.base.DeliveryGuarantee",
+            "org.apache.flink.streaming.api.functions.ProcessFunction.Context",
+            "org.apache.flink.util.OutputTag",
         }
 
     # =========================================================================
-    # v0.8.0+ Serialization Format Support
+    # Serialization Format Support
     # =========================================================================
 
     def _get_effective_serialization_for_emit(
@@ -163,30 +171,40 @@ class SinkGeneratorMixin:
         format_source = "default"
 
         # Check for emit-level format override
-        if hasattr(emit, 'format_override') and emit.format_override:
+        if hasattr(emit, "format_override") and emit.format_override:
             requested_format = emit.format_override
             format_source = "emit"
 
         # Check for schema-level serialization declaration
-        if requested_format is None and hasattr(self, '_serialization_config') and self._serialization_config:
+        if (
+            requested_format is None
+            and hasattr(self, "_serialization_config")
+            and self._serialization_config
+        ):
             requested_format = self._serialization_config.format
             format_source = "schema"
 
         # Get organization policy from config (if available)
-        org_policy = getattr(self.config, 'org_policy', None) if hasattr(self, 'config') else None
+        org_policy = (
+            getattr(self.config, "org_policy", None)
+            if hasattr(self, "config")
+            else None
+        )
 
         if org_policy is not None:
             # Use policy validator for governance
             validator = PolicyValidator(org_policy)
             result = validator.validate_format(
                 requested_format,
-                source_file=getattr(self.config, 'source_file', None) if hasattr(self, 'config') else None,
-                context=f"emit to {emit.target}"
+                source_file=getattr(self.config, "source_file", None)
+                if hasattr(self, "config")
+                else None,
+                context=f"emit to {emit.target}",
             )
 
             # Notify violation handler if configured
-            if result.violations and hasattr(self, 'config'):
-                handler = getattr(self.config, 'violation_handler', None)
+            if result.violations and hasattr(self, "config"):
+                handler = getattr(self.config, "violation_handler", None)
                 if handler:
                     handler(result)
 
@@ -194,14 +212,14 @@ class SinkGeneratorMixin:
             resolved_format = result.resolved_format or org_policy.default_format
             return SerializationConfig(
                 format=resolved_format,
-                registry_url=getattr(emit, 'registry_override', None)
+                registry_url=getattr(emit, "registry_override", None),
             )
 
         # No org policy - fall back to legacy behavior
         if requested_format:
             return SerializationConfig(
                 format=requested_format,
-                registry_url=getattr(emit, 'registry_override', None)
+                registry_url=getattr(emit, "registry_override", None),
             )
 
         # Default: JSON format
@@ -229,11 +247,11 @@ class SinkGeneratorMixin:
         elif fmt == SerializationFormat.CONFLUENT_AVRO:
             registry_url = serialization.registry_url or "SCHEMA_REGISTRY_URL"
             subject = serialization.subject or f'"{schema_class}-value"'
-            return f'''ConfluentRegistryAvroSerializationSchema.forSpecific(
+            return f"""ConfluentRegistryAvroSerializationSchema.forSpecific(
                 {schema_class}.class,
                 {subject},
                 {registry_url}
-            )'''
+            )"""
 
         elif fmt == SerializationFormat.PROTOBUF:
             return f"new ProtobufSerializationSchema<>({schema_class}.class)"
@@ -242,21 +260,25 @@ class SinkGeneratorMixin:
             # Fallback to JSON
             return f"new JsonSerializationSchema<{schema_class}>()"
 
-    def get_serialization_imports_for_sink(self, serialization: SerializationConfig) -> Set[str]:
+    def get_serialization_imports_for_sink(
+        self, serialization: SerializationConfig
+    ) -> Set[str]:
         """Get imports needed for the specified serialization format in sinks."""
         fmt = serialization.format
         imports = set()
 
         if fmt == SerializationFormat.JSON:
-            imports.add('org.apache.flink.formats.json.JsonSerializationSchema')
+            imports.add("org.apache.flink.formats.json.JsonSerializationSchema")
 
         elif fmt == SerializationFormat.AVRO:
-            imports.add('org.apache.flink.formats.avro.AvroSerializationSchema')
+            imports.add("org.apache.flink.formats.avro.AvroSerializationSchema")
 
         elif fmt == SerializationFormat.CONFLUENT_AVRO:
-            imports.add('org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroSerializationSchema')
+            imports.add(
+                "org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroSerializationSchema"
+            )
 
         elif fmt == SerializationFormat.PROTOBUF:
-            imports.add('org.apache.flink.formats.protobuf.ProtobufSerializationSchema')
+            imports.add("org.apache.flink.formats.protobuf.ProtobufSerializationSchema")
 
         return imports

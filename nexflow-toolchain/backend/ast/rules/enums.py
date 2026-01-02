@@ -30,18 +30,20 @@ class BaseType(Enum):
     TIMESTAMP = "timestamp"
     MONEY = "money"
     PERCENTAGE = "percentage"
-    BIZDATE = "bizdate"  # v0.6.0+: Business date type
+    BIZDATE = "bizdate"
 
 
 class MarkerStateType(Enum):
     """Types of marker state checks for conditional rule execution."""
-    FIRED = "fired"           # Marker has been triggered
-    PENDING = "pending"       # Marker not yet triggered
-    BETWEEN = "between"       # Between two markers
+
+    FIRED = "fired"  # Marker has been triggered
+    PENDING = "pending"  # Marker not yet triggered
+    BETWEEN = "between"  # Between two markers
 
 
 class CalendarFunction(Enum):
     """Calendar functions available in rules expressions."""
+
     CURRENT_BUSINESS_DATE = "current_business_date"
     PREVIOUS_BUSINESS_DATE = "previous_business_date"
     NEXT_BUSINESS_DATE = "next_business_date"

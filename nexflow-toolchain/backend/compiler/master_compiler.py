@@ -19,7 +19,7 @@ The L5 InfraConfig is passed to L1 ProcGenerator for infrastructure-aware genera
 - MongoDB async sinks generated for persist clauses
 - Parallelism and resource configs from L5 resources
 
-IMPORT RESOLUTION (v0.7.0+):
+IMPORT RESOLUTION:
 - Each DSL file can declare imports to other DSL files
 - ImportResolver resolves import paths and detects circular dependencies
 - Files are processed in topological order (dependencies first)
@@ -29,28 +29,31 @@ IMPORT RESOLUTION (v0.7.0+):
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from backend.ast.infra import InfraConfig
 from backend.ast.common import ImportStatement
-from backend.parser.infra import InfraParser, InfraParseError
+from backend.ast.infra import InfraConfig
+from backend.generators.base import GenerationResult, GeneratorConfig
 from backend.generators.infra import BindingResolver
-from backend.generators.base import GeneratorConfig, GenerationResult
-from backend.resolver.import_resolver import ImportResolver, ImportError as ImportResolverError
+from backend.parser.infra import InfraParseError, InfraParser
+from backend.resolver.import_resolver import ImportError as ImportResolverError
+from backend.resolver.import_resolver import ImportResolver
 
 
 class CompilationPhase(Enum):
     """Compilation phases in order."""
-    INFRA = auto()      # L5: Infrastructure binding
-    SCHEMA = auto()     # L2: Schema/Type definitions
+
+    INFRA = auto()  # L5: Infrastructure binding
+    SCHEMA = auto()  # L2: Schema/Type definitions
     TRANSFORM = auto()  # L3: Transform functions
-    RULES = auto()      # L4: Decision rules
-    PROC = auto()       # L1: Process definitions
+    RULES = auto()  # L4: Decision rules
+    PROC = auto()  # L1: Process definitions
 
 
 @dataclass
 class LayerResult:
     """Result of compiling a single layer."""
+
     phase: CompilationPhase
     success: bool = True
     files_parsed: int = 0
@@ -63,6 +66,7 @@ class LayerResult:
 @dataclass
 class CompilationResult:
     """Result of the full compilation pipeline."""
+
     success: bool = True
     layers: Dict[CompilationPhase, LayerResult] = field(default_factory=dict)
     total_files_generated: int = 0
@@ -192,7 +196,9 @@ class MasterCompiler:
                 print("  No .infra file found - using default configuration")
             self._infra_config = None
             self._binding_resolver = BindingResolver(None)
-            result.warnings.append("No infrastructure config found - using development defaults")
+            result.warnings.append(
+                "No infrastructure config found - using development defaults"
+            )
             return result
 
         if self.verbose:
@@ -258,7 +264,7 @@ class MasterCompiler:
         return self._compile_layer(
             phase=CompilationPhase.SCHEMA,
             extensions=[".schema"],
-            generator_type="schema"
+            generator_type="schema",
         )
 
     def _compile_transforms(self) -> LayerResult:
@@ -266,15 +272,13 @@ class MasterCompiler:
         return self._compile_layer(
             phase=CompilationPhase.TRANSFORM,
             extensions=[".xform", ".transform"],
-            generator_type="transform"
+            generator_type="transform",
         )
 
     def _compile_rules(self) -> LayerResult:
         """Phase 4: Parse and generate L4 rules."""
         return self._compile_layer(
-            phase=CompilationPhase.RULES,
-            extensions=[".rules"],
-            generator_type="rules"
+            phase=CompilationPhase.RULES, extensions=[".rules"], generator_type="rules"
         )
 
     def _compile_procs(self) -> LayerResult:
@@ -283,7 +287,7 @@ class MasterCompiler:
             phase=CompilationPhase.PROC,
             extensions=[".proc"],
             generator_type="proc",
-            with_infrastructure=True
+            with_infrastructure=True,
         )
 
     def _compile_layer(
@@ -291,11 +295,11 @@ class MasterCompiler:
         phase: CompilationPhase,
         extensions: List[str],
         generator_type: str,
-        with_infrastructure: bool = False
+        with_infrastructure: bool = False,
     ) -> LayerResult:
         """Compile a single layer (schema, transform, rules, or proc)."""
-        from backend.parser import parse as parse_dsl
         from backend.generators import get_generator
+        from backend.parser import parse as parse_dsl
 
         result = LayerResult(phase=phase)
 
@@ -323,15 +327,21 @@ class MasterCompiler:
 
                 if not parse_result.success:
                     for error in parse_result.errors:
-                        loc = f"{file_path}:{error.location.line}" if error.location else str(file_path)
+                        loc = (
+                            f"{file_path}:{error.location.line}"
+                            if error.location
+                            else str(file_path)
+                        )
                         result.errors.append(f"{loc}: {error.message}")
                     result.success = False
                 else:
                     parsed_asts[file_path] = parse_result.ast
-                    self._parsed_asts[file_path] = parse_result.ast  # Cache for import resolution
+                    self._parsed_asts[file_path] = (
+                        parse_result.ast
+                    )  # Cache for import resolution
                     result.files_parsed += 1
 
-                    # Process imports from this file (v0.7.0+)
+                    # Process imports from this file
                     self._process_file_imports(file_path, parse_result.ast, result)
 
             except Exception as e:
@@ -383,7 +393,9 @@ class MasterCompiler:
             try:
                 gen_result = generator.generate(ast)
                 for gen_file in gen_result.files:
-                    all_files.add_file(gen_file.path, gen_file.content, gen_file.file_type)
+                    all_files.add_file(
+                        gen_file.path, gen_file.content, gen_file.file_type
+                    )
                     result.files_generated += 1
 
             except Exception as e:
@@ -402,7 +414,9 @@ class MasterCompiler:
         result.generation_result = all_files
         return result
 
-    def _process_file_imports(self, file_path: Path, ast: Any, result: LayerResult) -> None:
+    def _process_file_imports(
+        self, file_path: Path, ast: Any, result: LayerResult
+    ) -> None:
         """Process and resolve imports from a parsed AST file.
 
         Extracts import statements from the AST and uses ImportResolver to:
@@ -419,7 +433,7 @@ class MasterCompiler:
         imports: List[ImportStatement] = []
 
         # Check for imports attribute (Program-level ASTs)
-        if hasattr(ast, 'imports') and ast.imports:
+        if hasattr(ast, "imports") and ast.imports:
             imports = ast.imports
 
         if not imports:
@@ -431,7 +445,9 @@ class MasterCompiler:
         # Resolve each import
         for import_stmt in imports:
             try:
-                resolved_path = self._import_resolver.resolve(import_stmt.path, file_path)
+                resolved_path = self._import_resolver.resolve(
+                    import_stmt.path, file_path
+                )
                 import_stmt.resolved_path = resolved_path
                 import_stmt.source_file = file_path
 
@@ -439,14 +455,20 @@ class MasterCompiler:
                 self._import_resolver.graph.add_dependency(file_path, resolved_path)
 
                 if self.verbose:
-                    rel_resolved = resolved_path.relative_to(self.src_dir) if resolved_path.is_relative_to(self.src_dir) else resolved_path
+                    rel_resolved = (
+                        resolved_path.relative_to(self.src_dir)
+                        if resolved_path.is_relative_to(self.src_dir)
+                        else resolved_path
+                    )
                     print(f"    Import resolved: {import_stmt.path} -> {rel_resolved}")
 
             except ImportResolverError as e:
                 result.errors.append(f"{file_path}:{import_stmt.line}: {e}")
                 result.success = False
             except Exception as e:
-                result.warnings.append(f"{file_path}:{import_stmt.line}: Import warning - {e}")
+                result.warnings.append(
+                    f"{file_path}:{import_stmt.line}: Import warning - {e}"
+                )
 
     def _get_proc_generator(self, config: GeneratorConfig):
         """Get ProcGenerator with infrastructure bindings."""
@@ -479,7 +501,7 @@ class MasterCompiler:
         # Extract references from parsed L1 (proc) ASTs
         for file_path, ast in self._parsed_asts.items():
             # Skip non-L1 ASTs (check if it has processes attribute)
-            if not hasattr(ast, 'processes'):
+            if not hasattr(ast, "processes"):
                 continue
 
             for process in ast.processes:
@@ -489,21 +511,27 @@ class MasterCompiler:
 
                 # Extract sink stream and persistence references from emits
                 for emit in process.emits:
-                    if hasattr(emit, 'target') and emit.target:
+                    if hasattr(emit, "target") and emit.target:
                         stream_refs.add(emit.target)
-                    if hasattr(emit, 'persist') and emit.persist and emit.persist.target:
+                    if (
+                        hasattr(emit, "persist")
+                        and emit.persist
+                        and emit.persist.target
+                    ):
                         persistence_refs.add(emit.persist.target)
 
                 # Extract from completion blocks
                 for completion in process.completions:
                     if completion.on_commit and completion.on_commit.target:
                         stream_refs.add(completion.on_commit.target)
-                    if completion.on_commit_failure and completion.on_commit_failure.target:
+                    if (
+                        completion.on_commit_failure
+                        and completion.on_commit_failure.target
+                    ):
                         stream_refs.add(completion.on_commit_failure.target)
 
         return self._binding_resolver.validate_bindings(
-            list(stream_refs),
-            list(persistence_refs)
+            list(stream_refs), list(persistence_refs)
         )
 
 
@@ -512,7 +540,7 @@ def compile_project(
     output_dir: Path,
     package_prefix: str,
     environment: Optional[str] = None,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> CompilationResult:
     """
     Convenience function to compile a Nexflow project.

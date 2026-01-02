@@ -4,7 +4,7 @@
 """
 Date Context Functions Generator Mixin
 
-Generates date context functions for NexflowRuntime.java (v0.7.0+):
+Generates date context functions for NexflowRuntime.java :
 - processingDate(): System time when record is processed
 - businessDate(): Business date from calendar context
 - businessDateOffset(): Business date plus/minus offset days
@@ -18,9 +18,9 @@ class DateContextMixin:
     """Mixin for generating date context runtime functions."""
 
     def _generate_date_context_functions(self) -> str:
-        """Generate date context functions for process-level date access (v0.7.0+)."""
-        return '''    // =========================================================================
-    // Date Context Functions (v0.7.0+)
+        """Generate date context functions for process-level date access."""
+        return """    // =========================================================================
+    // Date Context Functions
     // MOCK: Skips weekends only. Replace with BusinessCalendarService for holidays.
     // =========================================================================
 
@@ -123,4 +123,4 @@ class DateContextMixin:
         if (date == null) return false;
         DayOfWeek dow = date.getDayOfWeek();
         return dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY;
-    }'''
+    }"""

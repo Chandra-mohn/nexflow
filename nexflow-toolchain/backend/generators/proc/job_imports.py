@@ -30,7 +30,7 @@ class JobImportsMixin:
 
         # Remove duplicates and sort
         imports = sorted(set(imports))
-        return '\n'.join(f"import {imp};" for imp in imports)
+        return "\n".join(f"import {imp};" for imp in imports)
 
     def _get_core_imports(self) -> list:
         """Get core imports always needed."""
@@ -93,9 +93,9 @@ class JobImportsMixin:
                 elif isinstance(op, ast.ParallelDecl):
                     has_parallel = True
                     # Scan branch bodies
-                    if hasattr(op, 'branches') and op.branches:
+                    if hasattr(op, "branches") and op.branches:
                         for branch in op.branches:
-                            if hasattr(branch, 'body') and branch.body:
+                            if hasattr(branch, "body") and branch.body:
                                 scan_operators(branch.body)
                 elif isinstance(op, ast.ValidateInputDecl):
                     has_validate_input = True
@@ -108,38 +108,50 @@ class JobImportsMixin:
             scan_operators(process.processing)
 
         # Check global late data config
-        if process.execution and process.execution.time and process.execution.time.late_data:
+        if (
+            process.execution
+            and process.execution.time
+            and process.execution.time.late_data
+        ):
             has_late_data = True
 
         if has_transforms:
             imports.append("java.util.Map")
 
         if has_enrich:
-            imports.extend([
-                "org.apache.flink.streaming.api.datastream.AsyncDataStream",
-                "java.util.concurrent.TimeUnit",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.datastream.AsyncDataStream",
+                    "java.util.concurrent.TimeUnit",
+                ]
+            )
 
         if has_route:
-            imports.extend([
-                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
-                "org.apache.flink.streaming.api.functions.ProcessFunction",
-                "org.apache.flink.util.Collector",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                    "org.apache.flink.streaming.api.functions.ProcessFunction",
+                    "org.apache.flink.util.Collector",
+                ]
+            )
 
         if has_window or has_aggregate:
-            imports.extend([
-                "org.apache.flink.streaming.api.windowing.time.Time",
-                "org.apache.flink.streaming.api.windowing.windows.TimeWindow",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.windowing.time.Time",
+                    "org.apache.flink.streaming.api.windowing.windows.TimeWindow",
+                ]
+            )
 
         if has_window:
-            imports.extend([
-                "org.apache.flink.streaming.api.datastream.WindowedStream",
-                "org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows",
-                "org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows",
-                "org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.datastream.WindowedStream",
+                    "org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows",
+                    "org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows",
+                    "org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows",
+                ]
+            )
 
         if has_late_data:
             imports.append("org.apache.flink.util.OutputTag")
@@ -149,35 +161,43 @@ class JobImportsMixin:
 
         # Parallel block imports
         if has_parallel:
-            imports.extend([
-                "org.apache.flink.util.OutputTag",
-                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
-                "org.apache.flink.streaming.api.functions.ProcessFunction",
-                "org.apache.flink.util.Collector",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.util.OutputTag",
+                    "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                    "org.apache.flink.streaming.api.functions.ProcessFunction",
+                    "org.apache.flink.util.Collector",
+                ]
+            )
 
         # Validate input imports
         if has_validate_input:
-            imports.extend([
-                "org.apache.flink.util.OutputTag",
-                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
-                "org.apache.flink.streaming.api.functions.ProcessFunction",
-                "org.apache.flink.util.Collector",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.util.OutputTag",
+                    "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                    "org.apache.flink.streaming.api.functions.ProcessFunction",
+                    "org.apache.flink.util.Collector",
+                ]
+            )
 
         # Lookup imports
         if has_lookup:
-            imports.extend([
-                "org.apache.flink.streaming.api.datastream.AsyncDataStream",
-                "java.util.concurrent.TimeUnit",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.datastream.AsyncDataStream",
+                    "java.util.concurrent.TimeUnit",
+                ]
+            )
 
         # SQL transform imports (Flink SQL / Table API)
         if has_sql:
-            imports.extend([
-                "org.apache.flink.table.api.Table",
-                "org.apache.flink.table.api.bridge.java.StreamTableEnvironment",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.table.api.Table",
+                    "org.apache.flink.table.api.bridge.java.StreamTableEnvironment",
+                ]
+            )
 
         # Checkpoint imports
         if process.resilience and process.resilience.checkpoint:
@@ -198,7 +218,7 @@ class JobImportsMixin:
                     has_enrich = True
                     break
 
-        # v0.5.0+: process.receives is a direct list
+        # process.receives is a direct list
         if process.receives:
             for receive in process.receives:
                 if receive.schema and receive.schema.schema_name:
@@ -227,7 +247,7 @@ class JobImportsMixin:
                     if op.rule_name:
                         # 'route using' form - import the L4 rules router
                         # Handle dotted rule names (e.g., decision_result.decision)
-                        safe_rule_name = op.rule_name.replace('.', '_')
+                        safe_rule_name = op.rule_name.replace(".", "_")
                         router_class = to_pascal_case(safe_rule_name) + "Router"
                         imports.append(f"{rules_package}.{router_class}")
                     # Both forms need RoutedEvent
@@ -242,7 +262,7 @@ class JobImportsMixin:
                     imports.append(f"{transform_package}.{lookup_class}")
                     imports.append(f"{rules_package}.LookupResult")
                 elif isinstance(op, ast.EvaluateDecl):
-                    if hasattr(op, 'rule_name') and op.rule_name:
+                    if hasattr(op, "rule_name") and op.rule_name:
                         evaluator_class = to_pascal_case(op.rule_name) + "Evaluator"
                         imports.append(f"{rules_package}.{evaluator_class}")
 
@@ -252,25 +272,37 @@ class JobImportsMixin:
         """Get correlation-related imports."""
         imports = []
 
-        has_await = isinstance(process.correlation, ast.AwaitDecl) if process.correlation else False
-        has_hold = isinstance(process.correlation, ast.HoldDecl) if process.correlation else False
+        has_await = (
+            isinstance(process.correlation, ast.AwaitDecl)
+            if process.correlation
+            else False
+        )
+        has_hold = (
+            isinstance(process.correlation, ast.HoldDecl)
+            if process.correlation
+            else False
+        )
 
         if has_await or has_hold:
-            imports.extend([
-                "org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction",
-                "org.apache.flink.streaming.api.datastream.KeyedStream",
-                "org.apache.flink.util.OutputTag",
-                "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction",
+                    "org.apache.flink.streaming.api.datastream.KeyedStream",
+                    "org.apache.flink.util.OutputTag",
+                    "org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator",
+                ]
+            )
 
         if has_await:
             imports.append("org.apache.flink.streaming.api.datastream.ConnectedStreams")
 
         if has_hold:
-            imports.extend([
-                "org.apache.flink.api.common.state.ListState",
-                "org.apache.flink.api.common.state.ListStateDescriptor",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.api.common.state.ListState",
+                    "org.apache.flink.api.common.state.ListStateDescriptor",
+                ]
+            )
 
         correlation_package = f"{self.config.package_prefix}.correlation"
         if process.correlation:
@@ -292,7 +324,9 @@ class JobImportsMixin:
         imports = []
 
         if process.completion:
-            imports.append("org.apache.flink.api.common.serialization.SimpleStringSchema")
+            imports.append(
+                "org.apache.flink.api.common.serialization.SimpleStringSchema"
+            )
             completion_package = f"{self.config.package_prefix}.completion"
             if process.completion.on_commit or process.completion.on_commit_failure:
                 imports.append(f"{completion_package}.CompletionEvent")
@@ -312,12 +346,14 @@ class JobImportsMixin:
                     break
 
         if has_persist:
-            imports.extend([
-                "com.mongodb.client.model.WriteConcern",
-                "org.apache.flink.connector.mongodb.sink.MongoSink",
-                "org.apache.flink.connector.mongodb.sink.config.MongoWriteOptions",
-                "java.util.Arrays",
-            ])
+            imports.extend(
+                [
+                    "com.mongodb.client.model.WriteConcern",
+                    "org.apache.flink.connector.mongodb.sink.MongoSink",
+                    "org.apache.flink.connector.mongodb.sink.config.MongoWriteOptions",
+                    "java.util.Arrays",
+                ]
+            )
 
             # Add serializer imports for each persist target
             serializer_package = f"{self.config.package_prefix}.serializer"
@@ -327,12 +363,14 @@ class JobImportsMixin:
                         schema_class = to_pascal_case(emit.schema.schema_name)
                     else:
                         schema_class = to_pascal_case(emit.target)
-                    imports.append(f"{serializer_package}.{schema_class}MongoSerializer")
+                    imports.append(
+                        f"{serializer_package}.{schema_class}MongoSerializer"
+                    )
 
         return imports
 
     def _get_source_connector_imports(self, process: ast.ProcessDefinition) -> list:
-        """Get source connector imports based on connector types (v0.8.0+).
+        """Get source connector imports based on connector types.
 
         Supports Parquet, CSV, and other file-based connectors.
         """
@@ -343,7 +381,7 @@ class JobImportsMixin:
 
         if process.receives:
             for receive in process.receives:
-                connector_type = getattr(receive, 'connector_type', None)
+                connector_type = getattr(receive, "connector_type", None)
                 if connector_type:
                     if connector_type == ast.ConnectorType.PARQUET:
                         has_parquet = True
@@ -352,21 +390,25 @@ class JobImportsMixin:
 
         # Parquet source imports
         if has_parquet:
-            imports.extend([
-                "org.apache.flink.connector.file.src.FileSource",
-                "org.apache.flink.core.fs.Path",
-                "org.apache.flink.formats.parquet.ParquetColumnarRowInputFormat",
-                "org.apache.flink.formats.parquet.avro.AvroParquetReaders",
-                "org.apache.flink.table.types.logical.RowType",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.connector.file.src.FileSource",
+                    "org.apache.flink.core.fs.Path",
+                    "org.apache.flink.formats.parquet.ParquetColumnarRowInputFormat",
+                    "org.apache.flink.formats.parquet.avro.AvroParquetReaders",
+                    "org.apache.flink.table.types.logical.RowType",
+                ]
+            )
 
         # CSV source imports
         if has_csv:
-            imports.extend([
-                "org.apache.flink.connector.file.src.FileSource",
-                "org.apache.flink.core.fs.Path",
-                "org.apache.flink.formats.csv.CsvReaderFormat",
-                "org.apache.flink.formats.csv.CsvRowDataDeserializationSchema",
-            ])
+            imports.extend(
+                [
+                    "org.apache.flink.connector.file.src.FileSource",
+                    "org.apache.flink.core.fs.Path",
+                    "org.apache.flink.formats.csv.CsvReaderFormat",
+                    "org.apache.flink.formats.csv.CsvRowDataDeserializationSchema",
+                ]
+            )
 
         return imports

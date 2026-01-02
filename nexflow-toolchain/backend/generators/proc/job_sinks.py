@@ -13,13 +13,15 @@ When emit has a persist clause, generates both:
 """
 
 from backend.ast import proc_ast as ast
-from backend.generators.common.java_utils import to_pascal_case, to_camel_case
+from backend.generators.common.java_utils import to_camel_case, to_pascal_case
 
 
 class JobSinksMixin:
     """Mixin for generating Flink sink wiring code."""
 
-    def _generate_sink_with_json(self, emit: ast.EmitDecl, input_stream: str, input_type: str) -> str:
+    def _generate_sink_with_json(
+        self, emit: ast.EmitDecl, input_stream: str, input_type: str
+    ) -> str:
         """Generate Kafka sink with JSON serialization, plus optional MongoDB persistence."""
         lines = []
 
@@ -27,15 +29,17 @@ class JobSinksMixin:
         lines.append(self._generate_kafka_sink(emit, input_stream, input_type))
 
         # 2. Generate MongoDB sink if persist clause is present (L5 integration)
-        if emit.persist and hasattr(self, 'generate_mongo_sink_code'):
+        if emit.persist and hasattr(self, "generate_mongo_sink_code"):
             mongo_code = self.generate_mongo_sink_code(emit, input_stream, input_type)
             if mongo_code:
                 lines.append("")
                 lines.append(mongo_code)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def _generate_kafka_sink(self, emit: ast.EmitDecl, input_stream: str, input_type: str) -> str:
+    def _generate_kafka_sink(
+        self, emit: ast.EmitDecl, input_stream: str, input_type: str
+    ) -> str:
         """Generate Kafka sink code."""
         target = emit.target
         sink_type = input_type
@@ -44,7 +48,7 @@ class JobSinksMixin:
         # Check if we have a binding resolver for resolved topic (L5)
         topic = target
         brokers_var = "KAFKA_BOOTSTRAP_SERVERS"
-        if hasattr(self, '_binding_resolver') and self._binding_resolver.has_config:
+        if hasattr(self, "_binding_resolver") and self._binding_resolver.has_config:
             resolved = self._binding_resolver.resolve_sink(target)
             topic = resolved.topic
             # For production, brokers come from resolved config
@@ -74,13 +78,15 @@ class JobSinksMixin:
                 late_sink_code = self._generate_late_data_sink(
                     op.options.late_data.target,
                     self._get_input_type_at_op(process, idx),
-                    f"windowed{idx}Stream"
+                    f"windowed{idx}Stream",
                 )
                 late_data_sinks.append(late_sink_code)
 
         return late_data_sinks
 
-    def _generate_late_data_sink(self, target: str, input_type: str, windowed_stream: str) -> str:
+    def _generate_late_data_sink(
+        self, target: str, input_type: str, windowed_stream: str
+    ) -> str:
         """Generate Kafka sink for late data side output."""
         late_tag = to_camel_case(target) + "LateTag"
         sink_name = to_camel_case(target) + "LateSink"
@@ -101,16 +107,24 @@ class JobSinksMixin:
         // To route late data: aggregatedStream.getSideOutput({late_tag}).sinkTo({sink_name});
 '''
 
-    def _wire_completion_block(self, completion: ast.CompletionBlock, input_stream: str, input_type: str) -> str:
+    def _wire_completion_block(
+        self, completion: ast.CompletionBlock, input_stream: str, input_type: str
+    ) -> str:
         """Wire completion event callbacks."""
         lines = []
 
         if completion.on_commit:
             on_commit = completion.on_commit
             target = on_commit.target
-            corr_field = on_commit.correlation.field_path if on_commit.correlation else "correlation_id"
+            corr_field = (
+                on_commit.correlation.field_path
+                if on_commit.correlation
+                else "correlation_id"
+            )
             include_fields = on_commit.include.fields if on_commit.include else []
-            include_str = ', '.join(f'"{f}"' for f in include_fields) if include_fields else ""
+            include_str = (
+                ", ".join(f'"{f}"' for f in include_fields) if include_fields else ""
+            )
 
             lines.append(f'''        // On Commit: emit completion to {target}
         // Correlation field: {corr_field}
@@ -128,7 +142,7 @@ class JobSinksMixin:
 
         // Create completion event stream from main output
         DataStream<CompletionEvent> completionStream = {input_stream}
-            .map(record -> CompletionEvent.success(record, "{corr_field}"{', new String[]{' + include_str + '}' if include_str else ''}))
+            .map(record -> CompletionEvent.success(record, "{corr_field}"{", new String[]{" + include_str + "}" if include_str else ""}))
             .name("completion-event-transform");
 
         completionStream.sinkTo(completionSuccessSink).name("sink-completion-{target}");
@@ -137,7 +151,11 @@ class JobSinksMixin:
         if completion.on_commit_failure:
             on_failure = completion.on_commit_failure
             target = on_failure.target
-            corr_field = on_failure.correlation.field_path if on_failure.correlation else "correlation_id"
+            corr_field = (
+                on_failure.correlation.field_path
+                if on_failure.correlation
+                else "correlation_id"
+            )
 
             lines.append(f'''        // On Commit Failure: emit completion failure to {target}
         // Correlation field: {corr_field}
@@ -154,11 +172,11 @@ class JobSinksMixin:
             .build();
 ''')
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _get_input_type_at_op(self, process: ast.ProcessDefinition, op_idx: int) -> str:
         """Get the input type at a specific operator index in the pipeline."""
-        # Start with initial input type (v0.5.0+: process.receives is direct list)
+        # Start with initial input type (process.receives is direct list)
         if process.receives:
             receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:

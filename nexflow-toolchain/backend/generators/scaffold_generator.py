@@ -22,18 +22,18 @@ NOT PLACEHOLDERS: They have actual method bodies
 from pathlib import Path
 
 from backend.ast import proc_ast as ast
-from backend.generators.base import BaseGenerator, GeneratorConfig, GenerationResult
+from backend.generators.base import BaseGenerator, GenerationResult, GeneratorConfig
 from backend.generators.common.java_utils import to_pascal_case
-from backend.generators.scaffold.scaffold_operators import ScaffoldOperatorsMixin
-from backend.generators.scaffold.scaffold_correlation import ScaffoldCorrelationMixin
 from backend.generators.scaffold.scaffold_completion import ScaffoldCompletionMixin
+from backend.generators.scaffold.scaffold_correlation import ScaffoldCorrelationMixin
+from backend.generators.scaffold.scaffold_operators import ScaffoldOperatorsMixin
 
 
 class ScaffoldGenerator(
     BaseGenerator,
     ScaffoldOperatorsMixin,
     ScaffoldCorrelationMixin,
-    ScaffoldCompletionMixin
+    ScaffoldCompletionMixin,
 ):
     """
     Generator for L3/L4 scaffold classes.
@@ -62,10 +62,14 @@ class ScaffoldGenerator(
         schema_package = f"{self.config.package_prefix}.schema"
         correlation_package = f"{self.config.package_prefix}.correlation"
 
-        transform_path = Path("src/main/java") / self.get_package_path(transform_package)
+        transform_path = Path("src/main/java") / self.get_package_path(
+            transform_package
+        )
         rules_path = Path("src/main/java") / self.get_package_path(rules_package)
         schema_path = Path("src/main/java") / self.get_package_path(schema_package)
-        correlation_path = Path("src/main/java") / self.get_package_path(correlation_package)
+        correlation_path = Path("src/main/java") / self.get_package_path(
+            correlation_package
+        )
 
         # Track what we need to generate
         input_type = self._get_input_type(process)
@@ -77,7 +81,12 @@ class ScaffoldGenerator(
             for op in process.processing:
                 if isinstance(op, ast.EnrichDecl):
                     self._generate_enrich_scaffold(
-                        op, transform_package, transform_path, schema_package, schema_path, input_type
+                        op,
+                        transform_package,
+                        transform_path,
+                        schema_package,
+                        schema_path,
+                        input_type,
                     )
                 elif isinstance(op, ast.TransformDecl):
                     self._generate_transform_scaffold(
@@ -101,12 +110,16 @@ class ScaffoldGenerator(
         # Generate RoutedEvent if needed
         if needs_routed_event:
             routed_content = self._generate_routed_event(rules_package)
-            self.result.add_file(rules_path / "RoutedEvent.java", routed_content, "java")
+            self.result.add_file(
+                rules_path / "RoutedEvent.java", routed_content, "java"
+            )
 
         # Generate LookupResult if needed
         if needs_lookup_result:
             lookup_content = self._generate_lookup_result(rules_package)
-            self.result.add_file(rules_path / "LookupResult.java", lookup_content, "java")
+            self.result.add_file(
+                rules_path / "LookupResult.java", lookup_content, "java"
+            )
 
         # Generate correlation scaffolds
         if process.correlation:
@@ -120,7 +133,7 @@ class ScaffoldGenerator(
 
     def _get_input_type(self, process: ast.ProcessDefinition) -> str:
         """Get the input type for the process."""
-        # v0.5.0+: process.receives is direct list
+        # process.receives is direct list
         if process.receives:
             receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:
@@ -129,7 +142,7 @@ class ScaffoldGenerator(
 
     def _generate_routed_event(self, package: str) -> str:
         """Generate RoutedEvent wrapper class."""
-        return f'''/**
+        return f"""/**
  * RoutedEvent
  *
  * Wrapper class containing original event data and routing decision.
@@ -170,11 +183,11 @@ public class RoutedEvent {{
         return "RoutedEvent{{decision='" + decision + "', event=" + originalEvent + "}}";
     }}
 }}
-'''
+"""
 
     def _generate_lookup_result(self, package: str) -> str:
         """Generate LookupResult wrapper class."""
-        return f'''/**
+        return f"""/**
  * LookupResult
  *
  * Wrapper class containing original event and lookup data.
@@ -231,4 +244,4 @@ public class LookupResult<T> {{
         return "LookupResult{{found=" + found + ", event=" + originalEvent + ", data=" + lookupData + "}}";
     }}
 }}
-'''
+"""

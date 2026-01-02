@@ -796,7 +796,7 @@ scheduleDuration
     ;
 
 // ----------------------------------------------------------------------------
-// SQL Statement (v0.8.0+)
+// SQL Statement
 // ----------------------------------------------------------------------------
 
 // Embedded SQL block for Flink SQL / Spark SQL transformations

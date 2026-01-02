@@ -12,7 +12,11 @@ from typing import List
 
 from backend.ast import schema_ast as ast
 from backend.ast.common import ImportStatement
-from backend.ast.serialization import SerializationConfig, SerializationFormat, CompatibilityMode
+from backend.ast.serialization import (
+    CompatibilityMode,
+    SerializationConfig,
+    SerializationFormat,
+)
 from backend.parser.common import BaseVisitorMixin
 from backend.parser.generated.schema import SchemaDSLParser
 
@@ -40,10 +44,12 @@ class CoreVisitorMixin(BaseVisitorMixin):
             schemas=schemas,
             type_aliases=type_aliases,
             imports=imports,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitImportStatement(self, ctx: SchemaDSLParser.ImportStatementContext) -> ImportStatement:
+    def visitImportStatement(
+        self, ctx: SchemaDSLParser.ImportStatementContext
+    ) -> ImportStatement:
         """Parse an import statement."""
         path = ctx.importPath().getText()
         line = ctx.start.line if ctx.start else 0
@@ -54,8 +60,10 @@ class CoreVisitorMixin(BaseVisitorMixin):
         """Parse an import path."""
         return ctx.getText()
 
-    def visitSchemaDefinition(self, ctx: SchemaDSLParser.SchemaDefinitionContext) -> ast.SchemaDefinition:
-        # v0.5.0+: schemaName can be IDENTIFIER, mutationPattern, or timeSemanticsType
+    def visitSchemaDefinition(
+        self, ctx: SchemaDSLParser.SchemaDefinitionContext
+    ) -> ast.SchemaDefinition:
+        # schemaName can be IDENTIFIER, mutationPattern, or timeSemanticsType
         name = self._get_text(ctx.schemaName())
 
         patterns = []
@@ -110,22 +118,22 @@ class CoreVisitorMixin(BaseVisitorMixin):
         for rule_ctx in ctx.ruleBlock():
             rules.append(self.visitRuleBlock(rule_ctx))
 
-        # v0.5.0+: Handle standalone compatibilityDecl (evolution keyword)
+        # Handle standalone compatibilityDecl (evolution keyword)
         # Note: Version block may also have compatibilityDecl, handle both
         if ctx.compatibilityDecl() and version is None:
             # Standalone evolution/compatibility - no version block
             version = ast.VersionBlock(
                 version="1.0.0",  # Default version when only compatibility is specified
                 compatibility=self.visitCompatibilityDecl(ctx.compatibilityDecl()),
-                location=self._get_location(ctx.compatibilityDecl())
+                location=self._get_location(ctx.compatibilityDecl()),
             )
 
-        # v0.5.0+: Handle constraintsBlock
+        # Handle constraintsBlock
         constraints = None
         if ctx.constraintsBlock():
             constraints = self.visitConstraintsBlock(ctx.constraintsBlock())
 
-        # v0.5.0+: Handle immutableDecl
+        # Handle immutableDecl
         immutable = None
         if ctx.immutableDecl():
             immutable = self.visitImmutableDecl(ctx.immutableDecl())
@@ -152,37 +160,40 @@ class CoreVisitorMixin(BaseVisitorMixin):
             entries=entries,
             rules=rules,
             migration=migration,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
     # =========================================================================
     # Pattern Declaration
     # =========================================================================
 
-    def visitPatternDecl(self, ctx: SchemaDSLParser.PatternDeclContext) -> List[ast.MutationPattern]:
+    def visitPatternDecl(
+        self, ctx: SchemaDSLParser.PatternDeclContext
+    ) -> List[ast.MutationPattern]:
         patterns = []
         for pattern_ctx in ctx.mutationPattern():
             patterns.append(self.visitMutationPattern(pattern_ctx))
         return patterns
 
-    def visitMutationPattern(self, ctx: SchemaDSLParser.MutationPatternContext) -> ast.MutationPattern:
+    def visitMutationPattern(
+        self, ctx: SchemaDSLParser.MutationPatternContext
+    ) -> ast.MutationPattern:
         pattern_text = self._get_text(ctx).lower()
         pattern_map = {
-            'master_data': ast.MutationPattern.MASTER_DATA,
-            'immutable_ledger': ast.MutationPattern.IMMUTABLE_LEDGER,
-            'versioned_configuration': ast.MutationPattern.VERSIONED_CONFIGURATION,
-            'operational_parameters': ast.MutationPattern.OPERATIONAL_PARAMETERS,
-            'event_log': ast.MutationPattern.EVENT_LOG,
-            'state_machine': ast.MutationPattern.STATE_MACHINE,
-            'temporal_data': ast.MutationPattern.TEMPORAL_DATA,
-            'reference_data': ast.MutationPattern.REFERENCE_DATA,
-            'business_logic': ast.MutationPattern.BUSINESS_LOGIC,
-            # v0.5.0+: Additional patterns
-            'command': ast.MutationPattern.COMMAND,
-            'response': ast.MutationPattern.RESPONSE,
-            'aggregate': ast.MutationPattern.AGGREGATE,
-            'document': ast.MutationPattern.DOCUMENT,
-            'audit_event': ast.MutationPattern.AUDIT_EVENT,
+            "master_data": ast.MutationPattern.MASTER_DATA,
+            "immutable_ledger": ast.MutationPattern.IMMUTABLE_LEDGER,
+            "versioned_configuration": ast.MutationPattern.VERSIONED_CONFIGURATION,
+            "operational_parameters": ast.MutationPattern.OPERATIONAL_PARAMETERS,
+            "event_log": ast.MutationPattern.EVENT_LOG,
+            "state_machine": ast.MutationPattern.STATE_MACHINE,
+            "temporal_data": ast.MutationPattern.TEMPORAL_DATA,
+            "reference_data": ast.MutationPattern.REFERENCE_DATA,
+            "business_logic": ast.MutationPattern.BUSINESS_LOGIC,
+            "command": ast.MutationPattern.COMMAND,
+            "response": ast.MutationPattern.RESPONSE,
+            "aggregate": ast.MutationPattern.AGGREGATE,
+            "document": ast.MutationPattern.DOCUMENT,
+            "audit_event": ast.MutationPattern.AUDIT_EVENT,
         }
         return pattern_map.get(pattern_text, ast.MutationPattern.MASTER_DATA)
 
@@ -190,7 +201,9 @@ class CoreVisitorMixin(BaseVisitorMixin):
     # Version Block
     # =========================================================================
 
-    def visitVersionBlock(self, ctx: SchemaDSLParser.VersionBlockContext) -> ast.VersionBlock:
+    def visitVersionBlock(
+        self, ctx: SchemaDSLParser.VersionBlockContext
+    ) -> ast.VersionBlock:
         version = ctx.VERSION_NUMBER().getText() if ctx.VERSION_NUMBER() else "1.0.0"
 
         compatibility = None
@@ -215,46 +228,59 @@ class CoreVisitorMixin(BaseVisitorMixin):
             previous_version=previous_version,
             deprecation=deprecation,
             migration_guide=migration_guide,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitCompatibilityDecl(self, ctx: SchemaDSLParser.CompatibilityDeclContext) -> ast.CompatibilityMode:
+    def visitCompatibilityDecl(
+        self, ctx: SchemaDSLParser.CompatibilityDeclContext
+    ) -> ast.CompatibilityMode:
         mode_text = self._get_text(ctx.compatibilityMode()).lower()
         mode_map = {
-            'backward': ast.CompatibilityMode.BACKWARD,
-            'forward': ast.CompatibilityMode.FORWARD,
-            'full': ast.CompatibilityMode.FULL,
-            'none': ast.CompatibilityMode.NONE,
-            # v0.5.0+: Additional compatibility modes (aliases)
-            'backward_compatible': ast.CompatibilityMode.BACKWARD,
-            'forward_compatible': ast.CompatibilityMode.FORWARD,
+            "backward": ast.CompatibilityMode.BACKWARD,
+            "forward": ast.CompatibilityMode.FORWARD,
+            "full": ast.CompatibilityMode.FULL,
+            "none": ast.CompatibilityMode.NONE,
+            "backward_compatible": ast.CompatibilityMode.BACKWARD,
+            "forward_compatible": ast.CompatibilityMode.FORWARD,
         }
         return mode_map.get(mode_text, ast.CompatibilityMode.BACKWARD)
 
-    def visitPreviousVersionDecl(self, ctx: SchemaDSLParser.PreviousVersionDeclContext) -> str:
+    def visitPreviousVersionDecl(
+        self, ctx: SchemaDSLParser.PreviousVersionDeclContext
+    ) -> str:
         return ctx.VERSION_NUMBER().getText() if ctx.VERSION_NUMBER() else None
 
-    def visitDeprecationDecl(self, ctx: SchemaDSLParser.DeprecationDeclContext) -> ast.DeprecationDecl:
+    def visitDeprecationDecl(
+        self, ctx: SchemaDSLParser.DeprecationDeclContext
+    ) -> ast.DeprecationDecl:
         message = self._strip_quotes(ctx.STRING().getText()) if ctx.STRING() else ""
         return ast.DeprecationDecl(message=message, location=self._get_location(ctx))
 
-    def visitMigrationGuideDecl(self, ctx: SchemaDSLParser.MigrationGuideDeclContext) -> str:
+    def visitMigrationGuideDecl(
+        self, ctx: SchemaDSLParser.MigrationGuideDeclContext
+    ) -> str:
         return self._strip_quotes(ctx.STRING().getText()) if ctx.STRING() else None
 
-    def visitRetentionDecl(self, ctx: SchemaDSLParser.RetentionDeclContext) -> ast.Duration:
+    def visitRetentionDecl(
+        self, ctx: SchemaDSLParser.RetentionDeclContext
+    ) -> ast.Duration:
         return self.visitDuration(ctx.duration())
 
     # =========================================================================
     # Identity and Fields Blocks
     # =========================================================================
 
-    def visitIdentityBlock(self, ctx: SchemaDSLParser.IdentityBlockContext) -> ast.IdentityBlock:
+    def visitIdentityBlock(
+        self, ctx: SchemaDSLParser.IdentityBlockContext
+    ) -> ast.IdentityBlock:
         fields = []
         for field_ctx in ctx.identityField():
             fields.append(self.visitIdentityField(field_ctx))
         return ast.IdentityBlock(fields=fields, location=self._get_location(ctx))
 
-    def visitIdentityField(self, ctx: SchemaDSLParser.IdentityFieldContext) -> ast.FieldDecl:
+    def visitIdentityField(
+        self, ctx: SchemaDSLParser.IdentityFieldContext
+    ) -> ast.FieldDecl:
         name = self._get_text(ctx.fieldName())
         field_type = self.visitFieldType(ctx.fieldType())
 
@@ -266,10 +292,12 @@ class CoreVisitorMixin(BaseVisitorMixin):
             name=name,
             field_type=field_type,
             qualifiers=qualifiers,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitFieldsBlock(self, ctx: SchemaDSLParser.FieldsBlockContext) -> ast.FieldsBlock:
+    def visitFieldsBlock(
+        self, ctx: SchemaDSLParser.FieldsBlockContext
+    ) -> ast.FieldsBlock:
         fields = []
         for field_ctx in ctx.fieldDecl():
             fields.append(self.visitFieldDecl(field_ctx))
@@ -287,12 +315,14 @@ class CoreVisitorMixin(BaseVisitorMixin):
             name=name,
             field_type=field_type,
             qualifiers=qualifiers,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitNestedObjectBlock(self, ctx: SchemaDSLParser.NestedObjectBlockContext) -> ast.NestedObjectBlock:
+    def visitNestedObjectBlock(
+        self, ctx: SchemaDSLParser.NestedObjectBlockContext
+    ) -> ast.NestedObjectBlock:
         name = self._get_text(ctx.fieldName())
-        is_list = 'list' in self._get_text(ctx).lower()
+        is_list = "list" in self._get_text(ctx).lower()
 
         fields = []
         for field_ctx in ctx.fieldDecl():
@@ -307,24 +337,27 @@ class CoreVisitorMixin(BaseVisitorMixin):
             is_list=is_list,
             fields=fields,
             nested_objects=nested,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
     # =========================================================================
-    # Constraints Block (v0.5.0+)
+    # Constraints Block
     # =========================================================================
 
-    def visitConstraintsBlock(self, ctx: SchemaDSLParser.ConstraintsBlockContext) -> ast.ConstraintsBlock:
+    def visitConstraintsBlock(
+        self, ctx: SchemaDSLParser.ConstraintsBlockContext
+    ) -> ast.ConstraintsBlock:
         """Visit constraints block for business rule validation."""
         constraints = []
         for constraint_ctx in ctx.constraintDecl():
             constraints.append(self.visitConstraintDecl(constraint_ctx))
         return ast.ConstraintsBlock(
-            constraints=constraints,
-            location=self._get_location(ctx)
+            constraints=constraints, location=self._get_location(ctx)
         )
 
-    def visitConstraintDecl(self, ctx: SchemaDSLParser.ConstraintDeclContext) -> ast.ConstraintDecl:
+    def visitConstraintDecl(
+        self, ctx: SchemaDSLParser.ConstraintDeclContext
+    ) -> ast.ConstraintDecl:
         """Visit constraint declaration: condition as "message"."""
         # Get the condition text (everything before 'as')
         condition_ctx = ctx.condition()
@@ -336,46 +369,45 @@ class CoreVisitorMixin(BaseVisitorMixin):
             message = self._strip_quotes(ctx.STRING().getText())
 
         return ast.ConstraintDecl(
-            condition=condition,
-            message=message,
-            location=self._get_location(ctx)
+            condition=condition, message=message, location=self._get_location(ctx)
         )
 
     # =========================================================================
-    # Immutable Declaration (v0.5.0+)
+    # Immutable Declaration
     # =========================================================================
 
     def visitImmutableDecl(self, ctx: SchemaDSLParser.ImmutableDeclContext) -> bool:
         """Visit immutable declaration: immutable true/false."""
         if ctx.BOOLEAN():
-            return ctx.BOOLEAN().getText().lower() == 'true'
+            return ctx.BOOLEAN().getText().lower() == "true"
         return False
 
     # =========================================================================
     # Computed Block (Derived Fields)
     # =========================================================================
 
-    def visitComputedBlock(self, ctx: SchemaDSLParser.ComputedBlockContext) -> ast.ComputedBlock:
+    def visitComputedBlock(
+        self, ctx: SchemaDSLParser.ComputedBlockContext
+    ) -> ast.ComputedBlock:
         """Visit computed block containing derived field definitions."""
         fields = []
         for field_ctx in ctx.computedField():
             fields.append(self.visitComputedField(field_ctx))
-        return ast.ComputedBlock(
-            fields=fields,
-            location=self._get_location(ctx)
-        )
+        return ast.ComputedBlock(fields=fields, location=self._get_location(ctx))
 
-    def visitComputedField(self, ctx: SchemaDSLParser.ComputedFieldContext) -> ast.ComputedFieldDecl:
+    def visitComputedField(
+        self, ctx: SchemaDSLParser.ComputedFieldContext
+    ) -> ast.ComputedFieldDecl:
         """Visit computed field: field_name = expression."""
         name = self._get_text(ctx.fieldName())
         expression = self.visitComputedExpression(ctx.computedExpression())
         return ast.ComputedFieldDecl(
-            name=name,
-            expression=expression,
-            location=self._get_location(ctx)
+            name=name, expression=expression, location=self._get_location(ctx)
         )
 
-    def visitComputedExpression(self, ctx: SchemaDSLParser.ComputedExpressionContext) -> ast.ComputedExpression:
+    def visitComputedExpression(
+        self, ctx: SchemaDSLParser.ComputedExpressionContext
+    ) -> ast.ComputedExpression:
         """Visit computed expression - handles all expression types."""
         # Handle when/then/else expression
         if ctx.computedWhenExpression():
@@ -384,19 +416,17 @@ class CoreVisitorMixin(BaseVisitorMixin):
         # Handle parenthesized expression
         if ctx.getChildCount() >= 3:
             first_child = ctx.getChild(0)
-            if hasattr(first_child, 'getText') and first_child.getText() == '(':
+            if hasattr(first_child, "getText") and first_child.getText() == "(":
                 # Parenthesized: ( expression )
                 return self.visitComputedExpression(ctx.computedExpression(0))
 
         # Handle unary NOT expression
         if ctx.getChildCount() >= 2:
             first_child = ctx.getChild(0)
-            if hasattr(first_child, 'getText') and first_child.getText() == 'not':
+            if hasattr(first_child, "getText") and first_child.getText() == "not":
                 operand = self.visitComputedExpression(ctx.computedExpression(0))
                 return ast.UnaryExpression(
-                    operator='not',
-                    operand=operand,
-                    location=self._get_location(ctx)
+                    operator="not", operand=operand, location=self._get_location(ctx)
                 )
 
         # Handle binary expressions (arithmetic, logical, comparison)
@@ -406,7 +436,11 @@ class CoreVisitorMixin(BaseVisitorMixin):
 
             # Determine operator
             operator_ctx = ctx.getChild(1)
-            operator = operator_ctx.getText() if hasattr(operator_ctx, 'getText') else str(operator_ctx)
+            operator = (
+                operator_ctx.getText()
+                if hasattr(operator_ctx, "getText")
+                else str(operator_ctx)
+            )
 
             # Handle comparison operators from comparisonOp rule
             if ctx.comparisonOp():
@@ -416,7 +450,7 @@ class CoreVisitorMixin(BaseVisitorMixin):
                 left=left,
                 operator=operator,
                 right=right,
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
 
         # Handle function call
@@ -427,25 +461,25 @@ class CoreVisitorMixin(BaseVisitorMixin):
         if ctx.fieldPath():
             field_path = self.visitFieldPath(ctx.fieldPath())
             return ast.FieldRefExpression(
-                field_path=field_path,
-                location=self._get_location(ctx)
+                field_path=field_path, location=self._get_location(ctx)
             )
 
         # Handle literal
         if ctx.literal():
             literal = self.visitLiteral(ctx.literal())
             return ast.LiteralExpression(
-                value=literal,
-                location=self._get_location(ctx)
+                value=literal, location=self._get_location(ctx)
             )
 
         # Fallback: treat as field reference
         return ast.FieldRefExpression(
             field_path=ast.FieldPath(parts=[self._get_text(ctx)]),
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitComputedWhenExpression(self, ctx: SchemaDSLParser.ComputedWhenExpressionContext) -> ast.WhenExpression:
+    def visitComputedWhenExpression(
+        self, ctx: SchemaDSLParser.ComputedWhenExpressionContext
+    ) -> ast.WhenExpression:
         """Visit when/then/else expression."""
         branches = []
         expressions = ctx.computedExpression()
@@ -458,22 +492,22 @@ class CoreVisitorMixin(BaseVisitorMixin):
         for i in range(num_branches):
             condition = self.visitComputedExpression(expressions[i * 2])
             result = self.visitComputedExpression(expressions[i * 2 + 1])
-            branches.append(ast.WhenBranch(
-                condition=condition,
-                result=result,
-                location=self._get_location(ctx)
-            ))
+            branches.append(
+                ast.WhenBranch(
+                    condition=condition, result=result, location=self._get_location(ctx)
+                )
+            )
 
         # Last expression is the else result
         else_result = self.visitComputedExpression(expressions[-1])
 
         return ast.WhenExpression(
-            branches=branches,
-            else_result=else_result,
-            location=self._get_location(ctx)
+            branches=branches, else_result=else_result, location=self._get_location(ctx)
         )
 
-    def visitComputedFunctionCall(self, ctx: SchemaDSLParser.FunctionCallContext) -> ast.FunctionCallExpression:
+    def visitComputedFunctionCall(
+        self, ctx: SchemaDSLParser.FunctionCallContext
+    ) -> ast.FunctionCallExpression:
         """Visit function call in computed expression."""
         function_name = ctx.IDENTIFIER().getText()
         arguments = []
@@ -489,7 +523,7 @@ class CoreVisitorMixin(BaseVisitorMixin):
         return ast.FunctionCallExpression(
             function_name=function_name,
             arguments=arguments,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
     def _expression_to_computed(self, expr_ctx) -> ast.ComputedExpression:
@@ -498,24 +532,24 @@ class CoreVisitorMixin(BaseVisitorMixin):
         This handles the existing expression grammar used in function calls.
         """
         # Handle literal
-        if hasattr(expr_ctx, 'literal') and expr_ctx.literal():
+        if hasattr(expr_ctx, "literal") and expr_ctx.literal():
             literal = self.visitLiteral(expr_ctx.literal())
             return ast.LiteralExpression(value=literal)
 
         # Handle field path
-        if hasattr(expr_ctx, 'fieldPath') and expr_ctx.fieldPath():
+        if hasattr(expr_ctx, "fieldPath") and expr_ctx.fieldPath():
             field_path = self.visitFieldPath(expr_ctx.fieldPath())
             return ast.FieldRefExpression(field_path=field_path)
 
         # Handle nested function call
-        if hasattr(expr_ctx, 'functionCall') and expr_ctx.functionCall():
+        if hasattr(expr_ctx, "functionCall") and expr_ctx.functionCall():
             return self.visitComputedFunctionCall(expr_ctx.functionCall())
 
         # Handle binary expression
-        if hasattr(expr_ctx, 'expression') and len(expr_ctx.expression()) == 2:
+        if hasattr(expr_ctx, "expression") and len(expr_ctx.expression()) == 2:
             left = self._expression_to_computed(expr_ctx.expression(0))
             right = self._expression_to_computed(expr_ctx.expression(1))
-            operator = expr_ctx.operator().getText() if expr_ctx.operator() else '+'
+            operator = expr_ctx.operator().getText() if expr_ctx.operator() else "+"
             return ast.BinaryExpression(left=left, operator=operator, right=right)
 
         # Fallback
@@ -524,10 +558,12 @@ class CoreVisitorMixin(BaseVisitorMixin):
         )
 
     # =========================================================================
-    # Serialization Block (v0.8.0+ - Kafka Serialization Format)
+    # Serialization Block (Kafka Serialization Format)
     # =========================================================================
 
-    def visitSerializationBlock(self, ctx: SchemaDSLParser.SerializationBlockContext) -> SerializationConfig:
+    def visitSerializationBlock(
+        self, ctx: SchemaDSLParser.SerializationBlockContext
+    ) -> SerializationConfig:
         """Visit serialization block containing format configuration."""
         format_value = SerializationFormat.JSON  # Default
         compatibility = None
@@ -551,17 +587,19 @@ class CoreVisitorMixin(BaseVisitorMixin):
             compatibility=compatibility,
             subject=subject,
             registry_url=registry_url,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitFormatDecl(self, ctx: SchemaDSLParser.FormatDeclContext) -> SerializationFormat:
+    def visitFormatDecl(
+        self, ctx: SchemaDSLParser.FormatDeclContext
+    ) -> SerializationFormat:
         """Visit format declaration: format json|avro|confluent_avro|protobuf."""
         format_text = self._get_text(ctx.serializationFormat()).lower()
         format_map = {
-            'json': SerializationFormat.JSON,
-            'avro': SerializationFormat.AVRO,
-            'confluent_avro': SerializationFormat.CONFLUENT_AVRO,
-            'protobuf': SerializationFormat.PROTOBUF,
+            "json": SerializationFormat.JSON,
+            "avro": SerializationFormat.AVRO,
+            "confluent_avro": SerializationFormat.CONFLUENT_AVRO,
+            "protobuf": SerializationFormat.PROTOBUF,
         }
         return format_map.get(format_text, SerializationFormat.JSON)
 
@@ -571,12 +609,12 @@ class CoreVisitorMixin(BaseVisitorMixin):
         """Visit serialization compatibility declaration."""
         mode_text = self._get_text(ctx.compatibilityMode()).lower()
         mode_map = {
-            'backward': CompatibilityMode.BACKWARD,
-            'forward': CompatibilityMode.FORWARD,
-            'full': CompatibilityMode.FULL,
-            'none': CompatibilityMode.NONE,
-            'backward_compatible': CompatibilityMode.BACKWARD,
-            'forward_compatible': CompatibilityMode.FORWARD,
+            "backward": CompatibilityMode.BACKWARD,
+            "forward": CompatibilityMode.FORWARD,
+            "full": CompatibilityMode.FULL,
+            "none": CompatibilityMode.NONE,
+            "backward_compatible": CompatibilityMode.BACKWARD,
+            "forward_compatible": CompatibilityMode.FORWARD,
         }
         return mode_map.get(mode_text, CompatibilityMode.BACKWARD)
 

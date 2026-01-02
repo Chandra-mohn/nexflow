@@ -8,29 +8,30 @@ Top-level program and transform definition dataclasses.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 from .common import SourceLocation
 
 if TYPE_CHECKING:
     from backend.ast.common import ImportStatement
-from .metadata import TransformMetadata, CacheDecl, LookupsBlock, ParamsBlock
-from .specs import InputSpec, OutputSpec
 from .blocks import (
     ApplyBlock,
-    MappingsBlock,
     ComposeBlock,
+    InvariantBlock,
+    MappingsBlock,
+    OnChangeBlock,
+    OnErrorBlock,
     ValidateInputBlock,
     ValidateOutputBlock,
-    InvariantBlock,
-    OnErrorBlock,
-    OnChangeBlock,
 )
+from .metadata import CacheDecl, LookupsBlock, ParamsBlock, TransformMetadata
+from .specs import InputSpec, OutputSpec
 
 
 @dataclass
 class TransformDef:
     """Field/Expression level transform definition."""
+
     name: str
     metadata: Optional[TransformMetadata] = None
     pure: Optional[bool] = None
@@ -50,6 +51,7 @@ class TransformDef:
 @dataclass
 class UseBlock:
     """Use block for importing other transforms."""
+
     transforms: List[str]
     location: Optional[SourceLocation] = None
 
@@ -57,6 +59,7 @@ class UseBlock:
 @dataclass
 class TransformBlockDef:
     """Block-level transform definition."""
+
     name: str
     metadata: Optional[TransformMetadata] = None
     use: Optional[UseBlock] = None
@@ -77,7 +80,8 @@ class TransformBlockDef:
 @dataclass
 class Program:
     """Top-level program containing transform definitions."""
+
     transforms: List[TransformDef] = field(default_factory=list)
     transform_blocks: List[TransformBlockDef] = field(default_factory=list)
-    imports: List['ImportStatement'] = field(default_factory=list)  # v0.7.0+
+    imports: List["ImportStatement"] = field(default_factory=list)
     location: Optional[SourceLocation] = None

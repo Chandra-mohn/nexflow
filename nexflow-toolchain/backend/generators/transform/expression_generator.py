@@ -7,7 +7,7 @@ Expression Generator Mixin
 Generates Java code from L3 Transform expression AST nodes.
 """
 
-from typing import Set, List, Optional
+from typing import List, Optional, Set
 
 from backend.ast import transform_ast as ast
 from backend.generators.transform.expression_operators import ExpressionOperatorsMixin
@@ -47,40 +47,46 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
     # String instance methods: called as firstArg.methodName(remainingArgs)
     # These are called on the first argument, not as static methods
     STRING_INSTANCE_METHODS = {
-        "len": "length",           # len(str) -> str.length()
-        "upper": "toUpperCase",    # upper(str) -> str.toUpperCase()
-        "lower": "toLowerCase",    # lower(str) -> str.toLowerCase()
-        "trim": "trim",            # trim(str) -> str.trim()
-        "concat": "concat",        # concat(str1, str2) -> str1.concat(str2)
+        "len": "length",  # len(str) -> str.length()
+        "upper": "toUpperCase",  # upper(str) -> str.toUpperCase()
+        "lower": "toLowerCase",  # lower(str) -> str.toLowerCase()
+        "trim": "trim",  # trim(str) -> str.trim()
+        "concat": "concat",  # concat(str1, str2) -> str1.concat(str2)
         "substring": "substring",  # substring(str, start, end) -> str.substring(start, end)
-        "contains": "contains",    # contains(str, substr) -> str.contains(substr)
+        "contains": "contains",  # contains(str, substr) -> str.contains(substr)
         "starts_with": "startsWith",  # starts_with(str, prefix) -> str.startsWith(prefix)
-        "ends_with": "endsWith",      # ends_with(str, suffix) -> str.endsWith(suffix)
+        "ends_with": "endsWith",  # ends_with(str, suffix) -> str.endsWith(suffix)
     }
 
     # Voltage encryption/decryption functions routed to NexflowRuntime
     VOLTAGE_FUNCTIONS = {
-        "encrypt",      # encrypt(value, profile) - Format-Preserving Encryption
-        "decrypt",      # decrypt(value, profile) - Format-Preserving Decryption
-        "protect",      # protect(value, profile) - Alias for encrypt (Voltage SDK term)
-        "access",       # access(value, profile)  - Alias for decrypt (Voltage SDK term)
-        "mask",         # mask(value, pattern)    - Data masking (non-reversible)
-        "hash",         # hash(value)             - One-way hash
+        "encrypt",  # encrypt(value, profile) - Format-Preserving Encryption
+        "decrypt",  # decrypt(value, profile) - Format-Preserving Decryption
+        "protect",  # protect(value, profile) - Alias for encrypt (Voltage SDK term)
+        "access",  # access(value, profile)  - Alias for decrypt (Voltage SDK term)
+        "mask",  # mask(value, pattern)    - Data masking (non-reversible)
+        "hash",  # hash(value)             - One-way hash
     }
 
     # Collection function names (RFC: Collection Operations Instead of Loops)
     COLLECTION_FUNCTIONS = {
-        "any", "all", "none",  # Predicate functions
-        "sum", "count", "avg",  # Aggregate functions
-        "filter", "find", "distinct",  # Transform functions
+        "any",
+        "all",
+        "none",  # Predicate functions
+        "sum",
+        "count",
+        "avg",  # Aggregate functions
+        "filter",
+        "find",
+        "distinct",  # Transform functions
     }
 
-    # Date context functions (v0.7.0+) routed to NexflowRuntime
+    # Date context functions routed to NexflowRuntime
     # These require process-level context for calendar resolution
     DATE_CONTEXT_FUNCTIONS = {
-        "processing_date",      # processing_date() - System time when record is processed
-        "business_date",        # business_date()   - Business date from calendar context
-        "business_date_offset", # business_date_offset(n) - Business date +/- n days
+        "processing_date",  # processing_date() - System time when record is processed
+        "business_date",  # business_date()   - Business date from calendar context
+        "business_date_offset",  # business_date_offset(n) - Business date +/- n days
     }
 
     def generate_expression(
@@ -88,7 +94,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         expr: ast.Expression,
         use_map: bool = False,
         local_vars: Optional[List[str]] = None,
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate Java code for an expression.
 
@@ -119,48 +125,77 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
             return "null"
 
         if isinstance(expr, ast.ListLiteral):
-            elements = ", ".join(self.generate_expression(e, use_map, local_vars, assigned_output_fields) for e in expr.values)
+            elements = ", ".join(
+                self.generate_expression(e, use_map, local_vars, assigned_output_fields)
+                for e in expr.values
+            )
             return f"Arrays.asList({elements})"
 
         if isinstance(expr, ast.FieldPath):
-            return self._generate_field_path(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_field_path(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.FunctionCall):
-            return self._generate_function_call(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_function_call(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.WhenExpression):
-            return self._generate_when_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_when_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.BinaryExpression):
-            return self._generate_binary_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_binary_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.UnaryExpression):
-            return self._generate_unary_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_unary_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.BetweenExpression):
-            return self._generate_between_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_between_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.InExpression):
-            return self._generate_in_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_in_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.IsNullExpression):
-            return self._generate_is_null_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_is_null_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.ParenExpression):
-            inner = self.generate_expression(expr.inner, use_map, local_vars, assigned_output_fields)
+            inner = self.generate_expression(
+                expr.inner, use_map, local_vars, assigned_output_fields
+            )
             return f"({inner})"
 
         if isinstance(expr, ast.OptionalChainExpression):
-            return self._generate_optional_chain(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_optional_chain(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.IndexExpression):
-            return self._generate_index_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_index_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.LambdaExpression):
-            return self._generate_lambda_expression(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_lambda_expression(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         if isinstance(expr, ast.ObjectLiteral):
-            return self._generate_object_literal(expr, use_map, local_vars, assigned_output_fields)
+            return self._generate_object_literal(
+                expr, use_map, local_vars, assigned_output_fields
+            )
 
         return "/* UNSUPPORTED EXPRESSION */"
 
@@ -169,7 +204,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         fp: ast.FieldPath,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate Java getter chain for field path."""
         if assigned_output_fields is None:
@@ -214,7 +249,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         func: ast.FunctionCall,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate Java function call."""
         if assigned_output_fields is None:
@@ -222,26 +257,36 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
 
         # Handle collection functions (RFC: Collection Operations Instead of Loops)
         if func.name in self.COLLECTION_FUNCTIONS:
-            return self._generate_collection_function_call(func, use_map, local_vars, assigned_output_fields)
+            return self._generate_collection_function_call(
+                func, use_map, local_vars, assigned_output_fields
+            )
 
         # Handle Voltage encryption/decryption functions
         if func.name in self.VOLTAGE_FUNCTIONS:
-            return self._generate_voltage_function_call(func, use_map, local_vars, assigned_output_fields)
+            return self._generate_voltage_function_call(
+                func, use_map, local_vars, assigned_output_fields
+            )
 
-        # Handle date context functions (v0.7.0+)
+        # Handle date context functions
         if func.name in self.DATE_CONTEXT_FUNCTIONS:
-            return self._generate_date_context_function_call(func, use_map, local_vars, assigned_output_fields)
+            return self._generate_date_context_function_call(
+                func, use_map, local_vars, assigned_output_fields
+            )
 
         # Handle string instance methods: upper(str) -> str.toUpperCase()
         if func.name in self.STRING_INSTANCE_METHODS:
-            return self._generate_string_instance_call(func, use_map, local_vars, assigned_output_fields)
+            return self._generate_string_instance_call(
+                func, use_map, local_vars, assigned_output_fields
+            )
 
         java_name = self._map_function_name(func.name)
 
         # For numeric functions like min/max, ensure arguments are numeric
-        if func.name in ('min', 'max') and use_map:
+        if func.name in ("min", "max") and use_map:
             args = ", ".join(
-                self._wrap_numeric_if_field(a, use_map, local_vars, assigned_output_fields, force_double=True)
+                self._wrap_numeric_if_field(
+                    a, use_map, local_vars, assigned_output_fields, force_double=True
+                )
                 for a in func.arguments
             )
         else:
@@ -256,7 +301,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         func: ast.FunctionCall,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate string instance method call.
 
@@ -276,7 +321,9 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
             return f"/* ERROR: {func.name}() requires at least one argument */"
 
         # First argument is the target object
-        target = self.generate_expression(func.arguments[0], use_map, local_vars, assigned_output_fields)
+        target = self.generate_expression(
+            func.arguments[0], use_map, local_vars, assigned_output_fields
+        )
 
         # Remaining arguments are method parameters
         if len(func.arguments) > 1:
@@ -294,7 +341,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         func: ast.FunctionCall,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate NexflowRuntime collection function call.
 
@@ -312,7 +359,11 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         # Generate arguments
         args = []
         for arg in func.arguments:
-            args.append(self.generate_expression(arg, use_map, local_vars, assigned_output_fields))
+            args.append(
+                self.generate_expression(
+                    arg, use_map, local_vars, assigned_output_fields
+                )
+            )
 
         # Map function name to NexflowRuntime method
         runtime_method = self._map_collection_function(func.name)
@@ -329,7 +380,7 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         func: ast.FunctionCall,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
         """Generate Voltage encryption/decryption function call.
 
@@ -355,7 +406,11 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         # Generate arguments
         args = []
         for arg in func.arguments:
-            args.append(self.generate_expression(arg, use_map, local_vars, assigned_output_fields))
+            args.append(
+                self.generate_expression(
+                    arg, use_map, local_vars, assigned_output_fields
+                )
+            )
 
         # Map function name to NexflowRuntime method
         # encrypt/protect both map to encrypt, decrypt/access both map to decrypt
@@ -376,9 +431,9 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
         func: ast.FunctionCall,
         use_map: bool,
         local_vars: List[str],
-        assigned_output_fields: Optional[List[str]] = None
+        assigned_output_fields: Optional[List[str]] = None,
     ) -> str:
-        """Generate date context function call (v0.7.0+).
+        """Generate date context function call.
 
         Date context functions provide access to process-level date information:
         - processing_date() - Returns the system time when the record is being processed
@@ -432,12 +487,12 @@ class ExpressionGeneratorMixin(ExpressionOperatorsMixin, ExpressionSpecialMixin)
     def get_expression_imports(self) -> Set[str]:
         """Get required imports for expression generation."""
         return {
-            'java.util.Arrays',
-            'java.util.Optional',
-            'java.util.Objects',
-            'java.util.Map',
-            'java.math.BigDecimal',
-            'java.time.Instant',
-            'java.time.LocalDate',
-            'com.nexflow.runtime.NexflowRuntime',
+            "java.util.Arrays",
+            "java.util.Optional",
+            "java.util.Objects",
+            "java.util.Map",
+            "java.math.BigDecimal",
+            "java.time.Instant",
+            "java.time.LocalDate",
+            "com.nexflow.runtime.NexflowRuntime",
         }

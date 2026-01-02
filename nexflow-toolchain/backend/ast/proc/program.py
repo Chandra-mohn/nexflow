@@ -6,31 +6,47 @@ Process AST Top-Level Structures
 
 Top-level program and process definition dataclasses.
 
-Updated for grammar v0.5.0+ which uses bodyContent for flexible ordering
+Updated for grammar which uses bodyContent for flexible ordering
 instead of separate inputBlock/outputBlock.
 
-Extended for EOD markers and phases (v0.6.0+).
+Extended for EOD markers and phases
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 from .common import SourceLocation
 
 if TYPE_CHECKING:
     from backend.ast.common import ImportStatement
+from .correlation import AwaitDecl, HoldDecl
 from .execution import ExecutionBlock
 from .input import ReceiveDecl
-from .processing import EnrichDecl, TransformDecl, RouteDecl, AggregateDecl, WindowDecl, JoinDecl, MergeDecl
-from .correlation import AwaitDecl, HoldDecl
-from .output import EmitDecl, CompletionBlock
-from .state import StateBlock
+from .markers import BusinessDateDecl, MarkersBlock, PhaseBlock, ProcessingDateDecl
+from .output import CompletionBlock, EmitDecl
+from .processing import (
+    AggregateDecl,
+    EnrichDecl,
+    JoinDecl,
+    MergeDecl,
+    RouteDecl,
+    TransformDecl,
+    WindowDecl,
+)
 from .resilience import ResilienceBlock
-from .markers import MarkersBlock, PhaseBlock, BusinessDateDecl, ProcessingDateDecl
-
+from .state import StateBlock
 
 # Type alias for processing operations
-ProcessingOp = Union[EnrichDecl, TransformDecl, RouteDecl, AggregateDecl, WindowDecl, JoinDecl, MergeDecl, Any]
+ProcessingOp = Union[
+    EnrichDecl,
+    TransformDecl,
+    RouteDecl,
+    AggregateDecl,
+    WindowDecl,
+    JoinDecl,
+    MergeDecl,
+    Any,
+]
 
 
 @dataclass
@@ -38,25 +54,24 @@ class ProcessDefinition:
     """
     Complete process definition.
 
-    v0.5.0+: Uses lists for receives, emits, correlations, completions
+    Uses lists for receives, emits, correlations, completions
     instead of single inputBlock/outputBlock containers.
 
-    v0.6.0+: Extended for EOD markers and phases:
+    Extended for EOD markers and phases:
     - business_date: Calendar reference for business date resolution
     - markers: EOD marker definitions
     - phases: Phase blocks containing statements
 
-    v0.7.0+: Extended for processing date:
+    Extended for processing date:
     - processing_date: System time when record is processed (auto mode)
     """
+
     name: str
     execution: Optional[ExecutionBlock] = None
-    # Business date, processing date, and markers (v0.6.0+, v0.7.0+)
     business_date: Optional[BusinessDateDecl] = None
-    processing_date: Optional[ProcessingDateDecl] = None  # v0.7.0+: system time
+    processing_date: Optional[ProcessingDateDecl] = None  # system time
     markers: Optional[MarkersBlock] = None
     phases: List[PhaseBlock] = field(default_factory=list)
-    # v0.5.0+: Direct lists instead of block containers
     receives: List[ReceiveDecl] = field(default_factory=list)
     processing: List[ProcessingOp] = field(default_factory=list)
     emits: List[EmitDecl] = field(default_factory=list)
@@ -87,7 +102,7 @@ class ProcessDefinition:
         """Backward compatibility: returns first completion or None."""
         return self.completions[0] if self.completions else None
 
-    # Helper methods for markers and phases (v0.6.0+)
+    # Helper methods for markers and phases
     def has_markers(self) -> bool:
         """Check if process has markers defined."""
         return self.markers is not None and len(self.markers.markers) > 0
@@ -101,7 +116,7 @@ class ProcessDefinition:
         return self.business_date is not None
 
     def has_processing_date(self) -> bool:
-        """Check if process uses processing date (v0.7.0+)."""
+        """Check if process uses processing date."""
         return self.processing_date is not None
 
     def is_phase_based(self) -> bool:
@@ -116,6 +131,7 @@ class ProcessDefinition:
 @dataclass
 class Program:
     """Top-level program containing process definitions."""
+
     processes: List[ProcessDefinition]
-    imports: List['ImportStatement'] = field(default_factory=list)  # v0.7.0+
+    imports: List["ImportStatement"] = field(default_factory=list)
     location: Optional[SourceLocation] = None

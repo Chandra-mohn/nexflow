@@ -5,7 +5,7 @@
 State Machine Visitor Mixin
 
 Handles parsing of state machine blocks: states, transitions, and actions.
-Updated for grammar v0.5.0+ with intuitive state and transition syntax.
+Updated for grammar with intuitive state and transition syntax.
 """
 
 from typing import List
@@ -17,7 +17,9 @@ from backend.parser.generated.schema import SchemaDSLParser
 class StateMachineVisitorMixin:
     """Mixin for state machine visitor methods."""
 
-    def visitStateMachineBlock(self, ctx: SchemaDSLParser.StateMachineBlockContext) -> ast.StateMachineBlock:
+    def visitStateMachineBlock(
+        self, ctx: SchemaDSLParser.StateMachineBlockContext
+    ) -> ast.StateMachineBlock:
         for_entity = None
         if ctx.forEntityDecl():
             for_entity = ctx.forEntityDecl().IDENTIFIER().getText()
@@ -26,9 +28,11 @@ class StateMachineVisitorMixin:
         initial_state = None
         terminal_states = []
 
-        # v0.5.0+: statesBlock replaces statesDecl
+        # statesBlock replaces statesDecl
         if ctx.statesBlock():
-            states, initial_state, terminal_states = self.visitStatesBlock(ctx.statesBlock())
+            states, initial_state, terminal_states = self.visitStatesBlock(
+                ctx.statesBlock()
+            )
 
         transitions = []
         if ctx.transitionsBlock():
@@ -45,7 +49,7 @@ class StateMachineVisitorMixin:
             transitions=transitions,
             on_transition_actions=on_transition_actions,
             terminal_states=terminal_states,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
     def visitStatesBlock(self, ctx: SchemaDSLParser.StatesBlockContext) -> tuple:
@@ -68,14 +72,16 @@ class StateMachineVisitorMixin:
                 # Check for qualifier (initial, terminal, final)
                 if state_def.stateQualifier():
                     qualifier = self._get_text(state_def.stateQualifier())
-                    if qualifier == 'initial':
+                    if qualifier == "initial":
                         initial_state = state_name
-                    elif qualifier in ('terminal', 'final'):
+                    elif qualifier in ("terminal", "final"):
                         terminal_states.append(state_name)
 
         return states, initial_state, terminal_states
 
-    def visitTransitionsBlock(self, ctx: SchemaDSLParser.TransitionsBlockContext) -> List[ast.TransitionDecl]:
+    def visitTransitionsBlock(
+        self, ctx: SchemaDSLParser.TransitionsBlockContext
+    ) -> List[ast.TransitionDecl]:
         """Visit transitions block - supports both original and arrow syntax."""
         transitions = []
 
@@ -91,23 +97,25 @@ class StateMachineVisitorMixin:
 
         return transitions
 
-    def visitTransitionDecl(self, ctx: SchemaDSLParser.TransitionDeclContext) -> ast.TransitionDecl:
+    def visitTransitionDecl(
+        self, ctx: SchemaDSLParser.TransitionDeclContext
+    ) -> ast.TransitionDecl:
         """Original transition syntax: from state: [targets]"""
         from_state = ctx.IDENTIFIER().getText()
         to_states = [ident.getText() for ident in ctx.stateArray().IDENTIFIER()]
         return ast.TransitionDecl(
-            from_state=from_state,
-            to_states=to_states,
-            location=self._get_location(ctx)
+            from_state=from_state, to_states=to_states, location=self._get_location(ctx)
         )
 
-    def visitTransitionArrowDecl(self, ctx: SchemaDSLParser.TransitionArrowDeclContext) -> ast.TransitionDecl:
+    def visitTransitionArrowDecl(
+        self, ctx: SchemaDSLParser.TransitionArrowDeclContext
+    ) -> ast.TransitionDecl:
         """Arrow transition syntax: from -> to: trigger"""
         identifiers = ctx.IDENTIFIER()
 
         # Handle wildcard (*) for from_state
-        if ctx.getChild(0).getText() == '*':
-            from_state = '*'
+        if ctx.getChild(0).getText() == "*":
+            from_state = "*"
             to_state = identifiers[0].getText()
             trigger = identifiers[1].getText() if len(identifiers) > 1 else None
         else:
@@ -119,22 +127,24 @@ class StateMachineVisitorMixin:
             from_state=from_state,
             to_states=[to_state],
             trigger=trigger,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitOnTransitionBlock(self, ctx: SchemaDSLParser.OnTransitionBlockContext) -> List[ast.TransitionAction]:
+    def visitOnTransitionBlock(
+        self, ctx: SchemaDSLParser.OnTransitionBlockContext
+    ) -> List[ast.TransitionAction]:
         actions = []
         for action_ctx in ctx.transitionAction():
             actions.append(self.visitTransitionAction(action_ctx))
         return actions
 
-    def visitTransitionAction(self, ctx: SchemaDSLParser.TransitionActionContext) -> ast.TransitionAction:
+    def visitTransitionAction(
+        self, ctx: SchemaDSLParser.TransitionActionContext
+    ) -> ast.TransitionAction:
         to_state = ctx.IDENTIFIER().getText()
         action = self.visitActionCall(ctx.actionCall())
         return ast.TransitionAction(
-            to_state=to_state,
-            action=action,
-            location=self._get_location(ctx)
+            to_state=to_state, action=action, location=self._get_location(ctx)
         )
 
     def visitActionCall(self, ctx: SchemaDSLParser.ActionCallContext) -> ast.ActionCall:
@@ -147,5 +157,5 @@ class StateMachineVisitorMixin:
         return ast.ActionCall(
             action_name=action_name,
             parameters=parameters,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )

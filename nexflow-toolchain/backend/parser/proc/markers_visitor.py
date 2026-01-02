@@ -5,10 +5,9 @@
 Markers Visitor Mixin for Proc Parser
 
 Handles parsing of EOD markers, phases, business date, and processing date declarations.
-Added in v0.6.0+ for phase-based execution control.
-Extended in v0.7.0+ for processing date support.
+Added for phase-based execution control.
+Extended for processing date support.
 """
-
 
 from backend.ast import proc_ast as ast
 from backend.parser.generated.proc import ProcDSLParser
@@ -17,64 +16,63 @@ from backend.parser.generated.proc import ProcDSLParser
 class ProcMarkersVisitorMixin:
     """Mixin for markers and phases visitor methods."""
 
-    def visitBusinessDateDecl(self, ctx: ProcDSLParser.BusinessDateDeclContext) -> ast.BusinessDateDecl:
+    def visitBusinessDateDecl(
+        self, ctx: ProcDSLParser.BusinessDateDeclContext
+    ) -> ast.BusinessDateDecl:
         """Parse: business_date from trading_calendar"""
         calendar_name = ctx.IDENTIFIER().getText()
         return ast.BusinessDateDecl(
-            calendar_name=calendar_name,
-            location=self._get_location(ctx)
+            calendar_name=calendar_name, location=self._get_location(ctx)
         )
 
-    def visitProcessingDateDecl(self, ctx: ProcDSLParser.ProcessingDateDeclContext) -> ast.ProcessingDateDecl:
+    def visitProcessingDateDecl(
+        self, ctx: ProcDSLParser.ProcessingDateDeclContext
+    ) -> ast.ProcessingDateDecl:
         """Parse: processing_date auto
 
         The processing_date declaration indicates that the system clock time
         should be captured when each record is processed.
         """
         # Currently only 'auto' mode is supported
-        return ast.ProcessingDateDecl(
-            mode="auto",
-            location=self._get_location(ctx)
-        )
+        return ast.ProcessingDateDecl(mode="auto", location=self._get_location(ctx))
 
-    def visitMarkersBlock(self, ctx: ProcDSLParser.MarkersBlockContext) -> ast.MarkersBlock:
+    def visitMarkersBlock(
+        self, ctx: ProcDSLParser.MarkersBlockContext
+    ) -> ast.MarkersBlock:
         """Parse: markers ... end"""
         markers = []
         for marker_ctx in ctx.markerDef():
             markers.append(self.visitMarkerDef(marker_ctx))
-        return ast.MarkersBlock(
-            markers=markers,
-            location=self._get_location(ctx)
-        )
+        return ast.MarkersBlock(markers=markers, location=self._get_location(ctx))
 
     def visitMarkerDef(self, ctx: ProcDSLParser.MarkerDefContext) -> ast.MarkerDef:
         """Parse: eod_1: when condition"""
         name = ctx.IDENTIFIER().getText()
         condition = self.visitMarkerCondition(ctx.markerCondition())
         return ast.MarkerDef(
-            name=name,
-            condition=condition,
-            location=self._get_location(ctx)
+            name=name, condition=condition, location=self._get_location(ctx)
         )
 
-    def visitMarkerCondition(self, ctx: ProcDSLParser.MarkerConditionContext) -> ast.AnyMarkerCondition:
+    def visitMarkerCondition(
+        self, ctx: ProcDSLParser.MarkerConditionContext
+    ) -> ast.AnyMarkerCondition:
         """Parse marker conditions (recursive for AND/OR)."""
         # Check for compound conditions (AND/OR)
         if ctx.AND():
             left = self.visitMarkerCondition(ctx.markerCondition(0))
             right = self.visitMarkerCondition(ctx.markerCondition(1))
             return ast.CompoundCondition(
-                operator='and',
+                operator="and",
                 conditions=[left, right],
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         elif ctx.OR():
             left = self.visitMarkerCondition(ctx.markerCondition(0))
             right = self.visitMarkerCondition(ctx.markerCondition(1))
             return ast.CompoundCondition(
-                operator='or',
+                operator="or",
                 conditions=[left, right],
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         # Parenthesized expression
         elif ctx.LPAREN():
@@ -83,8 +81,7 @@ class ProcMarkersVisitorMixin:
         elif ctx.DRAINED():
             stream_name = ctx.IDENTIFIER(0).getText()
             return ast.StreamDrainedCondition(
-                stream_name=stream_name,
-                location=self._get_location(ctx)
+                stream_name=stream_name, location=self._get_location(ctx)
             )
         # stream.count >= N condition
         elif ctx.COUNT():
@@ -95,14 +92,13 @@ class ProcMarkersVisitorMixin:
                 stream_name=stream_name,
                 operator=operator,
                 threshold=threshold,
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         # after time_spec condition
         elif ctx.AFTER():
             time_spec = self.visitTimeSpec(ctx.timeSpec())
             return ast.TimeBasedCondition(
-                time_spec=time_spec,
-                location=self._get_location(ctx)
+                time_spec=time_spec, location=self._get_location(ctx)
             )
         # api.service.check condition
         elif ctx.API():
@@ -112,10 +108,10 @@ class ProcMarkersVisitorMixin:
             service_name = identifiers[0].getText()
             check_name = identifiers[1].getText()
             return ast.ApiCheckCondition(
-                api_name='api',
+                api_name="api",
                 service_name=service_name,
                 check_name=check_name,
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         # Simple identifier - could be signal name or marker reference
         elif ctx.IDENTIFIER() and len(ctx.IDENTIFIER()) == 1:
@@ -123,8 +119,7 @@ class ProcMarkersVisitorMixin:
             # We can't distinguish signal from marker ref at parse time
             # Use SignalCondition as default (semantic analysis will resolve)
             return ast.SignalCondition(
-                signal_name=name,
-                location=self._get_location(ctx)
+                signal_name=name, location=self._get_location(ctx)
             )
 
         # Fallback - shouldn't reach here with valid grammar
@@ -153,7 +148,9 @@ class ProcMarkersVisitorMixin:
             elif body_ctx.emitDecl():
                 statements.append(self.visitEmitDecl(body_ctx.emitDecl()))
             elif body_ctx.correlationBlock():
-                statements.append(self.visitCorrelationBlock(body_ctx.correlationBlock()))
+                statements.append(
+                    self.visitCorrelationBlock(body_ctx.correlationBlock())
+                )
             elif body_ctx.completionBlock():
                 statements.append(self.visitCompletionBlock(body_ctx.completionBlock()))
 
@@ -166,7 +163,7 @@ class ProcMarkersVisitorMixin:
             spec=spec,
             statements=statements,
             on_complete=on_complete,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
     def visitPhaseSpec(self, ctx: ProcDSLParser.PhaseSpecContext) -> ast.PhaseSpec:
@@ -188,7 +185,9 @@ class ProcMarkersVisitorMixin:
 
         raise ValueError(f"Unknown phase spec at {location}")
 
-    def visitOnCompleteClause(self, ctx: ProcDSLParser.OnCompleteClauseContext) -> ast.OnCompleteClause:
+    def visitOnCompleteClause(
+        self, ctx: ProcDSLParser.OnCompleteClauseContext
+    ) -> ast.OnCompleteClause:
         """Parse: on complete [when expr] signal name [to target]"""
         # Get signal name - it's after SIGNAL keyword
         identifiers = ctx.IDENTIFIER()
@@ -209,17 +208,17 @@ class ProcMarkersVisitorMixin:
             signal_name=signal_name,
             target=target,
             condition=condition,
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )
 
-    def visitSignalStatement(self, ctx: ProcDSLParser.SignalStatementContext) -> ast.OnCompleteClause:
+    def visitSignalStatement(
+        self, ctx: ProcDSLParser.SignalStatementContext
+    ) -> ast.OnCompleteClause:
         """Parse: signal rollover to trading_calendar"""
         identifiers = ctx.IDENTIFIER()
         signal_name = identifiers[0].getText()
         target = identifiers[1].getText()
 
         return ast.OnCompleteClause(
-            signal_name=signal_name,
-            target=target,
-            location=self._get_location(ctx)
+            signal_name=signal_name, target=target, location=self._get_location(ctx)
         )

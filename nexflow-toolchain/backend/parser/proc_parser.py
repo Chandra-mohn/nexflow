@@ -7,7 +7,7 @@ Proc DSL (L1) Parser
 Parser wrapper for L1 Process Orchestration DSL with AST building.
 Uses modular visitor mixins for maintainability.
 
-Note: Due to grammar evolution (v0.5.0+), the full AST builder may fail to load
+Note: Due to grammar evolution the full AST builder may fail to load
 if visitor mixins reference non-existent parser contexts. In this case, the parser
 falls back to syntax-only validation mode.
 """
@@ -22,16 +22,16 @@ ProcASTBuilder = None
 
 try:
     from .proc import (
-        ProcHelpersVisitorMixin,
         ProcCoreVisitorMixin,
-        ProcExecutionVisitorMixin,
-        ProcInputVisitorMixin,
-        ProcProcessingVisitorMixin,
         ProcCorrelationVisitorMixin,
-        ProcOutputVisitorMixin,
-        ProcStateVisitorMixin,
-        ProcResilienceVisitorMixin,
+        ProcExecutionVisitorMixin,
+        ProcHelpersVisitorMixin,
+        ProcInputVisitorMixin,
         ProcMarkersVisitorMixin,
+        ProcOutputVisitorMixin,
+        ProcProcessingVisitorMixin,
+        ProcResilienceVisitorMixin,
+        ProcStateVisitorMixin,
     )
 
     class ProcASTBuilder(
@@ -45,7 +45,7 @@ try:
         ProcStateVisitorMixin,
         ProcResilienceVisitorMixin,
         ProcMarkersVisitorMixin,
-        ProcDSLVisitor
+        ProcDSLVisitor,
     ):
         """
         Visitor that builds AST from ANTLR parse tree for L1 Proc DSL.
@@ -60,8 +60,9 @@ try:
         - ProcOutputVisitorMixin: Output and completion blocks
         - ProcStateVisitorMixin: State management (uses, local, buffer)
         - ProcResilienceVisitorMixin: Error handling, checkpoint, backpressure
-        - ProcMarkersVisitorMixin: Business date, EOD markers, phases (v0.6.0+)
+        - ProcMarkersVisitorMixin: Business date, EOD markers, phases
         """
+
         pass
 
     _AST_BUILDER_AVAILABLE = True
@@ -70,6 +71,7 @@ except (AttributeError, ImportError) as e:
     # Visitors reference parser contexts that don't exist in current grammar
     # Fall back to syntax-only mode
     import logging
+
     logging.getLogger(__name__).warning(
         f"AST builder unavailable (grammar/visitor mismatch): {e}. "
         "Using syntax-only validation mode."

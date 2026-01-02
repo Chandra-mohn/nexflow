@@ -6,7 +6,7 @@ Condition Visitor Mixin for Rules Parser
 
 Handles parsing of condition types: range, set, pattern, null, comparison, expression.
 
-Extended in v0.6.0+ for marker state conditions.
+Extended for marker state conditions.
 """
 
 from backend.ast import rules_ast as ast
@@ -21,7 +21,9 @@ class RulesConditionVisitorMixin:
             return ast.WildcardCondition(location=self._get_location(ctx))
         elif ctx.exactMatch():
             literal = self.visitLiteral(ctx.exactMatch().literal())
-            return ast.ExactMatchCondition(value=literal, location=self._get_location(ctx))
+            return ast.ExactMatchCondition(
+                value=literal, location=self._get_location(ctx)
+            )
         elif ctx.rangeCondition():
             return self.visitRangeCondition(ctx.rangeCondition())
         elif ctx.setCondition():
@@ -39,7 +41,9 @@ class RulesConditionVisitorMixin:
 
         return ast.WildcardCondition(location=self._get_location(ctx))
 
-    def visitRangeCondition(self, ctx: RulesDSLParser.RangeConditionContext) -> ast.RangeCondition:
+    def visitRangeCondition(
+        self, ctx: RulesDSLParser.RangeConditionContext
+    ) -> ast.RangeCondition:
         if ctx.numberLiteral():
             nums = ctx.numberLiteral()
             min_val = self.visitNumberLiteral(nums[0])
@@ -52,16 +56,16 @@ class RulesConditionVisitorMixin:
             return ast.RangeCondition(
                 min_value=ast.IntegerLiteral(0),
                 max_value=ast.IntegerLiteral(0),
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
 
         return ast.RangeCondition(
-            min_value=min_val,
-            max_value=max_val,
-            location=self._get_location(ctx)
+            min_value=min_val, max_value=max_val, location=self._get_location(ctx)
         )
 
-    def visitSetCondition(self, ctx: RulesDSLParser.SetConditionContext) -> ast.SetCondition:
+    def visitSetCondition(
+        self, ctx: RulesDSLParser.SetConditionContext
+    ) -> ast.SetCondition:
         values = []
         if ctx.valueList():
             for val_ctx in ctx.valueList().valueExpr():
@@ -70,12 +74,12 @@ class RulesConditionVisitorMixin:
         negated = ctx.NOT() is not None
 
         return ast.SetCondition(
-            values=values,
-            negated=negated,
-            location=self._get_location(ctx)
+            values=values, negated=negated, location=self._get_location(ctx)
         )
 
-    def visitPatternCondition(self, ctx: RulesDSLParser.PatternConditionContext) -> ast.PatternCondition:
+    def visitPatternCondition(
+        self, ctx: RulesDSLParser.PatternConditionContext
+    ) -> ast.PatternCondition:
         string_lit = ctx.stringLiteral()
         if string_lit.DQUOTED_STRING():
             pattern = self._strip_quotes(string_lit.DQUOTED_STRING().getText())
@@ -94,38 +98,39 @@ class RulesConditionVisitorMixin:
             match_type = ast.PatternMatchType.MATCHES
 
         return ast.PatternCondition(
-            match_type=match_type,
-            pattern=pattern,
-            location=self._get_location(ctx)
+            match_type=match_type, pattern=pattern, location=self._get_location(ctx)
         )
 
-    def visitNullCondition(self, ctx: RulesDSLParser.NullConditionContext) -> ast.NullCondition:
-        is_null = ctx.IS_NULL() is not None or \
-                  (ctx.IS() is not None and ctx.NULL() is not None and ctx.NOT() is None)
-
-        return ast.NullCondition(
-            is_null=is_null,
-            location=self._get_location(ctx)
+    def visitNullCondition(
+        self, ctx: RulesDSLParser.NullConditionContext
+    ) -> ast.NullCondition:
+        is_null = ctx.IS_NULL() is not None or (
+            ctx.IS() is not None and ctx.NULL() is not None and ctx.NOT() is None
         )
 
-    def visitComparisonCondition(self, ctx: RulesDSLParser.ComparisonConditionContext) -> ast.ComparisonCondition:
+        return ast.NullCondition(is_null=is_null, location=self._get_location(ctx))
+
+    def visitComparisonCondition(
+        self, ctx: RulesDSLParser.ComparisonConditionContext
+    ) -> ast.ComparisonCondition:
         op = self.visitComparisonOp(ctx.comparisonOp())
         value = self.visitValueExpr(ctx.valueExpr())
 
         return ast.ComparisonCondition(
-            operator=op,
-            value=value,
-            location=self._get_location(ctx)
+            operator=op, value=value, location=self._get_location(ctx)
         )
 
-    def visitExpressionCondition(self, ctx: RulesDSLParser.ExpressionConditionContext) -> ast.ExpressionCondition:
+    def visitExpressionCondition(
+        self, ctx: RulesDSLParser.ExpressionConditionContext
+    ) -> ast.ExpressionCondition:
         expr = self.visitBooleanExpr(ctx.booleanExpr())
         return ast.ExpressionCondition(
-            expression=expr,
-            location=self._get_location(ctx)
+            expression=expr, location=self._get_location(ctx)
         )
 
-    def visitMarkerStateCondition(self, ctx: RulesDSLParser.MarkerStateConditionContext) -> ast.MarkerStateCondition:
+    def visitMarkerStateCondition(
+        self, ctx: RulesDSLParser.MarkerStateConditionContext
+    ) -> ast.MarkerStateCondition:
         """Parse marker state condition (v0.6.0+).
 
         Examples:
@@ -139,25 +144,25 @@ class RulesConditionVisitorMixin:
             return ast.MarkerStateCondition(
                 state_type=ast.MarkerStateType.FIRED,
                 marker_name=identifiers[0].getText(),
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         elif ctx.PENDING():
             return ast.MarkerStateCondition(
                 state_type=ast.MarkerStateType.PENDING,
                 marker_name=identifiers[0].getText(),
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
         elif ctx.BETWEEN_MARKERS():
             return ast.MarkerStateCondition(
                 state_type=ast.MarkerStateType.BETWEEN,
                 marker_name=identifiers[0].getText(),
                 end_marker=identifiers[1].getText(),
-                location=self._get_location(ctx)
+                location=self._get_location(ctx),
             )
 
         # Fallback - shouldn't reach here with valid grammar
         return ast.MarkerStateCondition(
             state_type=ast.MarkerStateType.PENDING,
             marker_name="unknown",
-            location=self._get_location(ctx)
+            location=self._get_location(ctx),
         )

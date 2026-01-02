@@ -28,21 +28,21 @@ from typing import Optional
 
 from backend.ast import proc_ast as ast
 from backend.ast.infra import InfraConfig
-from backend.generators.base import BaseGenerator, GeneratorConfig, GenerationResult
-from backend.generators.scaffold_generator import ScaffoldGenerator
+from backend.generators.base import BaseGenerator, GenerationResult, GeneratorConfig
 from backend.generators.infra import BindingResolver
-from backend.generators.proc.source_generator import SourceGeneratorMixin
-from backend.generators.proc.operator_generator import OperatorGeneratorMixin
-from backend.generators.proc.window_generator import WindowGeneratorMixin
-from backend.generators.proc.sink_generator import SinkGeneratorMixin
-from backend.generators.proc.state_generator import StateGeneratorMixin
-from backend.generators.proc.state_context_generator import StateContextGeneratorMixin
-from backend.generators.proc.resilience_generator import ResilienceGeneratorMixin
 from backend.generators.proc.job_generator import JobGeneratorMixin
-from backend.generators.proc.proc_process_function import ProcProcessFunctionMixin
-from backend.generators.proc.mongo_sink_generator import MongoSinkGeneratorMixin
 from backend.generators.proc.metrics_generator import MetricsGeneratorMixin
+from backend.generators.proc.mongo_sink_generator import MongoSinkGeneratorMixin
+from backend.generators.proc.operator_generator import OperatorGeneratorMixin
 from backend.generators.proc.phase_generator import PhaseGeneratorMixin
+from backend.generators.proc.proc_process_function import ProcProcessFunctionMixin
+from backend.generators.proc.resilience_generator import ResilienceGeneratorMixin
+from backend.generators.proc.sink_generator import SinkGeneratorMixin
+from backend.generators.proc.source_generator import SourceGeneratorMixin
+from backend.generators.proc.state_context_generator import StateContextGeneratorMixin
+from backend.generators.proc.state_generator import StateGeneratorMixin
+from backend.generators.proc.window_generator import WindowGeneratorMixin
+from backend.generators.scaffold_generator import ScaffoldGenerator
 
 
 class ProcGenerator(
@@ -58,7 +58,7 @@ class ProcGenerator(
     MongoSinkGeneratorMixin,
     MetricsGeneratorMixin,
     PhaseGeneratorMixin,
-    BaseGenerator
+    BaseGenerator,
 ):
     """
     Generator for L1 Process DSL.
@@ -75,7 +75,9 @@ class ProcGenerator(
     - Business date and phase-based execution (EOD markers)
     """
 
-    def __init__(self, config: GeneratorConfig, infra_config: Optional[InfraConfig] = None):
+    def __init__(
+        self, config: GeneratorConfig, infra_config: Optional[InfraConfig] = None
+    ):
         super().__init__(config)
         self._current_schema_class = "Object"
         self._infra_config = infra_config
@@ -105,9 +107,7 @@ class ProcGenerator(
         # Generate main job class
         job_content = self.generate_job_class(process, package)
         self.result.add_file(
-            java_src_path / f"{class_name}Job.java",
-            job_content,
-            "java"
+            java_src_path / f"{class_name}Job.java", job_content, "java"
         )
 
         # Generate ProcessFunction if there's complex processing
@@ -116,16 +116,14 @@ class ProcGenerator(
             self.result.add_file(
                 java_src_path / f"{class_name}ProcessFunction.java",
                 process_func_content,
-                "java"
+                "java",
             )
 
         # Generate ProcessContext if there's state (L1 State Accessors)
         if process.state and (process.state.locals or process.state.buffers):
             context_content = self.generate_process_context(process, package)
             self.result.add_file(
-                java_src_path / f"{class_name}Context.java",
-                context_content,
-                "java"
+                java_src_path / f"{class_name}Context.java", context_content, "java"
             )
 
     def _needs_process_function(self, process: ast.ProcessDefinition) -> bool:
@@ -140,7 +138,7 @@ class ProcGenerator(
 
     def _get_input_type(self, process: ast.ProcessDefinition) -> str:
         """Get the input type for the process."""
-        # v0.5.0+: process.receives is direct list
+        # process.receives is direct list
         if process.receives:
             receive = process.receives[0]
             if receive.schema and receive.schema.schema_name:
@@ -149,7 +147,7 @@ class ProcGenerator(
 
     def _get_output_type(self, process: ast.ProcessDefinition) -> str:
         """Get the output type for the process."""
-        # v0.5.0+: process.emits is direct list
+        # process.emits is direct list
         if process.emits:
             for emit in process.emits:
                 if isinstance(emit, ast.EmitDecl) and emit.schema:
